@@ -1,93 +1,165 @@
-# MAP GenAI Use Cases
+# Gen AI: Art of Possibility for AWS MAP Assessment
 
+A comprehensive Streamlit-based demonstration showcasing how Generative AI can transform the AWS Migration Acceleration Program (MAP) assessment phase. This solution leverages Amazon Bedrock's Claude models to automate and enhance migration planning, cost optimization, modernization opportunity identification, and resource planning.
 
+![Gen AI MAP Assessment](sampledata/landing_page_image.jpeg)
 
-## Getting started
+## Overview
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+This demo illustrates the application of Generative AI during the MAP assessment phase, following the completion of on-premises discovery. It showcases capabilities that enhance migration planning, cost optimization, identification of modernization opportunities, and resource planning—processes which were previously both time-consuming and complex.
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+### Key Benefits
 
-## Add your files
+- **Accelerated Analysis**: Automated infrastructure data analysis to generate strategic recommendations
+- **Predictive Planning**: MAP funding milestone predictions and comprehensive migration wave plans
+- **Cost Optimization**: Data-driven cost projections and modernization pathway analysis
+- **Resource Intelligence**: Automated team structure and resource allocation planning
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
+## Features
 
+### 1. Modernization Opportunity Analysis
+- Analyzes architecture and on-premises infrastructure data
+- Identifies modernization pathways with corresponding AWS cost projections
+- Supports CSV inventory data and architecture image analysis
+- Provides detailed AWS service recommendations
+
+### 2. Migration Strategy Development
+- Creates data-driven migration patterns and wave planning
+- Generates cumulative spend forecasts and $50k milestone predictions
+- Processes AWS Calculator CSV exports
+- Accelerates migration timeline development
+
+### 3. Resource Planning
+- Develops detailed team structures and resource allocation plans
+- Provides five key outputs:
+  - Executive summary
+  - Team structure evaluation
+  - Resource summary
+  - Wave-based planning
+  - Role-based resource allocation
+- Supports Hub-and-Spoke and Wave-Based team models
+
+## High level process
+
+![High level porcess](sampledata/highlevel_process.png)
+
+## Technology Stack
+
+- **Frontend**: Streamlit for interactive web interface
+- **AI/ML**: Amazon Bedrock with Claude 3.7 Sonnet models
+- **Data and Image Processing**: Pandas, PyMuPDF for document processing
+
+## Prerequisites
+
+### AWS Requirements
+- An [AWS account](https://aws.amazon.com/) with appropriate permissions
+- Amazon Bedrock access with Claude model permissions in AWS regions US East (N. Virginia) *us-east-1* for this code.
+- [AWS CLI](https://aws.amazon.com/cli/)
+- Python (version 3.8 or later)
+- AWS CLI configured with appropriate credentials
+
+## Quick Start
+
+### 1. Clone the Repository
+``` Python3
+git clone <repository-url>
+cd map-genai-usecases-aws-sample
 ```
-cd existing_repo
-git remote add origin https://gitlab.aws.dev/prgneshs/map-genai-use-cases.git
-git branch -M main
-git push -uf origin main
+
+### 2. Install Dependencies
+``` Python3
+pip install -r requirements.txt
 ```
 
-## Integrate with your tools
+### 3. Configure AWS Credentials
+``` bash
+# Option 1: AWS CLI
+aws configure
 
-- [ ] [Set up project integrations](https://gitlab.aws.dev/prgneshs/map-genai-use-cases/-/settings/integrations)
+# Option 2: Environment Variables
+export AWS_ACCESS_KEY_ID=your_access_key
+export AWS_SECRET_ACCESS_KEY=your_secret_key
+export AWS_DEFAULT_REGION=us-east-1
+```
 
-## Collaborate with your team
+### 4. Enable Bedrock Models
+Ensure you have access to the following models in Amazon Bedrock:
+- `anthropic.claude-3-5-sonnet-20240620-v1:0`
+- `us.anthropic.claude-3-7-sonnet-20250219-v1:0`
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+### 5. Run the Application
+``` Python3
+streamlit run landing_page.py
+```
 
-## Test and Deploy
+The application will be available at `http://localhost:8501`
 
-Use the built-in continuous integration in GitLab.
+## Usage Guide
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+### Modernization Opportunity Analysis
+1. Navigate to the "Modernization Opportunity" page
+2. Upload your IT inventory CSV file
+3. Define the scope of modernization
+4. Optionally upload an on-premises architecture image
+5. Review modernization recommendations
 
-***
+### Migration Strategy Development
+1. Go to the "Migration Strategy" page
+2. Upload AWS Calculator CSV export
+3. Define migration parameters and constraints
+4. Generate comprehensive migration wave planning
+5. Review cost projections and milestone predictions
 
-# Editing this README
+### Resource Planning
+1. Access the "Resource Planning" page
+2. Upload migration strategy document with wave planning generated using "Migration Strategy" page 
+3. Review resource profile data (see /sampledata/resource_profile.csv)
+4. Generate detailed team structure recommendations
+5. Analyze resource allocation and planning outputs
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
 
-## Suggestions for a good README
+## Important Notes
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+> 💡 **AI Accuracy Disclaimer**: While our GenAI provides valuable insights, it might occasionally generate inaccurate predictions. Always validate and double-check AI-generated recommendations before implementation.
 
-## Name
-Choose a self-explaining name for your project.
+> 💡 **This solution is explicitly designed for proof-of-concept purposes** only to explore the art of possibility with Gen AI for MAP assessments. The current implementation prioritises functionality over production-grade capability. Please adhere to your company's security and compliance policies
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+### Best Practices
+- Validate all Gen AI-generated recommendations with domain experts
+- Test with your specific data
+- Monitor AWS costs
+- Optionally, use the following guidance to containerise the Streamlit App using Amazon EKS
+  - Build the Docker image and push this Docker image to Amazon Elastic Container Registry (ECR) 
+  - Define Kubernetes deployment and service manifests
+  - Set up Amazon Elastic Kubernetes Service (EKS) cluster and Fargate profile
+  - Configure Amazon CloudFront and Application Load Balancer
+  - Set up an AWS CodePipeline with CodeBuild (i.e build the Docker image, push it to ECR, and apply the Kubernetes manifests.) to automate the deployment process
+  - **Set up a secure VPC with proper subnets, route tables, and security groups. Implement IAM roles using principle of the least privillage, encryption, network policies, and VPC flow logs to enhance security. Use CloudWatch for comprehensive logging, metrics, alarms, and dashboards to ensure your application runs smoothly and efficiently.**
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+## Cost 
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
-
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+- Monitor Bedrock token usage and costs
+- Implement caching for repeated analyses
+- Use appropriate model sizes for different use cases
+- Consider Reserved Capacity for high-volume usage
 
 ## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ## License
-For open source projects, say how it is licensed.
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Support
+
+For support and questions:
+- Create an issue in the GitHub repository
+- Review the AWS Bedrock documentation
+- Check Streamlit documentation for UI-related issues
