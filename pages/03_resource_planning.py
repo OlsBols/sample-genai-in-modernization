@@ -6,8 +6,8 @@ migration strategy, wave planning data, and resource details.
 """
 
 import re
-import streamlit as st
 
+import streamlit as st
 from utils.bedrock_client import invoke_bedrock_model_with_reasoning
 from utils.file_handler import read_csv_file
 from utils.prompts_lib import get_resource_planning_prompt
@@ -40,7 +40,7 @@ def develop_resource_planning(strategy_content):
     Args:
         strategy_content (str): The migration strategy document content.
     """
-    pattern = r'\|(.*?)\|[\r\n]'
+    pattern = r"\|(.*?)\|[\r\n]"
     wave_planning_data = re.findall(pattern, strategy_content)
     if not wave_planning_data:
         wave_planning_data = ""
@@ -52,11 +52,9 @@ def develop_resource_planning(strategy_content):
     resource_prompt = get_resource_planning_prompt(
         strategy_content, wave_planning_data, resource_details
     )
-    resource_planning_data = invoke_bedrock_model_with_reasoning(
-        resource_prompt
-    )
+    resource_planning_data = invoke_bedrock_model_with_reasoning(resource_prompt)
 
-    if resource_planning_data:
+    if resource_planning_data and resource_planning_data.get("success", False):
         st.markdown(resource_planning_data["response"])
         print("*" * 80)
         print(resource_planning_data["reasoning"])
@@ -64,8 +62,15 @@ def develop_resource_planning(strategy_content):
             label="Download Strategy",
             data=resource_planning_data["response"],
             file_name="aws_resource_planning_data.md",
-            mime="text/markdown"
+            mime="text/markdown",
         )
+    elif resource_planning_data:
+        st.error(
+            f"Error generating resource planning: "
+            f"{resource_planning_data.get('error', 'Unknown error')}"
+        )
+    else:
+        st.error("Failed to generate resource planning data")
 
 
 if __name__ == "__main__":
@@ -76,9 +81,6 @@ if __name__ == "__main__":
     if st.button("Generate Resource Planning", type="primary"):
         if migration_strategy:
             with st.spinner(
-                'The resource planning is being developed. '
-                'This may take a few minutes.'
+                "The resource planning is being developed. This may take a few minutes."
             ):
-                develop_resource_planning(
-                    migration_strategy.read().decode("utf-8")
-                )
+                develop_resource_planning(migration_strategy.read().decode("utf-8"))
