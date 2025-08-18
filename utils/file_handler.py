@@ -1,54 +1,27 @@
 """
-File handling utilities for file processing and CSV data management.
+File handling utilities for CSV data management.
 
-This module provides functions for validating uploaded files, processing PDF documents,
-and reading CSV files with proper error handling and configuration management.
+This module provides functions for reading CSV files with proper error handling
+and configuration management.
 """
 
 import os
-import fitz
+
 import pandas as pd
 
 from utils.config import FILE_PATHS
 
 
-def validate_uploaded_file(uploaded_file):
-    """
-    Validate uploaded file exists and is accessible.
-    
-    Args:
-        uploaded_file: Streamlit uploaded file object
-        
-    Returns:
-        bool: True if file is valid, False otherwise
-    """
-    return uploaded_file is not None
-
-
-def process_pdf_bytes(uploaded_file):
-    """
-    Convert Streamlit uploaded file to PyMuPDF document.
-    
-    Args:
-        uploaded_file: Streamlit uploaded file object
-        
-    Returns:
-        fitz.Document: PyMuPDF document object
-    """
-    pdf_bytes = uploaded_file.getvalue()
-    return fitz.open(stream=pdf_bytes, filetype="pdf")
-
-
 def get_file_path(file_key: str) -> str:
     """
     Get file path for specified CSV data file.
-    
+
     Args:
         file_key (str): Key for the required file path
-        
+
     Returns:
         str: Full file path for the CSV file
-        
+
     Raises:
         KeyError: If file_key is not found in FILE_PATHS
     """
@@ -60,11 +33,11 @@ def get_file_path(file_key: str) -> str:
 def read_csv_file(file_key):
     """
     Read CSV file using configured file paths.
-    
+
     Args:
         file_key (str): Key for the CSV file in FILE_PATHS configuration
         **kwargs: Additional arguments to pass to pandas.read_csv()
-        
+
     Returns:
         Optional[pd.DataFrame]: DataFrame containing CSV data, None if error occurs
     """
