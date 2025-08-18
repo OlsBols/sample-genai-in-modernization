@@ -9,7 +9,6 @@ import io
 
 import pandas as pd
 import streamlit as st
-
 # pylint: disable=import-error
 from utils.bedrock_client import invoke_bedrock_model_without_reasoning
 from utils.prompts_lib import get_migration_patterns_prompt
@@ -21,10 +20,10 @@ if "strategy_text" not in st.session_state:
 def parse_aws_calculator_data(csv_data):
     """
     Parse AWS Calculator CSV data and return a pandas DataFrame.
-    
+
     Args:
         csv_data (str): Raw CSV data as string
-        
+
     Returns:
         pd.DataFrame or None: Parsed dataframe or None if parsing fails
     """
@@ -37,8 +36,9 @@ def parse_aws_calculator_data(csv_data):
                 start_idx = i
                 break
         # Read CSV from the header row
-        dataframe = pd.read_csv(io.StringIO('\n'.join(lines[start_idx:])),
-                               encoding='utf-8')
+        dataframe = pd.read_csv(
+            io.StringIO("\n".join(lines[start_idx:])), encoding="utf-8"
+        )
         return dataframe
     except (pd.errors.EmptyDataError, pd.errors.ParserError, ValueError) as error:
         st.error(f"Error parsing CSV data: {error}")
@@ -49,14 +49,16 @@ def page_details():
     """Display the page title and description."""
     # Define the app title and description
     st.title("Develop migration patterns and planning from AWS Calculator")
-    st.markdown("Upload your AWS Calculator CSV export to generate an "
-                "optimised migration strategy.")
+    st.markdown(
+        "Upload your AWS Calculator CSV export to generate an "
+        "optimised migration strategy.Please download migration strategy for the resource planning"
+    )
 
 
 def develop_migration_strategy(calculator_csv_data, migration_scope_text):
     """
     Develop migration strategy based on CSV data and scope text.
-    
+
     Args:
         calculator_csv_data (pd.DataFrame): Parsed AWS calculator data
         migration_scope_text (str): Migration scope details
@@ -71,7 +73,8 @@ def develop_migration_strategy(calculator_csv_data, migration_scope_text):
             label="Download Strategy",
             data=st.session_state["strategy_text"],
             file_name="aws_migration_strategy.md",
-            mime="text/markdown")
+            mime="text/markdown",
+        )
         st.session_state["strategy_text"] = strategy_text
 
 
@@ -82,18 +85,30 @@ if __name__ == "__main__":
     # Optional scope text area
     scope_text = st.text_area("Optional: Enter migration scope details", height=150)
     # Process the file when uploaded
+    calc_csv_data = None
     if uploaded_file is not None:
         try:
             calc_csv_data = parse_aws_calculator_data(
-                uploaded_file.read().decode("utf-8"))
-            st.subheader("AWS Calculator Data")
-            with st.expander("AWS Calculator Data"):
-                st.dataframe(calc_csv_data)
+                uploaded_file.read().decode("utf-8")
+            )
+            if calc_csv_data is not None:
+                st.subheader("AWS Calculator Data")
+                with st.expander("AWS Calculator Data"):
+                    st.dataframe(calc_csv_data)
+            else:
+                st.error("Failed to parse the CSV file. Please check the format.")
         except (UnicodeDecodeError, AttributeError) as error:
             st.error(f"Error processing the CSV file: {str(error)}")
-            st.info("Please ensure your CSV file follows the expected "
-                    "AWS Calculator export format.")
+            st.info(
+                "Please ensure your CSV file follows the expected "
+                "AWS Calculator export format."
+            )
+
     if st.button("Generate Migration Strategy", type="primary"):
-        with st.spinner('Generating your migration strategy... '
-                        'This may take a few minutes'):
-            develop_migration_strategy(calc_csv_data, scope_text)
+        if calc_csv_data is None:
+            st.error("Please upload a valid AWS Calculator CSV file first.")
+        else:
+            with st.spinner(
+                "Generating your migration strategy... This may take a few minutes"
+            ):
+                develop_migration_strategy(calc_csv_data, scope_text)
