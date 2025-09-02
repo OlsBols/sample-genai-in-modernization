@@ -1,6 +1,6 @@
-# Gen AI: Art of Possibility for AWS MAP Assessment
+# Generative AI: Art of Possibility for AWS MAP Assessment
 
-A comprehensive Streamlit-based demonstration showcasing how Generative AI can transform the AWS Migration Acceleration Program (MAP) assessment phase. This solution leverages Amazon Bedrock's Claude models to automate and enhance migration planning, cost optimization, modernization opportunity identification, and resource planning.
+A comprehensive Streamlit-based demonstration showcasing how Generative AI can transform the AWS Migration Acceleration Program (MAP) assessment phase. This solution leverages Amazon Bedrock Claude models to automate and enhance migration planning, cost optimization, modernization opportunity identification, and resource planning.
 
 ![Gen AI MAP Assessment](sampledata/landing_page_image.jpeg)
 
@@ -52,11 +52,11 @@ This demo illustrates the application of Generative AI during the MAP assessment
 ## Prerequisites
 
 ### AWS Requirements
-- An [AWS account](https://aws.amazon.com/) with appropriate permissions
+- An [AWS account](https://aws.amazon.com/)
 - Amazon Bedrock access with Claude model permissions in AWS regions US East (N. Virginia) *us-east-1* for this code.
-- [AWS CLI](https://aws.amazon.com/cli/)
+- [AWS Command Line Interface (AWS CLI)](https://aws.amazon.com/cli/)
 - Python (version 3.8 or later)
-- AWS CLI configured with appropriate credentials
+- [AWS CLI configured](https://docs.aws.amazon.com/cli/v1/userguide/cli-chap-configure.html) to interact with AWS services using commands in command-line shell
 
 ## Quick Start
 
@@ -122,28 +122,28 @@ The application will be available at `http://localhost:8501`
 
 > 💡 **AI Accuracy Disclaimer**: While our GenAI provides valuable insights, it might occasionally generate inaccurate predictions. Always validate and double-check AI-generated recommendations before implementation.
 
-> 💡 **This solution is explicitly designed for proof-of-concept purposes** only to explore the art of possibility with Gen AI for MAP assessments. The current implementation prioritises functionality over production-grade capability. Please adhere to your company's security and compliance policies
+> 💡 **This solution is explicitly designed for proof-of-concept purposes** only to explore the art of possibility with Generative AI for MAP assessments. The current implementation prioritises functionality over production-grade capability. Please adhere to your company's enhanced security and compliance policies
 
 
 ### Best Practices
-- Validate all Gen AI-generated recommendations with domain experts
-- Test with your specific data
+- Validate all Generative AI-generated recommendations with domain experts
+- Test with your specific data like IT inventory data (e.g., server lists, application catalogs), On-premises architecture diagrams,AWS Calculator and Resource profile data
 - Monitor AWS costs
-- Optionally, use the following guidance to containerise the Streamlit App using Amazon EKS
-  - Build the Docker image and push this Docker image to Amazon Elastic Container Registry (ECR) 
+- Optionally, use the following guidance to containerise the Streamlit App using Amazon Elastic Kubernetes Service (Amazon EKS)
+  - Build the Docker image and push this Docker image to Amazon Elastic Container Registry (Amazon ECR)
   - Define Kubernetes deployment and service manifests
   - Set up Amazon Elastic Kubernetes Service (EKS) cluster and Fargate profile
   - Configure Amazon CloudFront and Application Load Balancer
-  - Set up an AWS CodePipeline with CodeBuild (i.e build the Docker image, push it to ECR, and apply the Kubernetes manifests.) to automate the deployment process
-  - **Set up a secure VPC with proper subnets, route tables, and security groups. Implement IAM roles using principle of the least privillage, encryption, network policies, and VPC flow logs to enhance security. Use CloudWatch for comprehensive logging, metrics, alarms, and dashboards to ensure your application runs smoothly and efficiently.**
+  - Set up an AWS CodePipeline with AWS CodeBuild (i.e build the Docker image, push it to ECR, and apply the Kubernetes manifests.) to automate the deployment process
+  - **Set up Amazon Virtual Private Cloud (Amazon VPC) with enhanced security features and configure subnets, route tables, and security groups. Implement IAM roles using principle of the least privillage, encryption, network policies, and VPC flow logs to enhance security. Use CloudWatch for comprehensive logging, metrics, alarms, and dashboards to ensure your application runs smoothly and efficiently.**
 
 
 ## Cost 
 
-- Monitor Bedrock token usage and costs
+- [Amazon CloudWatch](https://docs.aws.amazon.com/bedrock/latest/userguide/monitoring.html) to monitor runtime metrics for Bedrock applications, providing additional insights into performance and cost management
 - Implement caching for repeated analyses
-- Use appropriate model sizes for different use cases
-- Consider Reserved Capacity for high-volume usage
+- Amazon Bedrock [supports foundation models (FMs)](https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html) from providers like Anthropic, Amazon, AI21 Labs, Cohere, DeepSeek,Luma AI, Meta, Mistral AI, OpenAI, Stability AI and others. Use appropriate model sizes for different use cases
+- Consider compute reserved capacity for high-volume usage
 
 ## Contributing
 
