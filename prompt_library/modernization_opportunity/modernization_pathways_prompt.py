@@ -1,4 +1,6 @@
-def get_modernization_pathways_prompt(inventory_csv,architecture_description,scope_text):
+def get_modernization_pathways_prompt(
+    inventory_csv, architecture_description, scope_text
+):
     prompt = f"""
         As an AWS migration expert, analyse the provided IT inventory, modernisation scope and target architecture analysis to develop an AWS modernisation strategy with implementation approach.
         Focus on cost optimisation and performance as key drivers.Always use USD($) as currency.

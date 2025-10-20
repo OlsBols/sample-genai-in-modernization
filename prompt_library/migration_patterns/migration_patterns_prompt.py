@@ -1,8 +1,8 @@
-def get_migration_patterns_prompt(services_summary,scope_text):
+def get_migration_patterns_prompt(services_summary, scope_text):
     prompt = f"""
         As an AWS migration expert, please develope an AWS migration strategy based on the following AWS calculator data: {services_summary} Ensure mathematical operations like addition, subtraction, multiplication, and division are correct for Compute, Storage and Database provided in the services_summary.
         
-        Additional scope information { scope_text if scope_text else ''}
+        Additional scope information {scope_text if scope_text else ""}
         
         In order to develop an AWS migration strategy adhere to the following fix structure only in response. Always use USD($) as currency. Use British English standards.
         1. Analyse the calculator data focusing on cost optimisation and performance as key drivers.

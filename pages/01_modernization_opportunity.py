@@ -5,14 +5,17 @@ images to generate AWS modernisation recommendations.
 
 import pandas as pd
 import streamlit as st
+
+from prompt_library.modernization_opportunity.invventory_analysis_prompt import \
+    get_invventory_analysis_prompt
+from prompt_library.modernization_opportunity.modernization_pathways_prompt import \
+    get_modernization_pathways_prompt
+from prompt_library.modernization_opportunity.onprem_architecture_prompt import \
+    get_onprem_architecture_prompt
 from utils.bedrock_client import (invoke_bedrock_model_for_image_analysis,
                                   invoke_bedrock_model_with_reasoning)
 from utils.image_processor import (convert_image_to_base64, get_image_type,
                                    resize_image)
-from prompt_library.modernization_opportunity.invventory_analysis_prompt import get_invventory_analysis_prompt
-from prompt_library.modernization_opportunity.modernization_pathways_prompt import get_modernization_pathways_prompt
-from prompt_library.modernization_opportunity.onprem_architecture_prompt import get_onprem_architecture_prompt
-
 
 if "inventory_analysis" not in st.session_state:
     st.session_state["inventory_analysis"] = "inventory_analysis"
@@ -20,6 +23,7 @@ if "modz_analysis" not in st.session_state:
     st.session_state["modz_analysis"] = "modz_analysis"
 if "onprem_architecture" not in st.session_state:
     st.session_state["onprem_architecture"] = "onprem_architecture"
+
 
 def page_details():
     """Display page title and description."""
@@ -46,7 +50,7 @@ def generate_inventory_analysis(inventory_data_csv):
         analysis_result = invoke_bedrock_model_with_reasoning(prompt)
 
         if not analysis_result.get("success", False):
-            error_msg = analysis_result.get('error', 'Unknown error')
+            error_msg = analysis_result.get("error", "Unknown error")
             st.error(f"Error generating inventory analysis: {error_msg}")
             return None
 
@@ -105,7 +109,7 @@ def recommend_modernisation_pathways(
         modernization_pathways = invoke_bedrock_model_with_reasoning(prompt)
 
         if not modernization_pathways.get("success", False):
-            error_msg = modernization_pathways.get('error', 'Unknown error')
+            error_msg = modernization_pathways.get("error", "Unknown error")
             st.error(f"Error generating modernisation recommendations: {error_msg}")
             return None
 

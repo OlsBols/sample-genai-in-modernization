@@ -9,9 +9,11 @@ import io
 
 import pandas as pd
 import streamlit as st
+
+from prompt_library.migration_patterns.migration_patterns_prompt import \
+    get_migration_patterns_prompt
 # pylint: disable=import-error
 from utils.bedrock_client import invoke_bedrock_model_without_reasoning
-from prompt_library.migration_patterns.migration_patterns_prompt import get_migration_patterns_prompt
 
 if "strategy_text" not in st.session_state:
     st.session_state["strategy_text"] = "strategy_text"

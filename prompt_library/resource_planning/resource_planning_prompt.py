@@ -29,19 +29,22 @@
 #         **Resource summary**
 #         • Recommended Team Structure
 
-#         **Planning for recommended team structure** 
+#         **Planning for recommended team structure**
 #         **Justification and Rationale**
 
 #         """
 #     return resource_prompt
 
-def get_resource_planning_prompt(migration_strategy,wave_planning_data,resource_details):
+
+def get_resource_planning_prompt(
+    migration_strategy, wave_planning_data, resource_details
+):
     # Step 3: Apply Structural Guidelines - Variables
     target_utilisation = "85-95%"
     team_pods = "3-5"
     contingency = "15-20%"
     effort_estimation = "Use person-days where 8 hours = 1 day and 5 days = 1 week"
-    
+
     resource_prompt = f"""
         As an AWS migration expert, please develop comprehensive AWS migration resource planning using the following inputs:
 
