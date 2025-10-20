@@ -9,9 +9,10 @@ from utils.bedrock_client import (invoke_bedrock_model_for_image_analysis,
                                   invoke_bedrock_model_with_reasoning)
 from utils.image_processor import (convert_image_to_base64, get_image_type,
                                    resize_image)
-from utils.prompts_lib import (get_invventory_analysis_prompt,
-                               get_modernization_pathways_prompt,
-                               get_onprem_architecture_prompt)
+from prompt_library.modernization_opportunity.invventory_analysis_prompt import get_invventory_analysis_prompt
+from prompt_library.modernization_opportunity.modernization_pathways_prompt import get_modernization_pathways_prompt
+from prompt_library.modernization_opportunity.onprem_architecture_prompt import get_onprem_architecture_prompt
+
 
 if "inventory_analysis" not in st.session_state:
     st.session_state["inventory_analysis"] = "inventory_analysis"

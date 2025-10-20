@@ -8,12 +8,11 @@ for key in st.session_state.keys():
     del st.session_state[key]
 
 # Title and Introduction
-st.title("Gen AI: Art of Possibility for AWS MAP Assessment")
+st.title("Gen AI: Art of Possibility for AWS MAP Use Cases")
 # Content on the right side
 st.markdown("""
     This demo illustrates the application of Generative AI during the MAP assessment phase, following the completion of on-premises discovery. It showcases capabilities that enhance migration planning, cost optimisation, identification of modernisation opportunities, and resource planning, processes which were previously both time-consuming and complex.
-    - This demo can analyse infrastructure data to generate strategic recommendations, predict MAP funding milestones, and create comprehensive migration wave plans.
-    - AWS partners can leverage these GenAI capabilities across three progressive implementation levels—from direct model usage to fully automated solutions—creating a transformative approach to cloud migration assessment.
+    - This demo can analyse infrastructure data to generate strategic recommendations, predict MAP funding milestones, and create migration wave plans.
     """)
 st.image(
     "sampledata/landing_page_image.jpeg",
@@ -28,5 +27,6 @@ st.markdown("""
 """)
 
 st.warning(
-    """ 💡 Remember, while our GenAI is a whiz at insights, it might occasionally daydream—so always double-check its predictions!"""
+    """ **AI Accuracy Disclaimer**: While our GenAI provides valuable insights, it might occasionally generate inaccurate predictions. Always validate and double-check AI-generated recommendations before implementation.""")
+st.warning("""**This solution is explicitly designed for proof-of-concept purposes** only to explore the art of possibility with Generative AI for MAP assessments. Please adhere to your company's enhanced security and compliance policies"""
 )

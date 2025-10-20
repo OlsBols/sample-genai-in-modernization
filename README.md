@@ -89,7 +89,7 @@ Ensure you have access to the following models in Amazon Bedrock:
 
 ### 5. Run the Application
 ``` Python3
-streamlit run landing_page.py
+streamlit run home_page.py
 ```
 
 The application will be available at `http://localhost:8501`
@@ -109,6 +109,7 @@ The application will be available at `http://localhost:8501`
 3. Define migration parameters and constraints
 4. Generate comprehensive migration wave planning
 5. Review cost projections and milestone predictions
+6. (optionally) Download the migration strategy document which is useful for the use case 'Resource Planning'
 
 ### Resource Planning
 1. Access the "Resource Planning" page
@@ -122,7 +123,7 @@ The application will be available at `http://localhost:8501`
 
 > 💡 **AI Accuracy Disclaimer**: While our GenAI provides valuable insights, it might occasionally generate inaccurate predictions. Always validate and double-check AI-generated recommendations before implementation.
 
-> 💡 **This solution is explicitly designed for proof-of-concept purposes** only to explore the art of possibility with Generative AI for MAP assessments. The current implementation prioritises functionality over production-grade capability. Please adhere to your company's enhanced security and compliance policies
+> 💡 **This solution is explicitly designed for proof-of-concept purposes** only to explore the art of possibility with Generative AI for MAP assessments. Please adhere to your company's enhanced security and compliance policies
 
 
 ### Best Practices
