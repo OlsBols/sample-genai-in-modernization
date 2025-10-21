@@ -15,7 +15,7 @@ st.markdown("""
     - This demo can analyse infrastructure data to generate strategic recommendations, predict MAP funding milestones, and create migration wave plans.
     """)
 st.image(
-    "sampledata/landing_page_image.jpeg",
+    "sampledata/home_page_image.jpeg",
     caption="Generative AI in AWS MAP Assessment Phase",
 )
 st.header("Key features:")

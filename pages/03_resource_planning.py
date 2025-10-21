@@ -9,8 +9,9 @@ import re
 
 import streamlit as st
 
-from prompt_library.resource_planning.resource_planning_prompt import \
-    get_resource_planning_prompt
+from prompt_library.resource_planning.resource_planning_prompt import (
+    get_resource_planning_prompt,
+)
 from utils.bedrock_client import invoke_bedrock_model_with_reasoning
 from utils.file_handler import read_csv_file
 

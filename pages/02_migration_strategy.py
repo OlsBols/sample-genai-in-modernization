@@ -10,8 +10,10 @@ import io
 import pandas as pd
 import streamlit as st
 
-from prompt_library.migration_patterns.migration_patterns_prompt import \
-    get_migration_patterns_prompt
+from prompt_library.migration_patterns.migration_patterns_prompt import (
+    get_migration_patterns_prompt,
+)
+
 # pylint: disable=import-error
 from utils.bedrock_client import invoke_bedrock_model_without_reasoning
 

@@ -28,7 +28,7 @@ DEFAULT_REASONING_BUDGET = 2000
 MEDIA_TYPE = "image/png"
 
 # File Paths Configuration
-FILE_PATHS = {"resource_profile": "sampledata/resource_profile.csv"}
+FILE_PATHS = {"resource_profile": "sampledata/resource_profile_template.csv"}
 
 
 def get_aws_region() -> str:
