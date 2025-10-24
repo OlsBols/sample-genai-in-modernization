@@ -1,27 +1,15 @@
-# Generative AI: Art of Possibility for AWS MAP Assessment
-
-A comprehensive Streamlit-based demonstration showcasing how Generative AI can transform the AWS Migration Acceleration Program (MAP) assessment phase. This solution leverages Amazon Bedrock Claude models to automate and enhance migration planning, cost optimization, modernization opportunity identification, and resource planning.
-
-
 ## Overview
 
-This demo illustrates the application of Generative AI during the MAP assessment phase, following the completion of on-premises discovery. It showcases capabilities that enhance migration planning, cost optimization, identification of modernization opportunities, and resource planning—processes which were previously both time-consuming and complex.
-
-### Key Benefits
-
-- **Accelerated Analysis**: Automated infrastructure data analysis to generate strategic recommendations
-- **Predictive Planning**: MAP funding milestone predictions and comprehensive migration wave plans
-- **Cost Optimization**: Data-driven cost projections and modernization pathway analysis
-- **Resource Intelligence**: Automated team structure and resource allocation planning
+This solution illustrates the application of Generative AI (Gen AI) during the AWS Migration Acceleration Program (MAP) assessment phase, following the completion of on-premises discovery. It showcases capabilities that enhance migration planning, cost optimization, identification of modernization opportunities, and resource planning—processes which were previously both time-consuming and complex.
 
 ## Features
 
 ### 1. Modernization Opportunity Analysis
 
-- Analyzes architecture and on-premises infrastructure data
-- Identifies modernization pathways with corresponding AWS cost projections
+- Analyzes on-premises architecture and infrastructure data
+- Identifies [modernization pathways](https://aws.amazon.com/blogs/migration-and-modernization/move-to-ai-pathway/) with corresponding AWS cost projections
 - Supports CSV inventory data and architecture image analysis
-- Provides detailed AWS service recommendations
+- Provides AWS service recommendations
 
 ### 2. Migration Strategy Development
 
@@ -41,8 +29,8 @@ This demo illustrates the application of Generative AI during the MAP assessment
   - Role-based resource allocation
 - Supports Hub-and-Spoke and Wave-Based team models
 
-#### 4. Prompt Library
-The Prompt Library is a collection of prompts designed to enable AWS customers and partners to accelerate their Gen AI adoption across migration and modernization phase. It includes a structured prompt library with pre-built templates for each use case. These templates are designed to be reviewed and tailored to your specific requirements.
+### 4. Prompt Library
+The Prompt Library is a collection of prompts designed to accelerate their Gen AI adoption across migration and modernization phase. It includes a structured prompt library with pre-built templates for each use case. These templates are designed to be reviewed and tailored to your specific requirements.
 
 #### Modernization Cost and Analysis Prompts
 
@@ -52,7 +40,7 @@ The Prompt Library is a collection of prompts designed to enable AWS customers a
 
 ### Migration Strategy Prompts
 
-- Generates three migration approaches, analyse common, compares patterns to identify consistent strategic elements and synthesizes optimal final strategy from cross-pattern analysis
+- Generates three migration approaches, compares patterns to identify consistent strategic elements and synthesizes optimal final strategy from cross-pattern analysis
 - Creates structured migration waves and cost projection methodology
 - Predicts $50,000 USD milestone achievement with adjustable acceleration strategies
 
@@ -112,13 +100,13 @@ export AWS_DEFAULT_REGION=us-east-1
 
 ### 4. Enable Bedrock Models
 
-Ensure you have access to the following models in [Amazon Bedrock](https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html):
+Ensure you have access to the following model in [Amazon Bedrock](https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html):
 
 - Anthropic Claude 3.7 Sonnet (`us.anthropic.claude-3-7-sonnet-20250219-v1:0`)
 
 ### 5. Review Configuration in utils/config.py
 
-Before running the application, review and optionally modify the configuration settings in `utils/config.py`:
+Before running the application, review the configuration settings in `utils/config.py`:
 
 - **AWS Region**: Defaults to `us-east-1` (can be overridden via `AWS_REGION` environment variable)
 - **Amazon Bedrock Model**: Claude 3.7 Sonnet (`us.anthropic.claude-3-7-sonnet-20250219-v1:0`) and model parameters
@@ -137,8 +125,8 @@ Before running the application, review the default prompt templates in the `prom
 
 **Modernization Opportunity Prompts** (`prompt_library/modernization_opportunity/`):
 - `invventory_analysis_prompt.py` - High level inventory analysis 
-- `modernization_pathways_prompt.py` - The odernization pathways and cost estimation parameters
-- `onprem_architecture_prompt.py` - Architecture analysis domains and component identification criteria
+- `modernization_pathways_prompt.py` - The modernization pathways and cost estimation parameters
+- `onprem_architecture_prompt.py` - Architecture analysis across different domains
 
 **Migration Strategy Prompts** (`prompt_library/migration_patterns/`):
 - `migration_patterns_prompt.py` - The migration pattern approaches and wave planning methodology
@@ -158,11 +146,6 @@ streamlit run home_page.py
 The application will be available at `http://localhost:8501`
 
 ## Usage Guide
-
-## Before You Begin: Prompt Customization
-
-Each use case leverages specialized default prompt templates (locakted into  `prompt_library` directory) that can be customized to tailered to your requirements
-
 
 ### Modernization Opportunity Analysis
 
