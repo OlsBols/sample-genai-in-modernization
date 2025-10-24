@@ -24,7 +24,7 @@ This module serves as the prompt engineering foundation for automated resource p
 - 1. Processes migration strategy documents 
 - 2. Incorporates wave planning data and timelines 
 - 3. Utilises resource profile information for cost and skill matching
-- Note: (a) The input for items 1 and 2 could be a migration strategy generated using a migration strategy sample (b) The resource profile could be a CSV file that includes resource category (core, specialist, and support), resource role, resource level (junior, senior and principal), and resource charge
+- Note: (a) The input for items 1 and 2 could be a migration strategy generated using a migration strategy sample `(pages/02_migration_strategy.py)` (b) The resource profile could be a CSV file `(sampledata/resource_profile_template.csv)`  that includes resource category (core, specialist, and support), resource role, resource level (junior, senior and principal), and resource charge
 
 ### 3. **Comprehensive Output Structure**
 - Generates five key deliverables: executive summary, team evaluation, resource summary, wave planning, and role-based allocation
@@ -37,7 +37,7 @@ This module serves as the prompt engineering foundation for automated resource p
 
 | Parameter Name | Type | Description |
 |----------------|------|-------------|
-| `migration_strategy` | `str` | Complete migration strategy document content containing complexity analysis, technology stack composition, legacy system dependencies, and 6 R's migration approach details |
+| `migration_strategy` | `str` | Complete migration strategy document `i.e. regnerated using (pages/02_migration_strategy.py)` content containing complexity analysis, technology stack composition, legacy system dependencies, and 6 R's migration approach details |
 | `wave_planning_data` | `str` | Wave planning information including wave structure, timeline data, application distribution across waves, and workload volume metrics |
 | `resource_details` | `str` | Available resource profile data containing skills inventory, role definitions, daily rates, resource constraints, and team capacity information |
 

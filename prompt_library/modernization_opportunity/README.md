@@ -2,7 +2,7 @@
 
 ## Description
 
-The modernization opportunity Prompt Library provides a prompt generation functionality designed to generate AWS modernization strategies. This library contains three specialized prompt functions that work together to assess inventory data, analyze architecture diagrams, and recommend modernization pathways with cost projections.
+The modernization opportunity Prompt Library provides a prompt generation functionality designed to generate AWS modernization strategies. This library contains three specialized prompt functions that work together to assess inventory data, analyze architecture diagrams, and recommend [modernization pathways](https://aws.amazon.com/blogs/migration-and-modernization/move-to-ai-pathway/) with cost projections.
 
 ## Library Components
 
@@ -47,7 +47,7 @@ Develops AWS modernization strategies with implementation approaches based on IT
 - AWS service mapping and configuration suggestions
 - Cost estimation for recommended services
 - Implementation approach development
-- Regional pricing considerations (EU-West-1)
+- Regional pricing considerations `(EU-West-1)`
 
 #### Input Parameters
 
@@ -61,7 +61,7 @@ Develops AWS modernization strategies with implementation approaches based on IT
 1. **High Level AWS Cost Table**
    - Modernization Pathway or Additional AWS Services
    - AWS Service Name and recommended configuration
-   - Monthly cost estimates in USD for EU-West-1 region
+   - Monthly cost estimates in USD for `EU-West-1` region
    - Annual Recurring Revenue (ARR) estimates
 
 2. **Pathway Analysis** (for each applicable pathway)

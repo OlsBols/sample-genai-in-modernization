@@ -23,7 +23,7 @@ The primary purpose of this library is to transform raw AWS Calculator data into
 ### 2. **Wave-Based Migration Planning**
 - Creates structured migration waves with service groupings
 - Provides duration estimates for each migration phase
-- Calculates cumulative USD spend projections per wave
+- Calculates cumulative AWS spend (USD) projections per wave
 
 ### 3. **MAP Milestone Predictions**
 - Predicts achievement of $50,000 USD milestone timing
@@ -33,7 +33,7 @@ The primary purpose of this library is to transform raw AWS Calculator data into
 ### 4. **Cost Optimization Focus**
 - Emphasizes cost optimization and performance as key migration drivers
 - Provides mathematical accuracy for Compute, Storage, and Database calculations
-- Uses USD currency standard with British English formatting
+
 
 ## Input Parameters
 
@@ -53,11 +53,13 @@ The generated prompt produces a comprehensive migration strategy with the follow
 - Technical assessment of current service configurations
 
 ### 2. **Three Migration Patterns**
+It provides three distinct migration patterns based on workloads.
+For example: 
 - **Pattern 1**: Minimal changes approach (lift-and-shift focus)
 - **Pattern 2**: Moderate modernization (selective optimization)
 - **Pattern 3**: Comprehensive modernization (full cloud-native transformation)
 
-### 3. **Pattern Comparison & Synthesis**
+### 3. **Pattern Comparison and Synthesis**
 - Cross-pattern consistency analysis
 - Final strategy recommendation incorporating best elements
 
@@ -70,7 +72,7 @@ The generated prompt produces a comprehensive migration strategy with the follow
 | ...  | ...         | ...               | ...      | ...    |
 ```
 
-### 5. **Strategic Questions & Recommendations**
+### 5. **Strategic Questions and Recommendations**
 - **Milestone Prediction**: Month for first $50,000 USD achievement
 - **Acceleration Strategies**: Recommendations if milestone exceeds 4 months
 - **Risk Assessment**: Risks and assumptions for acceleration strategies
