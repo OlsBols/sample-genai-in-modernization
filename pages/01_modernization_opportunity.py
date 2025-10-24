@@ -6,8 +6,8 @@ images to generate AWS modernisation recommendations.
 import pandas as pd
 import streamlit as st
 
-from prompt_library.modernization_opportunity.invventory_analysis_prompt import (
-    get_invventory_analysis_prompt,
+from prompt_library.modernization_opportunity.inventory_analysis_prompt import (
+    get_inventory_analysis_prompt,
 )
 from prompt_library.modernization_opportunity.modernization_pathways_prompt import (
     get_modernization_pathways_prompt,
@@ -50,7 +50,7 @@ def generate_inventory_analysis(inventory_data_csv):
         Analysis response or None if error occurs
     """
     try:
-        prompt = get_invventory_analysis_prompt(inventory_data_csv)
+        prompt = get_inventory_analysis_prompt(inventory_data_csv)
         analysis_result = invoke_bedrock_model_with_reasoning(prompt)
 
         if not analysis_result.get("success", False):

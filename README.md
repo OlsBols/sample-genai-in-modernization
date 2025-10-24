@@ -1,6 +1,6 @@
 ## Overview
 
-This solution illustrates the application of Generative AI (Gen AI) during the AWS Migration Acceleration Program (MAP) assessment phase, following the completion of on-premises discovery. It showcases capabilities that enhance migration planning, cost optimization, identification of modernization opportunities, and resource planning—processes which were previously both time-consuming and complex.
+This sample repository illustrates the application of Generative AI (Gen AI) during the AWS Migration Acceleration Program (MAP) assessment phase, following the completion of on-premises discovery. It showcases capabilities that enhance migration planning, cost optimization, identification of modernization opportunities, and resource planning—processes which were previously both time-consuming and complex.
 
 ## Features
 
@@ -36,7 +36,7 @@ The Prompt Library is a collection of prompts designed to accelerate their Gen A
 
 - **Inventory Analysis Template**: High level IT inventory analysis across multiple technology domains
 - **Modernization Pathways Template**: AWS Cost inline with modernization pathways approaches with customizable AWS service preferences and cost estimation parameters
-- **Architecture Analysis Template**: Processes on-premises architecture diagrams and proivde analysis acorss key domains (compute, network, database, security and monitoring)
+- **Architecture Analysis Template**: Processes on-premises architecture diagrams and provide analysis across key domains (compute, network, database, security and monitoring)
 
 ### Migration Strategy Prompts
 
@@ -53,7 +53,7 @@ The Prompt Library is a collection of prompts designed to accelerate their Gen A
 
 ## High level process
 
-![High level porcess](sampledata/highlevel_process.png)
+![High level process](sampledata/highlevel_process.png)
 
 ## Technology Stack
 
@@ -66,7 +66,7 @@ The Prompt Library is a collection of prompts designed to accelerate their Gen A
 ### AWS Requirements
 
 - An [AWS account](https://aws.amazon.com/)
-- Amazon Bedrock access with Claude model permissions in AWS regions US East (N. Virginia) *us-east-1* for this code.
+- Amazon Bedrock access with Claude model permissions in AWS region US East (N. Virginia) *us-east-1* for this code.
 - [AWS Command Line Interface (AWS CLI)](https://aws.amazon.com/cli/)
 - Python (version 3.8 or later)
 - [AWS CLI configured](https://docs.aws.amazon.com/cli/v1/userguide/cli-chap-configure.html) to interact with AWS services using commands in command-line shell
@@ -112,7 +112,7 @@ Before running the application, review the configuration settings in `utils/conf
 - **Amazon Bedrock Model**: Claude 3.7 Sonnet (`us.anthropic.claude-3-7-sonnet-20250219-v1:0`) and model parameters
 - **Timeout Settings**: 5-minute read timeout, 60-second connection timeout
 - **File Processing**: Supports PNG images and CSV data files
-- **Sample Data**: Resource profile template for the use cae 'Resource Planning' available at `sampledata/resource_profile_template.csv`
+- **Sample Data**: Resource profile template for the usecae 'Resource Planning' available at `sampledata/resource_profile_template.csv`
 
 Key configuration functions:
 
@@ -124,7 +124,7 @@ Key configuration functions:
 Before running the application, review the default prompt templates in the `prompt_library/` directory to ensure they align with your specific requirements:
 
 **Modernization Opportunity Prompts** (`prompt_library/modernization_opportunity/`):
-- `invventory_analysis_prompt.py` - High level inventory analysis 
+- `inventory_analysis_prompt.py` - High level inventory analysis 
 - `modernization_pathways_prompt.py` - The modernization pathways and cost estimation parameters
 - `onprem_architecture_prompt.py` - Architecture analysis across different domains
 
@@ -132,7 +132,7 @@ Before running the application, review the default prompt templates in the `prom
 - `migration_patterns_prompt.py` - The migration pattern approaches and wave planning methodology
 
 **Resource Planning Prompts** (`prompt_library/resource_planning/`):
-- `resource_planning_prompt.py` - Resource planning, team strucutre and delivery cost
+- `resource_planning_prompt.py` - Resource planning, team structure and delivery cost
 
 > 💡 **Prompt Customization Tip**: Each prompt library includes detailed README files explaining input parameters, expected outputs, and customization options. Review these files to understand how to tailor prompts for your specific migration methodology, cost models, and resource planning approaches.
 
@@ -193,7 +193,7 @@ The application will be available at `http://localhost:8501`
   - Set up Amazon Elastic Kubernetes Service (EKS) cluster and Fargate profile
   - Configure Amazon CloudFront and Application Load Balancer
   - Set up an AWS CodePipeline with AWS CodeBuild (i.e build the Docker image, push it to ECR, and apply the Kubernetes manifests.) to automate the deployment process
-  - **Set up Amazon Virtual Private Cloud (Amazon VPC) with enhanced security features and configure subnets, route tables, and security groups. Implement IAM roles using principle of the least privillage, encryption, network policies, and VPC flow logs to enhance security. Use CloudWatch for comprehensive logging, metrics, alarms, and dashboards to ensure your application runs smoothly and efficiently.**
+  - **Set up Amazon Virtual Private Cloud (Amazon VPC) with enhanced security features and configure subnets, route tables, and security groups. Implement IAM roles using principle of the least privilege, encryption, network policies, and VPC flow logs to enhance security. Use CloudWatch for comprehensive logging, metrics, alarms, and dashboards to ensure your application runs smoothly and efficiently.**
 
 ## Cost
 

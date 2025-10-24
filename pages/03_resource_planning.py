@@ -18,7 +18,7 @@ from utils.file_handler import read_csv_file
 
 def page_details():
     """Display the main page details and description for resource planning."""
-    st.title("Develop resource planning")
+    st.title("Develop Resource Plan for the Migration Strategy")
     aws_resource_planning = """
         Develop resource planning based on three key inputs:
         * (1) migration strategy,
@@ -79,7 +79,7 @@ def develop_resource_planning(strategy_content):
 if __name__ == "__main__":
     page_details()
     migration_strategy = st.file_uploader(
-        "Upload migration strategy document with wave planning"
+        "Upload migration strategy document with wave plan"
     )
     if st.button("Generate Resource Planning", type="primary"):
         if migration_strategy:

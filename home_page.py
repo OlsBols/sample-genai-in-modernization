@@ -14,10 +14,7 @@ st.markdown("""
     This demo illustrates the application of Generative AI during the MAP assessment phase, following the completion of on-premises discovery. It showcases capabilities that enhance migration planning, cost optimisation, identification of modernisation opportunities, and resource planning, processes which were previously both time-consuming and complex.
     - This demo can analyse infrastructure data to generate strategic recommendations, predict MAP funding milestones, and create migration wave plans.
     """)
-st.image(
-    "sampledata/home_page_image.jpeg",
-    caption="Generative AI in AWS MAP Assessment Phase",
-)
+    
 st.header("Key features:")
 st.markdown("""
 - **Modernisation Opportunity Analysis**: GenAI analyses architecture and on-premises infrastructure data to identify modernisation pathways with corresponding AWS cost projections.

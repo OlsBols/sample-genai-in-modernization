@@ -6,7 +6,7 @@ The modernization opportunity Prompt Library provides a prompt generation functi
 
 ## Library Components
 
-### 1. Inventory Analysis Prompt (`invventory_analysis_prompt.py`)
+### 1. Inventory Analysis Prompt (`inventory_analysis_prompt.py`)
 
 #### Primary Purpose
 Conducts highlevel analysis of IT inventory data with emphasis on cost optimization, performance metrics, disaster recovery capabilities, and strategic planning for AWS migration.
@@ -118,5 +118,5 @@ Provides analysis of on premises architecture diagrams (JPG, JPEG, PNG formats) 
 These prompts are designed to work together in the modernization assessment workflow:
 
 1. **Architecture Analysis**: Use `get_onprem_architecture_prompt()` to analyze uploaded architecture diagrams
-2. **Inventory Assessment**: Use `get_invventory_analysis_prompt()` with CSV inventory data for comprehensive asset analysis
+2. **Inventory Assessment**: Use `get_inventory_analysis_prompt()` with CSV inventory data for comprehensive asset analysis
 3. **Modernization Strategy**: Use `get_modernization_pathways_prompt()` combining inventory data, scope requirements, and optional architecture analysis to generate AWS modernization recommendations

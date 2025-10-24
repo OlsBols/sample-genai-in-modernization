@@ -1,7 +1,7 @@
 """
 Migration Strategy Module
 
-This page provides functionality to develop AWS migration patterns and planning
+This page provides functionality to develop AWS migration patterns and wave planning
 from AWS Calculator CSV exports.
 """
 
@@ -52,7 +52,7 @@ def parse_aws_calculator_data(csv_data):
 def page_details():
     """Display the page title and description."""
     # Define the app title and description
-    st.title("Develop migration patterns and planning from AWS Calculator")
+    st.title("Develop migration patterns and wave plan from AWS Calculator and Scope")
     st.markdown(
         "Upload your AWS Calculator CSV export to generate an "
         "optimised migration strategy.Please download migration strategy for the resource planning"
