@@ -2,7 +2,6 @@
 
 A comprehensive Streamlit-based demonstration showcasing how Generative AI can transform the AWS Migration Acceleration Program (MAP) assessment phase. This solution leverages Amazon Bedrock Claude models to automate and enhance migration planning, cost optimization, modernization opportunity identification, and resource planning.
 
-![Gen AI MAP Assessment](sampledata/home_page_image.jpeg)
 
 ## Overview
 
