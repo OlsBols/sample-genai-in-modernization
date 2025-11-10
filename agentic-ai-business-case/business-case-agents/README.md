@@ -11,7 +11,7 @@ pip install -r requirements.txt
 # 2. Configure AWS credentials
 aws configure
 
-# 3. Enable Bedrock model access
+# 3. Enable Bedrock model access (no longer needed for serverless model)
 # Go to AWS Console → Bedrock → Model access
 # Enable: Claude 3.5 Sonnet
 
