@@ -1,0 +1,190 @@
+﻿Server Name,CPU Cores,Memory (MB),Provisioned Storage (GB),Is Virtual?,Hypervisor Type,Workload Type,Operating System,Environment
+anyC-DC1,20,16,159.51,TRUE,VMware,Virtual Machine,Ubuntu,DEV
+anyC-DC1-108013,16,16,159.51,TRUE,VMware,Virtual Machine,Windows,DEV
+anyC-DC1-108218,16,16,159.32,TRUE,VMware,Virtual Machine,Windows,DEV
+anyC-DC1-108220,20,16,159.32,TRUE,VMware,Virtual Machine,Windows,DEV
+anyC-DC1-108222,20,16,159.32,TRUE,VMware,Virtual Machine,Windows,DEV
+anyC-DC1-108224,20,16,159.32,TRUE,VMware,Virtual Machine,Windows,DEV
+anyC3796 - WEBSAN SH1,4,4096,30.32,TRUE,VMWare,Virtual Machine,CentOS 4/5/6/7 (64-bit),PRODUCTION
+anyC1168 - IF1,14,18432,150.01,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC1184 - IF2,14,18432,150.01,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC1253 - IF3,14,18432,150.01,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC1258 - IF4,14,18432,150.01,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC1447 -IF5,14,18432,150.01,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC1449 - IF6,14,18432,150.28,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC1454 -  IF7,14,18432,150,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC1497 -  IF8,14,18432,150.02,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC1563 -  IF9,14,18432,150.01,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+sbs-dev-redis02-master,4,15.66,392.95,TRUE,VMware,Virtual Machine,Ubuntu,DEV
+sbs-prd-redis02-slave02,4,15.66,392.95,TRUE,VMware,Virtual Machine,Ubuntu,DEV
+anyC3810 - SAN SH2,4,4096,31.68,TRUE,VMWare,Virtual Machine,CentOS 4/5/6/7 (64-bit),PRODUCTION
+anyC4994 - MYSQL MASTER SH1,14,131072,1239.04,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC4995 - MYSQL DATA SH1,14,131072,816.51,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC4996 - MYSQL DATA SH2,14,98304,1402.88,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC4258 - ES MASTER SH2,16,98304,200.68,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC4274 - ES MASTER SH3,16,98304,201.14,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),DEV
+anyC3796 - WEBSAN SH1,4,16384,30,TRUE,VMWare,Virtual Machine,CentOS 4/5/6/7 (64-bit),DEV
+anyC2316 - WEBSAN IF1,4,12288,30.38,TRUE,VMWare,Virtual Machine,CentOS 4/5/6/7 (64-bit),DEV
+anyC3938 - MAILROUTER SH1,4,8192,50.25,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),DEV
+anyC1440 - MAILROUTER AC3,4,8192,50.26,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),TEST
+anyC4231 - ES MASTER SH1,4,36864,201.02,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),TEST
+anyC685 - WIZZIM IF1,6,16384,152.43,TRUE,VMWare,Virtual Machine,CentOS 4/5 (64-bit),DEV
+anyC936 - WORKER IF1,6,32768,1505.28,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),DEV
+anyC4791 - DOCKER_IF1,4,22528,300.26,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),TEST
+anyC2822 - ES_MASTER_IF1,4,36864,800.7,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),DEV
+anyC4231 - ES MASTER SH1,16,98304,212.74,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC4599 - REDIS_IF1,4,16384,31.15,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),TEST
+anyC4606 - IF  SLAVE4,22,167936,2529.28,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC4607 - IF  SLAVE5,22,165888,2529.28,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC1487 - PHP74 IF-PILOTE,12,18432,150,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC2234 - WEBPHP74 IF10,14,24576,150.01,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC4816 - WORKER IF5,4,12288,150.02,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC30 - PHP74 ORPI1,12,12288,150,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC104 - PHP74 ORPI2,12,12288,150,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC418 - PHP74 ORPI3,12,12288,150.01,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC580 - PHP74 ORPI4,12,12288,150,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC646 - PHP74 ORPI5,12,12288,150,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC1582 - PHP74 ORPI6,12,12288,150,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC1393 - PHP74 ORPI7,12,12288,150.01,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+TESTV4 - anyC1168,8,16384,150.02,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),TEST
+anyC4342 - PHP74 IF,14,12288,150,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+TESTV5 - anyC30,2,2048,150.02,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),TEST
+anyC3724 - REDIS_IF3,4,22528,30.01,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC3725 - REDIS_IF4,4,22528,30.03,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC5209 - REDIS_IF5,4,28672,30.01,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC5210 - REDIS_IF6,4,22528,32.44,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC2460 - LB RECETTE - NEW,2,4096,20.02,TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC4275 - ES KIBANA SH4,2,4096,100.68,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC3938 - MAILROUTER SH1,1,2048,50,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC3987 - MAILROUTER SH2,1,2048,50,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC1228 - IF AC3 AUTRE SLAVE,16,217088,2027.52,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC2420 - LB MASTER WEB - NEW,4,20480,56.5,TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC1194 - LB SLAVE WEB - NEW,4,20480,20.01,TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC3769 - PHP74 SH1,12,12288,150,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC3778 - PHP74 SH2,12,12288,150,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC3784 - PHP74 SH3,12,12288,150.01,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC3787 - PHP74 SH4,12,12288,150,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC4824 - PHP74 PILOTE SH4,12,12288,650,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC3820 - WORKERPHP74 SH1,16,28672,650.01,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+DEVV9 - anyC3769,2,2048,150.02,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),DEV
+anyC2426 - LB MASTER  - NEW,14,20480,20,TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC90 - LB SLAVE  - NEW,8,20480,20.45,TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC3927 - LB MASTER SH - NEW2,4,20480,20.63,TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC4039 - LB SLAVE SH - NEW2,4,20480,20.01,TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC3820,4,16384,650.41,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),DEV
+anyC1515 - IF  SLAVE3,16,165888,5570.56,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC5193.vsphere.intra,4,8192,"13,09",TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC5203.vsphere.intra,4,8192,"13,09",TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC5204.vsphere.intra,4,8192,"13,09",TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC5190.vsphere.intra,4,8192,"13,09",TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC5191.vsphere.intra,4,8192,"13,08",TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC5194.vsphere.intra,4,8192,"13,12",TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC5195.vsphere.intra,4,8192,"13,11",TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC5197.vsphere.intra,4,8192,"13,09",TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC5199.vsphere.intra,4,8192,"12,87",TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC5200.vsphere.intra,4,8192,"12,56",TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC5201.vsphere.intra,4,8192,"13,12",TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC5192.vsphere.intra,4,8192,"13,12",TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC5196.vsphere.intra,4,8192,"13,09",TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC5198.vsphere.intra,4,8192,"12,56",TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC5202.vsphere.intra,4,8192,"13,09",TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC5205.vsphere.intra,4,8192,"13,09",TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC2746 - PHP74 IF13,14,18432,150.01,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC4644 - PHP74 IF14,14,18432,150.01,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC1588 - PHP74 IF10,14,18432,150,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC1827 - PHP74 IF11,14,18432,150.01,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC1839 - PHP74 IF12,14,18432,150.01,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC3747.vsphere.intra,4,8192,"13,09",TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC3748.vsphere.intra,4,8192,"13,09",TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC4602.vsphere.intra,4,8192,"13,09",TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC4617.vsphere.intra,4,8192,"13,09",TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC4690.vsphere.intra,4,8192,"13,09",TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC2759.vsphere.intra,4,8192,"12,74",TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC3334.vsphere.intra,4,8192,"12,61",TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC3749.vsphere.intra,4,8192,"12,59",TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC1927 - ESXi_Monitor,10,8192,200.09,TRUE,VMWare,Virtual Machine,Ubuntu Linux (64-bit),PRODUCTION
+DEVV11 - anyC4994 - MYSQL MASTER SH1 (anyC5184) 220607,8,36864,1198.08,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),DEV
+anyC2614 - IF  SLAVE6,16,165888,2529.28,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyCTEST - PP  MASTER - POC,8,20480,1822.72,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC2438.vsphere.intra,4,8192,"13,15",TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC3941 - ZVM_AC3,4,16384,80.02,TRUE,VMWare,Virtual Machine,Microsoft Windows Server 2016 (64-bit),PRODUCTION
+anyC3090 - _VEAM,6,16384,150.02,TRUE,VMWare,Virtual Machine,CentOS 4/5 (64-bit),PRODUCTION
+anyC4392 - CASPER,4,24576,250.26,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC2316 - WEBSAN IF1,8,16384,30.57,TRUE,VMWare,Virtual Machine,CentOS 4/5/6/7 (64-bit),PRODUCTION
+anyC2319 - WEBSAN IF2,8,16384,40.62,TRUE,VMWare,Virtual Machine,CentOS 4/5/6/7 (64-bit),PRODUCTION
+anyC2706 - WEBSAN IF3,8,16384,30,TRUE,VMWare,Virtual Machine,CentOS 4/5/6/7 (64-bit),PRODUCTION
+anyC3144 - WEBSAN IF4,8,16384,30,TRUE,VMWare,Virtual Machine,CentOS 4/5/6/7 (64-bit),PRODUCTION
+anyC1673 - LADRESSE  SLAVE1,14,131072,1699.84,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC1528 - LADRESSE  MASTER,14,139264,1699.84,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC2073 - LAFORET  MASTER,18,159744,1699.84,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC2337 - LAFORET  SLAVE1,20,131072,1699.84,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC2078 - ORPI  SLAVE2,18,118784,2426.88,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC860 - ORPI  MASTER,28,131072,2426.88,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC1509 - ORPI  SLAVE1,18,131072,2426.88,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC2329 - PLAZA  MASTER,14,131072,1822.72,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC2336 - PLAZA  SLAVE1,14,131072,1832.96,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC2334 - NESTENN  MASTER,14,139264,1822.72,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC2338 - NESTENN  SLAVE1,14,131072,1822.72,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC2339 - GUYHOQUET  MASTER,14,131072,1822.72,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC2353 - GUYHOQUET  SLAVE1,14,135168,1822.72,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC2193 - PP  MASTER,14,131072,1832.96,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC2354 - PP  SLAVE1,14,131072,1822.72,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC1513 - IF  MASTER,28,200704,2529.28,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC1514 - IF  SLAVE1,16,165888,2529.28,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC2756 - IF  SLAVE2,16,196608,2539.52,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC2093 - IF MASTER,16,159744,1843.2,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC2139 - IF SLAVE1,14,159744,1863.68,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC907 - IF AC3 AUTRE MASTER,16,217088,2027.52,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC2099 - IF AC3 ORPI MASTER,16,131072,1832.96,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC2107 - IF AC3 ORPI SLAVE,16,131072,1822.72,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC3755.vsphere.intra,4,8192,"13,09",TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC1263 - WEBPHP74 IF1 (anyC5162) 230425,1,16384,150.58,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),DEV
+anyC2425 - WIZZIM IF2,6,24576,150.18,TRUE,VMWare,Virtual Machine,CentOS 4/5 (64-bit),PRODUCTION
+anyC210 - POC,2,12288,32.24,TRUE,VMWare,Virtual Machine,Ubuntu Linux (64-bit),PRODUCTION
+anyC2822 - ES_MASTER_IF1,16,98304,811.93,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC2824 - ES_MASTER_IF2,16,98304,837.5,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC2830 - ES_MASTER_IF3,16,98304,821.77,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC272 - ES_KIBANA_IF4,8,65536,800.75,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),PRODUCTION
+anyC4599 - REDIS_IF1,4,32768,50.1,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+vCLS-89fd78d5-55fd-4959-b50b-3a169fe9e4c1,1,128,"2,02",TRUE,VMWare,Virtual Machine,Other 3.x or later Linux (64-bit),PRODUCTION
+vCLS-25b79949-bd5b-4cb4-b131-34dc40ce15ff,1,128,"2,02",TRUE,VMWare,Virtual Machine,Other 3.x or later Linux (64-bit),PRODUCTION
+vCLS-35ac8e03-6d7b-4129-9186-2ab140c1eabd,1,128,"2,02",TRUE,VMWare,Virtual Machine,Other 3.x or later Linux (64-bit),PRODUCTION
+vCLS-5a26eeb9-e826-43ca-a6ff-0605b1c1f44a,1,128,"2,02",TRUE,VMWare,Virtual Machine,Other 3.x or later Linux (64-bit),PRODUCTION
+vCLS-e1250f1d-a625-4fb4-b299-a763150f236f,1,128,"2,02",TRUE,VMWare,Virtual Machine,Other 3.x or later Linux (64-bit),PRODUCTION
+vCLS-48b6bfdb-0139-456d-994c-7c712552b84d,1,128,"2,02",TRUE,VMWare,Virtual Machine,Other 3.x or later Linux (64-bit),PRODUCTION
+anyC4791 - DOCKER_IF1,14,47104,300.04,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC2412 - LB MASTER ORPI,4,24576,20.15,TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC1709 - LB SLAVE ORPI,4,24576,20.25,TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),DEV
+DEVV15 - anyC2329,8,36864,1822.72,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),DEV
+DEVV15 - anyC2193,8,36864,1822.72,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),DEV
+DEVV15 - anyC860,8,36864,2426.88,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),DEV
+DEVV15 - anyC2339,8,36864,1822.72,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),DEV
+DEVV15 - anyC2093,8,36864,1822.72,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),DEV
+DEVV15 - anyC1513,8,36864,2519.04,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),DEV
+DEVV15 - anyC2099 ,8,36864,1822.72,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),DEV
+DEVV15 - anyC2334,8,36864,1822.72,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),DEV
+DEVV15 - anyC1528 ,8,36864,1699.84,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),DEV
+DEVV15 - anyC907 ,8,36864,2027.52,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),DEV
+DEVV15 - anyC2073 ,8,36864,1699.84,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 6 (64-bit),DEV
+anyC685 - WIZZIM IF1 2,12,49152,167.23,TRUE,VMWare,Virtual Machine,CentOS 4/5 (64-bit),PRODUCTION
+anyC2313 - MAILROUTER AC3,6,8192,50,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC1440 - MAILROUTER AC3,6,8192,50.01,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC2188 - WORKER IF4,16,65536,1505.28,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC4355 - REDIS_IF2,4,22528,30.07,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC2315- WIZZIM PILOTE,4,12288,150.04,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC936 - WORKER IF1 - NEW PHP74,16,65536,1495.04,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC1573 - WORKER IF2 - NEW PHP74,16,73728,1495.04,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC2362 - WORKER IF3 - NEW PHP74,16,65536,1495.04,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC2692.vsphere.intra,1,3072,"13,16",TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC2686.vsphere.intra,1,3072,"12,8",TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC2684.vsphere.intra,1,3072,"13,16",TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC2682.vsphere.intra,1,3072,"13,16",TRUE,VMWare,Virtual Machine,Debian GNU/Linux 8 (64-bit),PRODUCTION
+anyC1263 - WEBPHP74 IF1,14,24576,150.09,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC1264 - WEBPHP74 IF2,14,24576,150.02,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC1265 - WEBPHP74 IF3,14,24576,150.01,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC1443 - WEBPHP74 IF4,14,24576,150.01,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC1444 - WEBPHP74 IF5,14,24576,151.45,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC1445 - WEBPHP74 IF6,14,24576,150.01,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC1565 - WEBPHP74 IF7,14,24576,150.03,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC1566 - WEBPHP74 IF8,14,24576,150.01,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
+anyC1568 - WEBPHP74 IF9,14,24576,150.06,TRUE,VMWare,Virtual Machine,Red Hat Enterprise Linux 7 (64-bit),PRODUCTION
