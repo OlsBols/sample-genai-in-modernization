@@ -62,66 +62,66 @@ def it_analysis(filename):
     json_data = excel_to_json(filename)
     return json_data
 
-system_message = """
-    Use tool inventory_analysis to perform inventory analysis
-    As an AWS migration expert, conduct a comprehensive analysis of the provided IT inventory with emphasis on cost optimisation, performance metrics, disaster recovery capabilities, and strategic planning.
+# system_message = """
+#     Use tool inventory_analysis to perform inventory analysis
+#     As an AWS migration expert, conduct a comprehensive analysis of the provided IT inventory with emphasis on cost optimisation, performance metrics, disaster recovery capabilities, and strategic planning.
 
-    Asset Distribution
-    -Total asset count
-    -Asset categories breakdown
+#     Asset Distribution
+#     -Total asset count
+#     -Asset categories breakdown
 
-    Technical Environment Analysis
-        1 Infrastructure Layer
-        - Server infrastructure
-        - Storage systems
-        - Network components
-        - Security infrastructure
-    2 Application Landscape
-        - Application inventory
-        - Technology stacks
-        - Version distribution
-        - Support status
-    3 Database Systems
-        - Database types and versions
-        - Data volumes
-        - Growth patterns
-        - Backup strategies
-    4 Operating Systems
-        - OS distribution
-        - Version analysis
-        - Support status
-        - Patch levels
-    Dependency Analysis
-    1 Application Dependencies
-        - Application-to-application mapping
-        - Integration points
-        - API relationships
-        - Service dependencies
-    2 Data Dependencies
-        - Data flow mapping
-        - Master data relationships
-        - Shared data repositories
-        - Data synchronisation requirements
-    3 Infrastructure Dependencies
-        - Hardware dependencies
-        - Network dependencies
-        - Storage dependencies
-        - Security dependencies
-    4 Critical Path Analysis
-        - Single points of failure
-        - Dependency chains
-        - Impact assessment
-        - Risk evaluation
+#     Technical Environment Analysis
+#         1 Infrastructure Layer
+#         - Server infrastructure
+#         - Storage systems
+#         - Network components
+#         - Security infrastructure
+#     2 Application Landscape
+#         - Application inventory
+#         - Technology stacks
+#         - Version distribution
+#         - Support status
+#     3 Database Systems
+#         - Database types and versions
+#         - Data volumes
+#         - Growth patterns
+#         - Backup strategies
+#     4 Operating Systems
+#         - OS distribution
+#         - Version analysis
+#         - Support status
+#         - Patch levels
+#     Dependency Analysis
+#     1 Application Dependencies
+#         - Application-to-application mapping
+#         - Integration points
+#         - API relationships
+#         - Service dependencies
+#     2 Data Dependencies
+#         - Data flow mapping
+#         - Master data relationships
+#         - Shared data repositories
+#         - Data synchronisation requirements
+#     3 Infrastructure Dependencies
+#         - Hardware dependencies
+#         - Network dependencies
+#         - Storage dependencies
+#         - Security dependencies
+#     4 Critical Path Analysis
+#         - Single points of failure
+#         - Dependency chains
+#         - Impact assessment
+#         - Risk evaluation
         
-        **REMINDER: Base all analysis strictly on the provided inventory data. Do not introduce external cost estimates, market pricing, or assumed financial figures. For DR analysis, only report on disaster recovery information that is explicitly documented in the inventory.**
+#         **REMINDER: Base all analysis strictly on the provided inventory data. Do not introduce external cost estimates, market pricing, or assumed financial figures. For DR analysis, only report on disaster recovery information that is explicitly documented in the inventory.**
         
-        Format your response in markdown with clear headings, bullet points, and tables where appropriate. 
-    """
-agent = Agent(model=bedrock_model,system_prompt= system_message,tools=[it_analysis])
+#         Format your response in markdown with clear headings, bullet points, and tables where appropriate. 
+#     """
+# agent = Agent(model=bedrock_model,system_prompt= system_message,tools=[it_analysis])
 
-question = "Conduct a comprehensive analysis of the provided IT inventory for the provided file input/Test-Data-Set-Demo-Excel-V2.xlsx"
+# question = "Conduct a comprehensive analysis of the provided IT inventory for the provided file input/Test-Data-Set-Demo-Excel-V2.xlsx"
 
-result = agent(question)
+# result = agent(question)
 # print(result.message)
 
 
