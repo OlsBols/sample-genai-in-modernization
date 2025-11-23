@@ -11,6 +11,7 @@ from rv_tool_analysis import rv_tool_analysis
 from atx_analysis import read_excel_file, read_pdf_file, read_pptx_file
 from mra_analysis import read_docx_file, read_markdown_file
 from migration_strategy import read_migration_strategy_framework, read_portfolio_assessment
+from migration_plan import read_migration_plan_framework
 from prompt_library.agent_prompts import (
     system_message_aws_arr_cost, 
     system_message_rv_tool_analysis, 
@@ -19,7 +20,8 @@ from prompt_library.agent_prompts import (
     system_message_current_state_analysis,
     system_message_atx_analysis,
     system_message_mra_analysis,
-    system_message_migration_strategy )
+    system_message_migration_strategy,
+    system_message_migration_plan )
 
 # Create a BedrockModel
 bedrock_model = BedrockModel(
@@ -32,6 +34,7 @@ agent_rv_tool_analysis = Agent(model=bedrock_model,system_prompt= system_message
 agent_atx_analysis = Agent(model=bedrock_model,system_prompt= system_message_atx_analysis,tools=[read_excel_file, read_pdf_file, read_pptx_file])
 agent_mra_analysis = Agent(model=bedrock_model,system_prompt= system_message_mra_analysis,tools=[read_docx_file, read_markdown_file])
 agent_migration_strategy = Agent(model=bedrock_model,system_prompt= system_message_migration_strategy,tools=[read_migration_strategy_framework, read_portfolio_assessment])
+agent_migration_plan = Agent(model=bedrock_model,system_prompt= system_message_migration_plan,tools=[read_migration_plan_framework])
 agent_aws_cost_arr = Agent(model=bedrock_model,system_prompt= system_message_aws_arr_cost,tools=[it_analysis,rv_tool_analysis])
 current_state_analysis = Agent(model=bedrock_model,system_prompt= system_message_current_state_analysis,tools=[it_analysis,rv_tool_analysis])
 aws_business_case = Agent(model=bedrock_model,system_prompt= system_message_aws_business_case)
@@ -58,6 +61,7 @@ builder.add_node(agent_mra_analysis, "agent_mra_analysis")
 builder.add_node(current_state_analysis, "current_state_analysis")
 builder.add_node(agent_aws_cost_arr, "agent_aws_cost_arr")
 builder.add_node(agent_migration_strategy, "agent_migration_strategy")
+builder.add_node(agent_migration_plan, "agent_migration_plan")
 builder.add_node(aws_business_case, "aws_business_case")
 
 # (1) current_state_analysis executes ONLY when ALL four analysis agents complete
@@ -81,11 +85,18 @@ builder.add_edge("agent_rv_tool_analysis", "agent_migration_strategy", condition
 builder.add_edge("agent_atx_analysis", "agent_migration_strategy", condition=condition_for_migration_strategy)
 builder.add_edge("agent_mra_analysis", "agent_migration_strategy", condition=condition_for_migration_strategy)
 
-# (4) aws_business_case executes ONLY when ALL three intermediate agents complete
-condition_for_business_case = all_dependencies_complete(["current_state_analysis", "agent_aws_cost_arr", "agent_migration_strategy"])
+# (4) agent_migration_plan executes ONLY when ALL three intermediate agents complete
+condition_for_migration_plan = all_dependencies_complete(["current_state_analysis", "agent_aws_cost_arr", "agent_migration_strategy"])
+builder.add_edge("current_state_analysis", "agent_migration_plan", condition=condition_for_migration_plan)
+builder.add_edge("agent_aws_cost_arr", "agent_migration_plan", condition=condition_for_migration_plan)
+builder.add_edge("agent_migration_strategy", "agent_migration_plan", condition=condition_for_migration_plan)
+
+# (5) aws_business_case executes ONLY when ALL four intermediate agents complete
+condition_for_business_case = all_dependencies_complete(["current_state_analysis", "agent_aws_cost_arr", "agent_migration_strategy", "agent_migration_plan"])
 builder.add_edge("current_state_analysis", "aws_business_case", condition=condition_for_business_case)
 builder.add_edge("agent_aws_cost_arr", "aws_business_case", condition=condition_for_business_case)
 builder.add_edge("agent_migration_strategy", "aws_business_case", condition=condition_for_business_case)
+builder.add_edge("agent_migration_plan", "aws_business_case", condition=condition_for_business_case)
 
 
 # Set entry points (the nodes that start first - they run in parallel)

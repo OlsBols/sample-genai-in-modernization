@@ -103,6 +103,32 @@ cd test
 python test_migration_strategy_agent.py
 ```
 
+### Migration Plan Tests
+
+#### 7. test_migration_plan_data.py
+Tests the migration plan data extraction tools without requiring AWS credentials.
+- Reads aws-migration-plan-framework.md
+
+**Run:**
+```bash
+cd test
+python test_migration_plan_data.py
+```
+
+#### 8. test_migration_plan_agent.py
+Runs the full migration plan agent with AWS Bedrock.
+- Requires AWS credentials configured
+- Uses Claude 3.7 Sonnet model
+- Analyzes all previous agent outputs
+- Provides comprehensive migration plan (Assess, Mobilize, Migrate, Modernize)
+- Determines if further assessment needed
+
+**Run:**
+```bash
+cd test
+python test_migration_plan_agent.py
+```
+
 ## Agent Overview
 
 - **ATX Agent**: Analyzes AWS Transform for VMware assessment outputs
@@ -111,3 +137,8 @@ python test_migration_strategy_agent.py
   - Checks for >20 Windows Servers (triggers OLA requirement)
   - Uses portfolio assessment if available, otherwise industry-standard framework
   - Provides wave planning and timeline recommendations
+- **Migration Plan Agent**: Creates comprehensive migration plan
+  - Analyzes all previous agent outputs
+  - Assesses readiness for each phase (Assess, Mobilize, Migrate, Modernize)
+  - Recommends if further assessment needed
+  - Provides detailed phase-specific plans with timelines and resources

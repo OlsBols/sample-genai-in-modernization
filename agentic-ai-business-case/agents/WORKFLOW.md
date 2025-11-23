@@ -75,17 +75,24 @@
    - Purpose: Calculate AWS costs and ARR projections
    - Tools: `it_analysis`, `rv_tool_analysis`
 
-7. **agent_migration_strategy** ⭐ NEW
+7. **agent_migration_strategy**
    - Dependencies: agent_it_analysis + agent_rv_tool_analysis + agent_atx_analysis + agent_mra_analysis
    - Input: `aws-migration-strategy-6rs-framework.md` (reference)
    - Tools: `read_migration_strategy_framework`, `read_portfolio_assessment`
    - Purpose: Recommend migration strategy using AWS 6Rs framework
    - Special: Checks for >20 Windows Servers (triggers OLA requirement)
 
+8. **agent_migration_plan** ⭐ NEW
+   - Dependencies: current_state_analysis + agent_aws_cost_arr + agent_migration_strategy
+   - Input: `aws-migration-plan-framework.md` (reference)
+   - Tools: `read_migration_plan_framework`
+   - Purpose: Create comprehensive migration plan (Assess, Mobilize, Migrate, Modernize)
+   - Special: Determines if further assessment needed or ready to proceed
+
 ### Final Agent
 
-8. **aws_business_case**
-   - Dependencies: current_state_analysis + agent_aws_cost_arr + agent_migration_strategy
+9. **aws_business_case**
+   - Dependencies: current_state_analysis + agent_aws_cost_arr + agent_migration_strategy + agent_migration_plan
    - Purpose: Generate final comprehensive business case
    - Output: `output/aws_business_case.md`
 
@@ -103,6 +110,9 @@
    - Migration strategy recommendation (6Rs framework)
 
 3. **Phase 3**: After Phase 2 completes
+   - Migration plan creation (Assess, Mobilize, Migrate, Modernize phases)
+
+4. **Phase 4**: After Phase 3 completes
    - Final business case generation
 
 ## Configuration
@@ -122,7 +132,8 @@ input/
 ├── report.pdf                                          # ATX Technical Assessment Report
 ├── business_case.pptx                                  # ATX Business Case Presentation
 ├── aws-customer-migration-readiness-assessment.md      # MRA Organizational Readiness
-└── aws-migration-strategy-6rs-framework.md             # Migration Strategy Reference (6Rs)
+├── aws-migration-strategy-6rs-framework.md             # Migration Strategy Reference (6Rs)
+└── aws-migration-plan-framework.md                     # Migration Plan Framework (MAP)
 ```
 
 ## Output
