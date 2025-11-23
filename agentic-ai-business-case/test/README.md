@@ -77,7 +77,37 @@ export AWS_SECRET_ACCESS_KEY=your_secret_key
 export AWS_DEFAULT_REGION=us-east-1
 ```
 
+### Migration Strategy Tests
+
+#### 5. test_migration_strategy_data.py
+Tests the migration strategy data extraction tools without requiring AWS credentials.
+- Reads aws-migration-strategy-6rs-framework.md
+- Tests portfolio assessment reading (if available)
+
+**Run:**
+```bash
+cd test
+python test_migration_strategy_data.py
+```
+
+#### 6. test_migration_strategy_agent.py
+Runs the full migration strategy agent with AWS Bedrock.
+- Requires AWS credentials configured
+- Uses Claude 3.7 Sonnet model
+- Provides comprehensive migration strategy using AWS 6Rs framework
+- Checks for Windows Server OLA requirement (>20 servers)
+
+**Run:**
+```bash
+cd test
+python test_migration_strategy_agent.py
+```
+
 ## Agent Overview
 
 - **ATX Agent**: Analyzes AWS Transform for VMware assessment outputs
 - **MRA Agent**: Analyzes Migration Readiness Assessment documents
+- **Migration Strategy Agent**: Recommends migration approach using AWS 6Rs framework
+  - Checks for >20 Windows Servers (triggers OLA requirement)
+  - Uses portfolio assessment if available, otherwise industry-standard framework
+  - Provides wave planning and timeline recommendations

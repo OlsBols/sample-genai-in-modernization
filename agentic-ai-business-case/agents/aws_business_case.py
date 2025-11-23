@@ -10,6 +10,7 @@ from inventory_analysis import it_analysis
 from rv_tool_analysis import rv_tool_analysis
 from atx_analysis import read_excel_file, read_pdf_file, read_pptx_file
 from mra_analysis import read_docx_file, read_markdown_file
+from migration_strategy import read_migration_strategy_framework, read_portfolio_assessment
 from prompt_library.agent_prompts import (
     system_message_aws_arr_cost, 
     system_message_rv_tool_analysis, 
@@ -17,7 +18,8 @@ from prompt_library.agent_prompts import (
     system_message_aws_business_case,
     system_message_current_state_analysis,
     system_message_atx_analysis,
-    system_message_mra_analysis )
+    system_message_mra_analysis,
+    system_message_migration_strategy )
 
 # Create a BedrockModel
 bedrock_model = BedrockModel(
@@ -29,6 +31,7 @@ agent_it_analysis = Agent(model=bedrock_model,system_prompt= system_message_it_a
 agent_rv_tool_analysis = Agent(model=bedrock_model,system_prompt= system_message_rv_tool_analysis,tools=[rv_tool_analysis])
 agent_atx_analysis = Agent(model=bedrock_model,system_prompt= system_message_atx_analysis,tools=[read_excel_file, read_pdf_file, read_pptx_file])
 agent_mra_analysis = Agent(model=bedrock_model,system_prompt= system_message_mra_analysis,tools=[read_docx_file, read_markdown_file])
+agent_migration_strategy = Agent(model=bedrock_model,system_prompt= system_message_migration_strategy,tools=[read_migration_strategy_framework, read_portfolio_assessment])
 agent_aws_cost_arr = Agent(model=bedrock_model,system_prompt= system_message_aws_arr_cost,tools=[it_analysis,rv_tool_analysis])
 current_state_analysis = Agent(model=bedrock_model,system_prompt= system_message_current_state_analysis,tools=[it_analysis,rv_tool_analysis])
 aws_business_case = Agent(model=bedrock_model,system_prompt= system_message_aws_business_case)
@@ -54,6 +57,7 @@ builder.add_node(agent_atx_analysis, "agent_atx_analysis")
 builder.add_node(agent_mra_analysis, "agent_mra_analysis")
 builder.add_node(current_state_analysis, "current_state_analysis")
 builder.add_node(agent_aws_cost_arr, "agent_aws_cost_arr")
+builder.add_node(agent_migration_strategy, "agent_migration_strategy")
 builder.add_node(aws_business_case, "aws_business_case")
 
 # (1) current_state_analysis executes ONLY when ALL four analysis agents complete
@@ -70,10 +74,18 @@ builder.add_edge("agent_rv_tool_analysis", "agent_aws_cost_arr", condition=condi
 builder.add_edge("agent_atx_analysis", "agent_aws_cost_arr", condition=condition_for_cost_arr)
 builder.add_edge("agent_mra_analysis", "agent_aws_cost_arr", condition=condition_for_cost_arr)
 
-# (3) aws_business_case executes ONLY when BOTH current_state_analysis AND agent_aws_cost_arr complete
-condition_for_business_case = all_dependencies_complete(["current_state_analysis", "agent_aws_cost_arr"])
+# (3) agent_migration_strategy executes ONLY when ALL four analysis agents complete
+condition_for_migration_strategy = all_dependencies_complete(["agent_it_analysis", "agent_rv_tool_analysis", "agent_atx_analysis", "agent_mra_analysis"])
+builder.add_edge("agent_it_analysis", "agent_migration_strategy", condition=condition_for_migration_strategy)
+builder.add_edge("agent_rv_tool_analysis", "agent_migration_strategy", condition=condition_for_migration_strategy)
+builder.add_edge("agent_atx_analysis", "agent_migration_strategy", condition=condition_for_migration_strategy)
+builder.add_edge("agent_mra_analysis", "agent_migration_strategy", condition=condition_for_migration_strategy)
+
+# (4) aws_business_case executes ONLY when ALL three intermediate agents complete
+condition_for_business_case = all_dependencies_complete(["current_state_analysis", "agent_aws_cost_arr", "agent_migration_strategy"])
 builder.add_edge("current_state_analysis", "aws_business_case", condition=condition_for_business_case)
 builder.add_edge("agent_aws_cost_arr", "aws_business_case", condition=condition_for_business_case)
+builder.add_edge("agent_migration_strategy", "aws_business_case", condition=condition_for_business_case)
 
 
 # Set entry points (the nodes that start first - they run in parallel)
@@ -94,6 +106,7 @@ input_files3_excel = "input/analysis.xlsx"
 input_files3_pdf = "input/report.pdf"
 input_files3_pptx = "input/business_case.pptx"
 input_files4_mra = "input/aws-customer-migration-readiness-assessment.md"
+input_files5_strategy = "input/aws-migration-strategy-6rs-framework.md"
 agent_task = f"""Create a comprehensive business case to migrate on-premises IT workload to AWS. 
     **Input Data Sources:**
         1. IT Infrastructure Inventory: {input_files1}
@@ -103,6 +116,7 @@ agent_task = f"""Create a comprehensive business case to migrate on-premises IT 
            - Technical Assessment Report: {input_files3_pdf}
            - Business Case Presentation: {input_files3_pptx}
         4. Migration Readiness Assessment (MRA): {input_files4_mra}
+        5. Migration Strategy Framework (6Rs): {input_files5_strategy}
    """
 
 result = graph(agent_task)
