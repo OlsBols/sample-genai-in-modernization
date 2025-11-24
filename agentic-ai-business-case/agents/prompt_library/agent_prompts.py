@@ -253,8 +253,8 @@ system_message_atx_analysis = """
     
     Format your response in markdown with clear headings, bullet points, and tables where appropriate.
 """
-s
-ystem_message_mra_analysis = """
+
+system_message_mra_analysis = """
     You are an AWS Migration Readiness Assessment (MRA) specialist with expertise in evaluating 
     organizational readiness for cloud migration and transformation.
     
