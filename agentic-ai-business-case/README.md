@@ -127,14 +127,49 @@ agentic-ai-business-case/
 
 ### Installation
 
+#### Core Agent Dependencies
+
 ```bash
-# 1. Install dependencies
-cd agentic-ai-business-case/business-case-agents
+# 1. Install agent dependencies (required for business case generation)
+cd agentic-ai-business-case/agents
+pip install -r requirements.txt
+```
+
+**Required Packages:**
+- `strands-agents` - AWS Bedrock agent framework
+- `strands-agents-tools` - Agent tools and utilities
+- `boto3>=1.34.0` - AWS SDK for Python
+- `botocore>=1.34.0` - AWS SDK core
+- `pyyaml>=6.0` - YAML parsing
+- `pandas>=2.0.0` - Data analysis
+- `python-dotenv>=1.0.0` - Environment variables
+- `requests>=2.31.0` - HTTP library
+- `openpyxl>=3.1.0` - Excel file handling
+- `python-pptx>=0.6.23` - PowerPoint file handling
+- `reportlab>=4.0.0` - PDF generation
+- `PyPDF2>=3.0.0` - PDF file handling
+
+#### UI Dependencies (Optional)
+
+If using the web UI:
+
+```bash
+# Backend dependencies
+cd agentic-ai-business-case/ui/backend
 pip install -r requirements.txt
 
-# 2. Configure AWS credentials
+# Frontend dependencies
+cd agentic-ai-business-case/ui
+npm install
+```
+
+#### AWS Credentials
+
+```bash
+# Option 1: AWS CLI (recommended)
 aws configure
-# OR
+
+# Option 2: Environment variables
 export AWS_ACCESS_KEY_ID=your_access_key
 export AWS_SECRET_ACCESS_KEY=your_secret_key
 export AWS_DEFAULT_REGION=us-east-1
@@ -367,13 +402,32 @@ pip install -r business-case-agents/requirements.txt
 
 ---
 
+## 📚 Documentation
+
+### Essential Documentation
+- **[README.md](README.md)** - This file, main project documentation
+- **[PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)** - Project layout and architecture
+- **[ui/README.md](ui/README.md)** - Web UI documentation
+- **[ui/QUICK_REFERENCE.md](ui/QUICK_REFERENCE.md)** - Quick start for UI features
+
+### Optional Storage Setup
+- **[ui/DYNAMODB_SETUP.md](ui/DYNAMODB_SETUP.md)** - DynamoDB persistence setup
+- **[ui/S3_STORAGE_SETUP.md](ui/S3_STORAGE_SETUP.md)** - S3 file storage setup
+
+### Input Framework Files
+- `input/aws-migration-strategy-6rs-framework.md` - 6Rs framework guidance
+- `input/aws-migration-plan-framework.md` - MAP phases guidance
+- `input/aws-customer-migration-readiness-assessment.md` - MRA template
+
+---
+
 ## 🤝 Support
 
 For questions or issues:
-1. Review documentation in `agents/` folder
-2. Check `QUICK_START.md` for detailed instructions
-3. Test individual agents in `test/` folder
-4. Review sample output in `output/aws_business_case.md`
+1. Review [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) for architecture
+2. Check [ui/README.md](ui/README.md) for UI-specific help
+3. Review sample output in `output/aws_business_case.md`
+4. Verify AWS credentials and Bedrock access
 
 ---
 
@@ -385,16 +439,22 @@ This project is designed for AWS Partners working on Migration and Modernization
 
 ## 🚀 Getting Started Checklist
 
-- [ ] Install Python dependencies
+### Command Line Usage
+- [ ] Install agent dependencies: `pip install -r agents/requirements.txt`
 - [ ] Configure AWS credentials with Bedrock access
 - [ ] Update paths in `agents/config.py`
 - [ ] Place input files in `input/` folder
 - [ ] Run `python agents/aws_business_case.py`
 - [ ] Review output in `output/aws_business_case.md`
-- [ ] Read `EXECUTIVE_SUMMARY.md` for value proposition
+
+### Web UI Usage
+- [ ] Install agent dependencies: `pip install -r agents/requirements.txt`
+- [ ] Install UI dependencies: `pip install -r ui/backend/requirements.txt` and `npm install`
+- [ ] Configure AWS credentials
+- [ ] Start backend: `python ui/backend/app.py`
+- [ ] Start frontend: `npm start` (in ui/ directory)
+- [ ] Access UI at http://localhost:3000
 
 ---
 
 **Ready to generate your AWS migration business case in minutes instead of weeks!** 🎉
-
-For detailed value proposition and ROI analysis, see **[EXECUTIVE_SUMMARY.md](EXECUTIVE_SUMMARY.md)**

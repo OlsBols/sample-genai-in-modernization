@@ -46,7 +46,7 @@ bedrock_model = BedrockModel(
 # agent = Agent(model=bedrock_model,system_prompt= system_message,tools=[it_analysis,rv_tool_analysis])
 
 
-# input_files1 = "input/Test-Data-Set-Demo-Excel-V2.xlsx"
+# input_files1 = "input/it-infrastructure-inventory.xlsx"
 # input_files2 = "input/rvtool.csv"
 # agent_trigger_query = "Start with high level summary of on premises enviroment using tool it_analysis,rv_tool_analysis.The summary should include five sections starting from Server Infrastructure ,Database, Storage, Application, Networking,Security and monitoring. Generate a comprehensive AWS Cost to migration on premises it inventory data " + input_files1 + " and RV tool data" + input_files2 + " to AWS. #**IMPORTANT (1) Do not assume, estimate, or calculate any costs, prices, or financial figures unless explicitly provided in the inventory data.(2) Ensure mathematical operations like addition, subtraction, multiplication, and division are correct for Compute, Storage and Database provided in the inventory."
 

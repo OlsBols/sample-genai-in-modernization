@@ -119,14 +119,14 @@ def it_analysis(filename):
 #     """
 # agent = Agent(model=bedrock_model,system_prompt= system_message,tools=[it_analysis])
 
-# question = "Conduct a comprehensive analysis of the provided IT inventory for the provided file input/Test-Data-Set-Demo-Excel-V2.xlsx"
+# question = "Conduct a comprehensive analysis of the provided IT inventory for the provided file input/it-infrastructure-inventory.xlsx"
 
 # result = agent(question)
 # print(result.message)
 
 
 
-# filename = 'input/Test-Data-Set-Demo-Excel-V2.xlsx'
+# filename = 'input/it-infrastructure-inventory.xlsx'
 # json_data = excel_to_json(filename) 
 # print(json_data)
    

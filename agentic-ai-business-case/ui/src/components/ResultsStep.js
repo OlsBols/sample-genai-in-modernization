@@ -1,0 +1,248 @@
+import React, { useState } from 'react';
+import {
+  Container,
+  Header,
+  SpaceBetween,
+  Box,
+  Button,
+  ButtonDropdown,
+  Tabs,
+  Alert
+} from '@cloudscape-design/components';
+import ReactMarkdown from 'react-markdown';
+import html2pdf from 'html2pdf.js';
+
+const ResultsStep = ({ businessCaseResult, projectInfo, dynamoDBEnabled, onSave, lastUpdated }) => {
+  const [activeTabId, setActiveTabId] = useState('preview');
+  const [isExporting, setIsExporting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState(null);
+
+  const handleExportPDF = async () => {
+    setIsExporting(true);
+    try {
+      const element = document.getElementById('business-case-content');
+      const opt = {
+        margin: 1,
+        filename: `${projectInfo.projectName.replace(/\s+/g, '_')}_Business_Case.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+      };
+      await html2pdf().set(opt).from(element).save();
+    } catch (error) {
+      console.error('PDF export failed:', error);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportMarkdown = () => {
+    const blob = new Blob([businessCaseResult?.content || ''], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${projectInfo.projectName.replace(/\s+/g, '_')}_Business_Case.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleCopyToClipboard = () => {
+    navigator.clipboard.writeText(businessCaseResult?.content || '');
+  };
+
+  const handleSaveToDatabase = async () => {
+    setIsSaving(true);
+    setSaveMessage(null);
+    
+    try {
+      const result = await onSave();
+      if (result.success) {
+        setSaveMessage({ type: 'success', text: 'Business case saved successfully!' });
+      } else {
+        setSaveMessage({ type: 'error', text: result.message });
+      }
+    } catch (error) {
+      setSaveMessage({ type: 'error', text: 'Failed to save: ' + error.message });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (!businessCaseResult) {
+    return (
+      <Container>
+        <Alert type="warning">
+          No business case has been generated yet. Please complete the previous steps.
+        </Alert>
+      </Container>
+    );
+  }
+
+  return (
+    <Container
+      header={
+        <Header
+          variant="h2"
+          description="View and export your generated business case"
+          actions={
+            <SpaceBetween direction="horizontal" size="xs">
+              {dynamoDBEnabled && (
+                <Button
+                  iconName="upload"
+                  onClick={handleSaveToDatabase}
+                  loading={isSaving}
+                  variant="primary"
+                >
+                  {lastUpdated ? 'Update in Database' : 'Save to Database'}
+                </Button>
+              )}
+              <Button
+                iconName="copy"
+                onClick={handleCopyToClipboard}
+              >
+                Copy to Clipboard
+              </Button>
+              <ButtonDropdown
+                items={[
+                  { text: 'Export as PDF', id: 'pdf', iconName: 'file' },
+                  { text: 'Export as Markdown', id: 'markdown', iconName: 'file' }
+                ]}
+                onItemClick={({ detail }) => {
+                  if (detail.id === 'pdf') {
+                    handleExportPDF();
+                  } else if (detail.id === 'markdown') {
+                    handleExportMarkdown();
+                  }
+                }}
+                loading={isExporting}
+              >
+                Export
+              </ButtonDropdown>
+            </SpaceBetween>
+          }
+        >
+          Business Case Results
+        </Header>
+      }
+    >
+      <SpaceBetween size="l">
+        <Alert type="success">
+          Your business case has been generated successfully!
+        </Alert>
+
+        {saveMessage && (
+          <Alert
+            type={saveMessage.type}
+            dismissible
+            onDismiss={() => setSaveMessage(null)}
+          >
+            {saveMessage.text}
+          </Alert>
+        )}
+
+        <Tabs
+          activeTabId={activeTabId}
+          onChange={({ detail }) => setActiveTabId(detail.activeTabId)}
+          tabs={[
+            {
+              label: 'Preview',
+              id: 'preview',
+              content: (
+                <Box padding={{ vertical: 'l' }}>
+                  <div id="business-case-content" style={{ padding: '20px' }}>
+                    <ReactMarkdown>{businessCaseResult.content}</ReactMarkdown>
+                  </div>
+                </Box>
+              )
+            },
+            {
+              label: 'Markdown Source',
+              id: 'markdown',
+              content: (
+                <Box padding={{ vertical: 'l' }}>
+                  <textarea
+                    value={businessCaseResult.content}
+                    readOnly
+                    style={{
+                      width: '100%',
+                      height: '600px',
+                      fontFamily: 'monospace',
+                      fontSize: '14px',
+                      padding: '16px',
+                      border: '1px solid #e9ebed',
+                      borderRadius: '8px',
+                      backgroundColor: '#fafafa',
+                      resize: 'vertical'
+                    }}
+                  />
+                </Box>
+              )
+            },
+            {
+              label: 'Execution Summary',
+              id: 'summary',
+              content: (
+                <Box padding={{ vertical: 'l' }}>
+                  <SpaceBetween size="l">
+                    <Box>
+                      <Box variant="awsui-key-label">Generation Details</Box>
+                      <Box variant="p">
+                        <strong>Project:</strong> {projectInfo.projectName}<br />
+                        <strong>Customer:</strong> {projectInfo.customerName}<br />
+                        <strong>Region:</strong> {projectInfo.awsRegion}<br />
+                        <strong>Generated:</strong> {new Date().toLocaleString()}<br />
+                        <strong>Agents Executed:</strong> {businessCaseResult.agentsExecuted || 'N/A'}<br />
+                        <strong>Execution Time:</strong> {businessCaseResult.executionTime || 'N/A'}<br />
+                        <strong>Token Usage:</strong> {businessCaseResult.tokenUsage || 'N/A'}
+                      </Box>
+                    </Box>
+                    
+                    <Box>
+                      <Box variant="awsui-key-label">Input Files Used</Box>
+                      <Box variant="p">
+                        {businessCaseResult.uploadedFiles && businessCaseResult.uploadedFiles.length > 0 ? (
+                          businessCaseResult.uploadedFiles.map((fileKey) => {
+                            const fileNames = {
+                              'itInventory': 'IT Infrastructure Inventory (Excel)',
+                              'rvTool': 'RVTool VMware Assessment (CSV)',
+                              'atxExcel': 'ATX Analysis Data (Excel)',
+                              'atxPdf': 'ATX Technical Report (PDF)',
+                              'atxPptx': 'ATX Business Case (PowerPoint)',
+                              'mra': 'Migration Readiness Assessment (Markdown)',
+                              'portfolio': 'Application Portfolio (CSV)'
+                            };
+                            
+                            // Get S3 location if available
+                            const s3Key = businessCaseResult.s3FileKeys && businessCaseResult.s3FileKeys[fileKey];
+                            
+                            return (
+                              <div key={fileKey} style={{ marginBottom: '8px' }}>
+                                <div>✓ {fileNames[fileKey] || fileKey}</div>
+                                {s3Key && (
+                                  <div style={{ marginLeft: '20px', fontSize: '12px', color: '#5f6b7a', fontFamily: 'monospace' }}>
+                                    S3: s3://{businessCaseResult.s3BucketName || 'bucket'}/{s3Key}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div>No input files information available</div>
+                        )}
+                      </Box>
+                    </Box>
+                  </SpaceBetween>
+                </Box>
+              )
+            }
+          ]}
+        />
+      </SpaceBetween>
+    </Container>
+  );
+};
+
+export default ResultsStep;

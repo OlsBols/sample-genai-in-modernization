@@ -12,6 +12,8 @@ from atx_analysis import read_excel_file, read_pdf_file, read_pptx_file
 from mra_analysis import read_docx_file, read_markdown_file
 from migration_strategy import read_migration_strategy_framework, read_portfolio_assessment
 from migration_plan import read_migration_plan_framework
+from project_context import get_project_context, get_project_info_dict
+from setup_logging import setup_logging
 from prompt_library.agent_prompts import (
     system_message_aws_arr_cost, 
     system_message_rv_tool_analysis, 
@@ -22,6 +24,12 @@ from prompt_library.agent_prompts import (
     system_message_mra_analysis,
     system_message_migration_strategy,
     system_message_migration_plan )
+
+# Setup logging
+logger, log_file = setup_logging()
+logger.info("="*80)
+logger.info("AWS BUSINESS CASE GENERATOR - STARTING")
+logger.info("="*80)
 
 # Create a BedrockModel
 bedrock_model = BedrockModel(
@@ -105,23 +113,31 @@ builder.set_entry_point("agent_rv_tool_analysis")
 builder.set_entry_point("agent_atx_analysis")
 builder.set_entry_point("agent_mra_analysis")
 
-builder.set_execution_timeout(600)  # 10 minute timeout
-builder.set_node_timeout(180)  # 3 minute timeout per node
+builder.set_execution_timeout(1800)  # 30 minute timeout for entire workflow
+builder.set_node_timeout(600)  # 10 minute timeout per node
 
 # Build the graph
 graph = builder.build()
 
-input_files1 = "input/Test-Data-Set-Demo-Excel-V2.xlsx"
-input_files2 = "input/rvtool.csv"
-input_files3_excel = "input/analysis.xlsx"
-input_files3_pdf = "input/report.pdf"
-input_files3_pptx = "input/business_case.pptx"
+# Get project context
+project_context = get_project_context()
+project_info = get_project_info_dict()
+
+input_files1 = "input/it-infrastructure-inventory.xlsx"
+input_files2 = "input/rvtool*.csv"  # Pattern to match multiple RVTools files
+input_files3_excel = "input/atx_analysis.xlsx"
+input_files3_pdf = "input/atx_report.pdf"
+input_files3_pptx = "input/atx_business_case.pptx"
 input_files4_mra = "input/aws-customer-migration-readiness-assessment.md"
 input_files5_strategy = "input/aws-migration-strategy-6rs-framework.md"
-agent_task = f"""Create a comprehensive business case to migrate on-premises IT workload to AWS. 
+
+agent_task = f"""Create a comprehensive business case to migrate on-premises IT workload to AWS.
+
+{project_context}
+
     **Input Data Sources:**
         1. IT Infrastructure Inventory: {input_files1}
-        2. RVTool Assessment Data: {input_files2}
+        2. RVTool Assessment Data: {input_files2} (multiple files may be available including vInfo, vCPU, vMemory, vDisk, etc.)
         3. AWS Transform for VMware (ATX) Assessment:
            - VMware Environment Data: {input_files3_excel}
            - Technical Assessment Report: {input_files3_pdf}
@@ -130,14 +146,27 @@ agent_task = f"""Create a comprehensive business case to migrate on-premises IT 
         5. Migration Strategy Framework (6Rs): {input_files5_strategy}
    """
 
-result = graph(agent_task)
+logger.info("="*80)
+logger.info("STARTING AGENT WORKFLOW")
+logger.info("="*80)
+logger.info(f"Project: {project_info.get('projectName', 'N/A')}")
+logger.info(f"Customer: {project_info.get('customerName', 'N/A')}")
+logger.info(f"Region: {project_info.get('awsRegion', 'N/A')}")
+logger.info(f"Description: {project_info.get('projectDescription', 'N/A')[:100]}...")
+logger.info("="*80)
 
-print("\n" + "="*80)
-print("FINAL BUSINESS CASE")
-print("="*80)
+logger.info("Executing agent graph...")
+result = graph(agent_task)
+logger.info("Agent graph execution completed")
+
+logger.info("="*80)
+logger.info("FINAL BUSINESS CASE GENERATION")
+logger.info("="*80)
+
 if "aws_business_case" in result.results:
     final_result = result.results["aws_business_case"].result
-    print(f"\n{final_result}")
+    logger.info("Business case generated successfully")
+    
     final_result_text = str(final_result)
     file_path = os.path.join(output_folder_dir_path, 'aws_business_case.md')
     with open(file_path, "w", encoding="utf-8") as file:
@@ -145,15 +174,29 @@ if "aws_business_case" in result.results:
         file.write(f"Generated on: {result.execution_order[-1].execution_time}ms execution time\n\n")
         file.write("---\n\n")
         file.write(final_result_text)
+    logger.info(f"Business case saved to: {file_path}")
+else:
+    logger.error("Business case not found in results")
 
-print(f"\n{'='*60}")
-print(f"Status: {result.status}")
-print(f"Execution order: {[node.node_id for node in result.execution_order]}")
-print(f"{'='*60}")
+logger.info("="*60)
+logger.info(f"Status: {result.status}")
+logger.info(f"Execution order: {[node.node_id for node in result.execution_order]}")
+logger.info("="*60)
 
 # Display overall performance
-print(f"\n=== Graph Performance ===")
-print(f"Total Nodes Executed: {result.completed_nodes}/{result.total_nodes}")
-print(f"Total Execution Time: {result.execution_time}ms")
-print(f"Token Usage: {result.accumulated_usage}")
+logger.info("=== Graph Performance ===")
+logger.info(f"Total Nodes Executed: {result.completed_nodes}/{result.total_nodes}")
+logger.info(f"Total Execution Time: {result.execution_time}ms")
+logger.info(f"Token Usage: {result.accumulated_usage}")
+
+# Display individual node performance
+logger.info("=== Individual Node Performance ===")
+for node in result.execution_order:
+    logger.info(f"- {node.node_id}: {node.execution_time}ms")
+    if hasattr(node, 'status'):
+        logger.info(f"  Status: {node.status}")
+
+logger.info("="*80)
+logger.info(f"Log file saved to: {log_file}")
+logger.info("="*80)
 

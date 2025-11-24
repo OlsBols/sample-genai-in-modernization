@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+import glob
 from strands import Agent, tool
 from strands.models import BedrockModel
 
@@ -14,12 +15,48 @@ bedrock_model = BedrockModel(
 
 def read_csv_from_current_dir(filename):
     full_path = os.path.join(input_folder_dir_path, filename)
-    return pd.read_csv(full_path)
+    if filename.endswith('.csv'):
+        return pd.read_csv(full_path)
+    elif filename.endswith(('.xlsx', '.xls')):
+        return pd.read_excel(full_path)
+    else:
+        raise ValueError(f"Unsupported file format: {filename}")
 
-@tool(name="rv_tool_analysis", description="Read CSV file from the target folder")
-def rv_tool_analysis(filename):
-    df = read_csv_from_current_dir(filename)
-    return df
+@tool(name="rv_tool_analysis", description="Read RVTools CSV or Excel files from the target folder. Can handle single file or multiple files (e.g., vInfo, vCPU, vMemory, vDisk). Provide filename or pattern like 'rvtool*.csv' to read multiple files.")
+def rv_tool_analysis(filename_or_pattern):
+    """
+    Read RVTools files. Can handle:
+    - Single file: 'rvtool.csv' or 'rvtool-vInfo.xlsx'
+    - Multiple files with pattern: 'rvtool*.csv' or 'rvtool*.xlsx'
+    - Specific file: exact filename
+    
+    Returns a dictionary of DataFrames if multiple files, or single DataFrame if one file.
+    """
+    # Check if pattern contains wildcard
+    if '*' in filename_or_pattern:
+        # Find all matching files
+        pattern_path = os.path.join(input_folder_dir_path, filename_or_pattern)
+        matching_files = glob.glob(pattern_path)
+        
+        if not matching_files:
+            raise FileNotFoundError(f"No files found matching pattern: {filename_or_pattern}")
+        
+        # Read all matching files
+        dataframes = {}
+        for file_path in matching_files:
+            filename = os.path.basename(file_path)
+            # Extract a meaningful key from filename (e.g., 'vInfo' from 'rvtool-vInfo.csv')
+            key = filename.replace('rvtool-', '').replace('rvtool_', '').rsplit('.', 1)[0]
+            
+            if file_path.endswith('.csv'):
+                dataframes[key] = pd.read_csv(file_path)
+            elif file_path.endswith(('.xlsx', '.xls')):
+                dataframes[key] = pd.read_excel(file_path)
+        
+        return dataframes
+    else:
+        # Single file
+        return read_csv_from_current_dir(filename_or_pattern)
 
 # system_message = """
 #     Use tool inventory_analysis to perform inventory analysis
