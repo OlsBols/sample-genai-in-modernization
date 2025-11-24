@@ -1,7 +1,5 @@
 # AWS Business Case Report
 
-Generated on: 65160ms execution time
-
 ---
 
 # AWS Business Case: On-Premises to AWS Migration
