@@ -5,14 +5,14 @@ output_folder_dir_path = "/Users/arptsha/Downloads/map-genai-use-cases/agentic-a
 #Bedrock Model Configuration
 
 # Option 1: Claude 3 Sonnet (4096 max tokens) - Works with on-demand, STABLE
-model_id_claude3_7="anthropic.claude-3-sonnet-20240229-v1:0"
-max_tokens_default = 4096
+# model_id_claude3_7="anthropic.claude-3-sonnet-20240229-v1:0"
+# max_tokens_default = 4096
 
 # Option 2: Claude 3.5 Sonnet with Cross-Region Inference (8192 max tokens)
 # Requires model access enabled in Bedrock Console - see CLAUDE_35_SETUP.md
-# Uncomment these lines after enabling model access:
-# model_id_claude3_7="us.anthropic.claude-3-5-sonnet-20241022-v2:0"
-# max_tokens_default = 8192
+# ENABLED: Using Claude 3.5 for higher token limit to handle detailed cost analysis
+model_id_claude3_7="us.anthropic.claude-3-5-sonnet-20241022-v2:0"
+max_tokens_default = 8192
 
 # Alternative models:
 # model_id_claude3_7="anthropic.claude-3-haiku-20240307-v1:0"  # Faster, cheaper (4096 tokens)

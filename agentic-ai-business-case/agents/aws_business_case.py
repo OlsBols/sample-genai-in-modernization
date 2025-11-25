@@ -36,14 +36,14 @@ logger.info("="*80)
 bedrock_model = BedrockModel(
     model_id=model_id_claude3_7,
     temperature=model_temperature,
-    max_tokens=4096  # Limit response size to prevent token overflow
+    max_tokens=MAX_TOKENS_BUSINESS_CASE  # Use configured max tokens (8192)
 )
 
 # Create model for cost calculations with lower temperature for consistency
 bedrock_model_cost = BedrockModel(
     model_id=model_id_claude3_7,
     temperature=0.1,  # Lower temperature for more deterministic cost calculations
-    max_tokens=4096
+    max_tokens=MAX_TOKENS_BUSINESS_CASE  # Increased to 8192 to handle detailed cost analysis
 )
 
 # Create separate model for business case with configured max tokens
