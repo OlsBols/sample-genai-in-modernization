@@ -2,7 +2,7 @@ import os
 import pandas as pd
 from strands import Agent, tool
 from strands.models import BedrockModel
-from PyPDF2 import PdfReader
+from pypdf import PdfReader
 from pptx import Presentation
 
 from config import input_folder_dir_path, model_id_claude3_7, model_temperature

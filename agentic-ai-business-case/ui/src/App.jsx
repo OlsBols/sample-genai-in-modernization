@@ -11,12 +11,12 @@ import {
   Box,
   StatusIndicator
 } from '@cloudscape-design/components';
-import ProjectInfoStep from './components/ProjectInfoStep';
-import FileUploadStep from './components/FileUploadStep';
-import AgentConfigStep from './components/AgentConfigStep';
-import ReviewStep from './components/ReviewStep';
-import ResultsStep from './components/ResultsStep';
-import SavedCasesModal from './components/SavedCasesModal';
+import ProjectInfoStep from './components/ProjectInfoStep.jsx';
+import FileUploadStep from './components/FileUploadStep.jsx';
+import AgentConfigStep from './components/AgentConfigStep.jsx';
+import ReviewStep from './components/ReviewStep.jsx';
+import ResultsStep from './components/ResultsStep.jsx';
+import SavedCasesModal from './components/SavedCasesModal.jsx';
 import './styles/App.css';
 
 function App() {
