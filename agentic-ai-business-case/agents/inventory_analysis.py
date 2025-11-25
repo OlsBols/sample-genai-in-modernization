@@ -21,7 +21,11 @@ def datetime_handler(obj):
         return obj.isoformat()
     return str(obj)
 
-def excel_to_json(filename,create_file = False):
+def excel_to_json(filename, create_file=False, max_rows_per_sheet=3000):
+    """
+    Convert Excel to JSON with row limits to prevent context overflow.
+    Limits each sheet to max_rows_per_sheet to stay within model context limits.
+    """
     try:
         # Get input folder path from config.py and join with filename  directory and construct full path
         full_path = os.path.join(input_folder_dir_path, filename)
@@ -32,6 +36,12 @@ def excel_to_json(filename,create_file = False):
         # Convert to JSON-compatible dictionary
         json_data = {}
         for sheet_name, dataframe in excel_file.items():
+            # Limit rows to prevent context overflow
+            original_rows = len(dataframe)
+            if original_rows > max_rows_per_sheet:
+                print(f"WARNING: Sheet '{sheet_name}' has {original_rows} rows. Limited to {max_rows_per_sheet} rows to prevent context overflow.")
+                dataframe = dataframe.head(max_rows_per_sheet)
+            
             # Convert datetime columns to string format
             for column in dataframe.select_dtypes(include=['datetime64']).columns:
                 dataframe[column] = dataframe[column].dt.strftime('%Y-%m-%d %H:%M:%S')

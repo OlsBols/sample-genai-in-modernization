@@ -4,7 +4,7 @@ import glob
 from strands import Agent, tool
 from strands.models import BedrockModel
 
-from config import input_folder_dir_path, model_id_claude3_7,model_temperature
+from config import input_folder_dir_path, model_id_claude3_7, model_temperature, MAX_ROWS_RVTOOLS
 
 
 # Create a BedrockModel
@@ -13,24 +13,112 @@ bedrock_model = BedrockModel(
     temperature=model_temperature
 )
 
-def read_csv_from_current_dir(filename):
+def read_csv_from_current_dir(filename, max_rows=MAX_ROWS_RVTOOLS):
+    """
+    Read CSV/Excel file with row limit to prevent context overflow.
+    For large datasets, only reads first max_rows to stay within context limits.
+    """
     full_path = os.path.join(input_folder_dir_path, filename)
+    
     if filename.endswith('.csv'):
-        return pd.read_csv(full_path)
+        df = pd.read_csv(full_path, nrows=max_rows)
     elif filename.endswith(('.xlsx', '.xls')):
-        return pd.read_excel(full_path)
+        # For Excel files, try to read 'vInfo' sheet first, fallback to first sheet
+        try:
+            df = pd.read_excel(full_path, sheet_name='vInfo', nrows=max_rows)
+        except:
+            df = pd.read_excel(full_path, nrows=max_rows)
     else:
         raise ValueError(f"Unsupported file format: {filename}")
+    
+    # Log if data was truncated
+    try:
+        if filename.endswith('.csv'):
+            total_rows = sum(1 for _ in open(full_path)) - 1  # -1 for header
+        else:
+            total_rows = len(pd.read_excel(full_path, usecols=[0]))
+        
+        if total_rows > max_rows:
+            print(f"WARNING: File has {total_rows} rows. Limited to {max_rows} rows to prevent context overflow.")
+            print(f"Consider filtering your data to include only active/relevant VMs.")
+    except:
+        pass  # If we can't determine total rows, just continue
+    
+    return df
 
-@tool(name="rv_tool_analysis", description="Read RVTools CSV or Excel files from the target folder. Can handle single file or multiple files (e.g., vInfo, vCPU, vMemory, vDisk). Provide filename or pattern like 'rvtool*.csv' to read multiple files.")
+def generate_vm_summary(df):
+    """Generate aggregated summary statistics from VM data for cost analysis"""
+    # Find storage column (can be 'Provisioned MB', 'Provisioned MiB', 'Total disk capacity MiB', etc.)
+    storage_col = None
+    for col in ['Provisioned MiB', 'Provisioned MB', 'Total disk capacity MiB']:
+        if col in df.columns:
+            storage_col = col
+            break
+    
+    summary = {
+        'total_vms': len(df),
+        'total_vcpus': int(df['CPUs'].sum()) if 'CPUs' in df.columns else 0,
+        'total_memory_gb': float(df['Memory'].sum() / 1024) if 'Memory' in df.columns else 0,
+        'total_storage_tb': float(df[storage_col].sum() / 1024 / 1024) if storage_col else 0,
+    }
+    
+    # Average specs per VM
+    if 'CPUs' in df.columns:
+        summary['avg_vcpus_per_vm'] = float(df['CPUs'].mean())
+    if 'Memory' in df.columns:
+        summary['avg_memory_gb_per_vm'] = float(df['Memory'].mean() / 1024)
+    if storage_col:
+        summary['avg_storage_gb_per_vm'] = float(df[storage_col].mean() / 1024)
+    
+    # VM size distribution (for EC2 instance sizing)
+    if 'CPUs' in df.columns:
+        summary['vm_size_distribution'] = {
+            'small_1-2_vcpu': len(df[df['CPUs'] <= 2]),
+            'medium_3-4_vcpu': len(df[(df['CPUs'] >= 3) & (df['CPUs'] <= 4)]),
+            'large_5-8_vcpu': len(df[(df['CPUs'] >= 5) & (df['CPUs'] <= 8)]),
+            'xlarge_9plus_vcpu': len(df[df['CPUs'] >= 9])
+        }
+    
+    # OS distribution (critical for licensing)
+    if 'OS' in df.columns:
+        os_series = df['OS'].fillna('Unknown')
+        summary['windows_vms'] = len(os_series[os_series.str.contains('Windows', case=False, na=False)])
+        summary['linux_vms'] = len(os_series[os_series.str.contains('Linux|Red Hat|CentOS|Ubuntu', case=False, na=False)])
+        summary['other_vms'] = len(df) - summary['windows_vms'] - summary['linux_vms']
+    
+    return summary
+
+def find_vinfo_file(pattern_path):
+    """
+    Find vInfo file from matching files (prioritize vInfo for large datasets)
+    """
+    matching_files = glob.glob(pattern_path)
+    
+    # Priority order for file selection
+    priority_keywords = ['vinfo', 'vInfo', 'tabvInfo']
+    
+    for keyword in priority_keywords:
+        for file_path in matching_files:
+            if keyword in os.path.basename(file_path):
+                return file_path
+    
+    # If no vInfo found, return first file
+    return matching_files[0] if matching_files else None
+
+@tool(name="rv_tool_analysis", description="Read RVTools CSV or Excel files from the target folder. Prioritizes vInfo tab for comprehensive VM data. For large files, only vInfo is processed to avoid timeouts. Provide filename or pattern like 'rvtool*.csv'.")
 def rv_tool_analysis(filename_or_pattern):
     """
-    Read RVTools files. Can handle:
+    Read RVTools files with optimization for large datasets.
+    
+    IMPORTANT: For large RVTools exports, only the vInfo tab is processed as it contains
+    the most comprehensive VM information (VM names, CPUs, memory, storage, OS, power state, etc.)
+    
+    Can handle:
     - Single file: 'rvtool.csv' or 'rvtool-vInfo.xlsx'
     - Multiple files with pattern: 'rvtool*.csv' or 'rvtool*.xlsx'
-    - Specific file: exact filename
+    - Prioritizes vInfo tab when multiple files are available
     
-    Returns a dictionary of DataFrames if multiple files, or single DataFrame if one file.
+    Returns DataFrame with vInfo data (most important for migration analysis).
     """
     # Check if pattern contains wildcard
     if '*' in filename_or_pattern:
@@ -41,22 +129,93 @@ def rv_tool_analysis(filename_or_pattern):
         if not matching_files:
             raise FileNotFoundError(f"No files found matching pattern: {filename_or_pattern}")
         
-        # Read all matching files
-        dataframes = {}
-        for file_path in matching_files:
-            filename = os.path.basename(file_path)
-            # Extract a meaningful key from filename (e.g., 'vInfo' from 'rvtool-vInfo.csv')
-            key = filename.replace('rvtool-', '').replace('rvtool_', '').rsplit('.', 1)[0]
-            
-            if file_path.endswith('.csv'):
-                dataframes[key] = pd.read_csv(file_path)
-            elif file_path.endswith(('.xlsx', '.xls')):
-                dataframes[key] = pd.read_excel(file_path)
+        print(f"Found {len(matching_files)} RVTools file(s)")
         
-        return dataframes
+        # For large datasets, prioritize vInfo only
+        vinfo_file = find_vinfo_file(pattern_path)
+        
+        if vinfo_file:
+            print(f"Using vInfo file for analysis: {os.path.basename(vinfo_file)}")
+            
+            # Read with row limit to prevent context overflow
+            max_rows = MAX_ROWS_RVTOOLS
+            if vinfo_file.endswith('.csv'):
+                df = pd.read_csv(vinfo_file, nrows=max_rows)
+            elif vinfo_file.endswith(('.xlsx', '.xls')):
+                # For Excel files, try to read 'vInfo' sheet first, fallback to first sheet
+                try:
+                    df = pd.read_excel(vinfo_file, sheet_name='vInfo', nrows=max_rows)
+                except:
+                    df = pd.read_excel(vinfo_file, nrows=max_rows)
+            
+            print(f"Loaded {len(df)} VMs from vInfo (max {max_rows} rows to prevent context overflow)")
+            
+            # Filter to powered-on VMs only (powered-off VMs not included in migration)
+            if 'Powerstate' in df.columns or 'Power state' in df.columns:
+                powerstate_col = 'Powerstate' if 'Powerstate' in df.columns else 'Power state'
+                total_vms = len(df)
+                powered_on = len(df[df[powerstate_col] == 'poweredOn'])
+                powered_off = len(df[df[powerstate_col] != 'poweredOn'])
+                print(f"  - Total VMs: {total_vms}")
+                print(f"  - PoweredOn VMs: {powered_on}")
+                print(f"  - PoweredOff VMs: {powered_off}")
+                
+                # Filter to powered-on only for migration analysis
+                df = df[df[powerstate_col] == 'poweredOn'].copy()
+                print(f"  - Filtered to {len(df)} powered-on VMs for migration cost analysis")
+            
+            # Warn if file is larger
+            try:
+                if vinfo_file.endswith('.csv'):
+                    total_rows = sum(1 for _ in open(vinfo_file)) - 1
+                else:
+                    # For Excel, try vInfo sheet first
+                    try:
+                        total_rows = len(pd.read_excel(vinfo_file, sheet_name='vInfo', usecols=[0]))
+                    except:
+                        total_rows = len(pd.read_excel(vinfo_file, usecols=[0]))
+                
+                if total_rows > max_rows:
+                    print(f"WARNING: vInfo has {total_rows} VMs. Analyzing first {max_rows} to stay within context limits.")
+                    print(f"TIP: Filter your RVTools export to include only active/production VMs.")
+            except:
+                pass
+            
+            # Add aggregated summary to reduce token usage
+            summary_stats = generate_vm_summary(df)
+            print(f"\n=== VM Summary Statistics for Cost Analysis ===")
+            print(f"Total VMs for Migration: {summary_stats['total_vms']}")
+            print(f"Total vCPUs: {summary_stats['total_vcpus']}")
+            print(f"Total Memory (GB): {summary_stats['total_memory_gb']:.1f}")
+            print(f"Total Storage (TB): {summary_stats['total_storage_tb']:.1f}")
+            print(f"Avg vCPUs/VM: {summary_stats.get('avg_vcpus_per_vm', 0):.1f}")
+            print(f"Avg Memory/VM (GB): {summary_stats.get('avg_memory_gb_per_vm', 0):.1f}")
+            if 'vm_size_distribution' in summary_stats:
+                print(f"VM Size Distribution:")
+                for size, count in summary_stats['vm_size_distribution'].items():
+                    print(f"  - {size}: {count} VMs")
+            if 'windows_vms' in summary_stats:
+                print(f"OS Distribution: Windows={summary_stats['windows_vms']}, Linux={summary_stats['linux_vms']}, Other={summary_stats['other_vms']}")
+            
+            return df
+        else:
+            # Fallback: read first file if no vInfo found
+            print(f"No vInfo file found, using: {os.path.basename(matching_files[0])}")
+            max_rows = MAX_ROWS_RVTOOLS
+            if matching_files[0].endswith('.csv'):
+                return pd.read_csv(matching_files[0], nrows=max_rows)
+            elif matching_files[0].endswith(('.xlsx', '.xls')):
+                # For Excel files, try to read 'vInfo' sheet first, fallback to first sheet
+                try:
+                    return pd.read_excel(matching_files[0], sheet_name='vInfo', nrows=max_rows)
+                except:
+                    return pd.read_excel(matching_files[0], nrows=max_rows)
     else:
         # Single file
-        return read_csv_from_current_dir(filename_or_pattern)
+        print(f"Reading single RVTools file: {filename_or_pattern}")
+        df = read_csv_from_current_dir(filename_or_pattern)
+        print(f"Loaded {len(df)} rows")
+        return df
 
 # system_message = """
 #     Use tool inventory_analysis to perform inventory analysis

@@ -5,7 +5,7 @@ from strands.multiagent import GraphBuilder
 from strands.multiagent.graph import GraphState
 from strands.multiagent.base import Status
 
-from config import model_id_claude3_7,model_temperature, output_folder_dir_path
+from config import model_id_claude3_7, model_temperature, output_folder_dir_path, ENABLE_MULTI_STAGE, MAX_TOKENS_BUSINESS_CASE
 from inventory_analysis import it_analysis
 from rv_tool_analysis import rv_tool_analysis
 from atx_analysis import read_excel_file, read_pdf_file, read_pptx_file
@@ -14,6 +14,7 @@ from migration_strategy import read_migration_strategy_framework, read_portfolio
 from migration_plan import read_migration_plan_framework
 from project_context import get_project_context, get_project_info_dict
 from setup_logging import setup_logging
+from multi_stage_business_case import generate_multi_stage_business_case
 from prompt_library.agent_prompts import (
     system_message_aws_arr_cost, 
     system_message_rv_tool_analysis, 
@@ -31,10 +32,25 @@ logger.info("="*80)
 logger.info("AWS BUSINESS CASE GENERATOR - STARTING")
 logger.info("="*80)
 
-# Create a BedrockModel
+# Create a BedrockModel with max_tokens limit to prevent overflow
 bedrock_model = BedrockModel(
     model_id=model_id_claude3_7,
-    temperature=model_temperature
+    temperature=model_temperature,
+    max_tokens=4096  # Limit response size to prevent token overflow
+)
+
+# Create model for cost calculations with lower temperature for consistency
+bedrock_model_cost = BedrockModel(
+    model_id=model_id_claude3_7,
+    temperature=0.1,  # Lower temperature for more deterministic cost calculations
+    max_tokens=4096
+)
+
+# Create separate model for business case with configured max tokens
+bedrock_model_business_case = BedrockModel(
+    model_id=model_id_claude3_7,
+    temperature=model_temperature,
+    max_tokens=MAX_TOKENS_BUSINESS_CASE  # 4096 for Claude 3, 8192 for Claude 3.5
 )
 
 agent_it_analysis = Agent(model=bedrock_model,system_prompt= system_message_it_analysis,tools=[it_analysis])
@@ -43,9 +59,9 @@ agent_atx_analysis = Agent(model=bedrock_model,system_prompt= system_message_atx
 agent_mra_analysis = Agent(model=bedrock_model,system_prompt= system_message_mra_analysis,tools=[read_docx_file, read_markdown_file])
 agent_migration_strategy = Agent(model=bedrock_model,system_prompt= system_message_migration_strategy,tools=[read_migration_strategy_framework, read_portfolio_assessment])
 agent_migration_plan = Agent(model=bedrock_model,system_prompt= system_message_migration_plan,tools=[read_migration_plan_framework])
-agent_aws_cost_arr = Agent(model=bedrock_model,system_prompt= system_message_aws_arr_cost,tools=[it_analysis,rv_tool_analysis])
+agent_aws_cost_arr = Agent(model=bedrock_model_cost,system_prompt= system_message_aws_arr_cost,tools=[it_analysis,rv_tool_analysis])  # Use lower temperature for deterministic costs
 current_state_analysis = Agent(model=bedrock_model,system_prompt= system_message_current_state_analysis,tools=[it_analysis,rv_tool_analysis])
-aws_business_case = Agent(model=bedrock_model,system_prompt= system_message_aws_business_case)
+aws_business_case = Agent(model=bedrock_model_business_case,system_prompt= system_message_aws_business_case)  # Use higher token limit
 
 
 # Define conditional edge functions using the factory pattern
@@ -70,7 +86,10 @@ builder.add_node(current_state_analysis, "current_state_analysis")
 builder.add_node(agent_aws_cost_arr, "agent_aws_cost_arr")
 builder.add_node(agent_migration_strategy, "agent_migration_strategy")
 builder.add_node(agent_migration_plan, "agent_migration_plan")
-builder.add_node(aws_business_case, "aws_business_case")
+
+# Only add aws_business_case node if NOT using multi-stage generation
+if not ENABLE_MULTI_STAGE:
+    builder.add_node(aws_business_case, "aws_business_case")
 
 # (1) current_state_analysis executes ONLY when ALL four analysis agents complete
 condition_for_current_state = all_dependencies_complete(["agent_it_analysis", "agent_rv_tool_analysis", "agent_atx_analysis", "agent_mra_analysis"])
@@ -100,11 +119,13 @@ builder.add_edge("agent_aws_cost_arr", "agent_migration_plan", condition=conditi
 builder.add_edge("agent_migration_strategy", "agent_migration_plan", condition=condition_for_migration_plan)
 
 # (5) aws_business_case executes ONLY when ALL four intermediate agents complete
-condition_for_business_case = all_dependencies_complete(["current_state_analysis", "agent_aws_cost_arr", "agent_migration_strategy", "agent_migration_plan"])
-builder.add_edge("current_state_analysis", "aws_business_case", condition=condition_for_business_case)
-builder.add_edge("agent_aws_cost_arr", "aws_business_case", condition=condition_for_business_case)
-builder.add_edge("agent_migration_strategy", "aws_business_case", condition=condition_for_business_case)
-builder.add_edge("agent_migration_plan", "aws_business_case", condition=condition_for_business_case)
+# Skip if multi-stage is enabled (we'll generate business case separately)
+if not ENABLE_MULTI_STAGE:
+    condition_for_business_case = all_dependencies_complete(["current_state_analysis", "agent_aws_cost_arr", "agent_migration_strategy", "agent_migration_plan"])
+    builder.add_edge("current_state_analysis", "aws_business_case", condition=condition_for_business_case)
+    builder.add_edge("agent_aws_cost_arr", "aws_business_case", condition=condition_for_business_case)
+    builder.add_edge("agent_migration_strategy", "aws_business_case", condition=condition_for_business_case)
+    builder.add_edge("agent_migration_plan", "aws_business_case", condition=condition_for_business_case)
 
 
 # Set entry points (the nodes that start first - they run in parallel)
@@ -113,19 +134,28 @@ builder.set_entry_point("agent_rv_tool_analysis")
 builder.set_entry_point("agent_atx_analysis")
 builder.set_entry_point("agent_mra_analysis")
 
+logger.info(f"Multi-stage generation: {'ENABLED' if ENABLE_MULTI_STAGE else 'DISABLED'}")
+if ENABLE_MULTI_STAGE:
+    logger.info("Single-stage aws_business_case agent will be skipped")
+
 builder.set_execution_timeout(1800)  # 30 minute timeout for entire workflow
 builder.set_node_timeout(600)  # 10 minute timeout per node
 
 # Build the graph
+# Note: When ENABLE_MULTI_STAGE=True, the aws_business_case agent result is not used
+# Multi-stage generation happens after the graph completes
 graph = builder.build()
 
 # Get project context
 project_context = get_project_context()
 project_info = get_project_info_dict()
 
-input_files1 = "input/it-infrastructure-inventory.xlsx"
-input_files2 = "input/rvtool*.csv"  # Pattern to match multiple RVTools files
-input_files3_excel = "input/atx_analysis.xlsx"
+# Get uploaded filenames from project_info if available, otherwise use patterns
+uploaded_files = project_info.get('uploadedFiles', {})
+
+input_files1 = f"input/{uploaded_files.get('itInventory', 'it-infrastructure-inventory.xlsx')}" if 'itInventory' in uploaded_files else "input/it-infrastructure-inventory.xlsx"
+input_files2 = f"input/{uploaded_files['rvTool'][0]}" if 'rvTool' in uploaded_files and uploaded_files['rvTool'] else "input/rvtool*.xlsx"
+input_files3_excel = f"input/{uploaded_files.get('atxExcel', 'atx_analysis.xlsx')}" if 'atxExcel' in uploaded_files else "input/atx_analysis.xlsx"
 input_files3_pdf = "input/atx_report.pdf"
 input_files3_pptx = "input/atx_business_case.pptx"
 input_files4_mra = "input/aws-customer-migration-readiness-assessment.md"
@@ -163,20 +193,49 @@ logger.info("="*80)
 logger.info("FINAL BUSINESS CASE GENERATION")
 logger.info("="*80)
 
-if "aws_business_case" in result.results:
-    final_result = result.results["aws_business_case"].result
-    logger.info("Business case generated successfully")
-    
-    final_result_text = str(final_result)
-    file_path = os.path.join(output_folder_dir_path, 'aws_business_case.md')
-    with open(file_path, "w", encoding="utf-8") as file:
-        file.write("# AWS Business Case Report\n\n")
-        file.write(f"Generated on: {result.execution_order[-1].execution_time}ms execution time\n\n")
-        file.write("---\n\n")
-        file.write(final_result_text)
-    logger.info(f"Business case saved to: {file_path}")
+# Check if multi-stage generation is enabled
+if ENABLE_MULTI_STAGE:
+    logger.info("Using MULTI-STAGE generation for comprehensive business case")
+    try:
+        # Generate business case in multiple stages
+        final_result_text = generate_multi_stage_business_case(result.results, project_context)
+        logger.info(f"Multi-stage business case generated ({len(final_result_text)} characters)")
+        
+        file_path = os.path.join(output_folder_dir_path, 'aws_business_case.md')
+        with open(file_path, "w", encoding="utf-8") as file:
+            file.write(final_result_text)
+        logger.info(f"Business case saved to: {file_path}")
+        
+    except Exception as e:
+        logger.error(f"Multi-stage generation failed: {str(e)}")
+        logger.info("Falling back to single-stage generation")
+        
+        if "aws_business_case" in result.results:
+            final_result = result.results["aws_business_case"].result
+            final_result_text = str(final_result)
+            file_path = os.path.join(output_folder_dir_path, 'aws_business_case.md')
+            with open(file_path, "w", encoding="utf-8") as file:
+                file.write("# AWS Business Case Report\n\n")
+                file.write(f"Generated on: {result.execution_order[-1].execution_time}ms execution time\n\n")
+                file.write("---\n\n")
+                file.write(final_result_text)
+            logger.info(f"Business case saved to: {file_path}")
 else:
-    logger.error("Business case not found in results")
+    logger.info("Using SINGLE-STAGE generation")
+    if "aws_business_case" in result.results:
+        final_result = result.results["aws_business_case"].result
+        logger.info("Business case generated successfully")
+        
+        final_result_text = str(final_result)
+        file_path = os.path.join(output_folder_dir_path, 'aws_business_case.md')
+        with open(file_path, "w", encoding="utf-8") as file:
+            file.write("# AWS Business Case Report\n\n")
+            file.write(f"Generated on: {result.execution_order[-1].execution_time}ms execution time\n\n")
+            file.write("---\n\n")
+            file.write(final_result_text)
+        logger.info(f"Business case saved to: {file_path}")
+    else:
+        logger.error("Business case not found in results")
 
 logger.info("="*60)
 logger.info(f"Status: {result.status}")

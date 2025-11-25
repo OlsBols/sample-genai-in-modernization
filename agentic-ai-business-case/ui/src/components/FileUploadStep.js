@@ -25,12 +25,12 @@ const FileUploadStep = ({ uploadedFiles, setUploadedFiles }) => {
     {
       key: 'rvTool',
       label: 'RVTool VMware Assessment',
-      description: 'Multiple CSV or Excel files from RVTool containing VMware environment data',
+      description: 'CSV or Excel files from RVTool containing VMware environment data',
       acceptedFormats: '.csv, .xlsx, .xls',
       required: false,
       multiple: true,
-      details: 'VMware environment data exported from RVTool including vCPUs, memory, storage, VM configurations, and performance metrics. You can upload multiple files (e.g., vInfo, vCPU, vMemory, vDisk, etc.).',
-      example: 'rvtool-vInfo.csv, rvtool-vCPU.csv, rvtool-vMemory.csv'
+      details: 'VMware environment data exported from RVTool. For best performance with large datasets, upload the vInfo tab/file which contains comprehensive VM information (names, CPUs, memory, storage, OS, power state). You can upload multiple files, but vInfo will be prioritized for analysis to prevent timeouts.',
+      example: 'rvtool-vInfo.csv or rvtools-tabvInfo.xlsx'
     },
     {
       key: 'atxExcel',

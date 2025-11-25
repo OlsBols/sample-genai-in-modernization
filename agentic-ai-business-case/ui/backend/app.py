@@ -185,32 +185,47 @@ def generate_business_case():
         # Handle multiple RVTools files
         if 'rvTool' in request.files:
             rv_files = request.files.getlist('rvTool')
+            print(f"DEBUG: Received {len(rv_files)} RVTools file(s)")
             rv_file_paths = []
             rv_s3_keys = []
             
             for idx, file in enumerate(rv_files):
+                print(f"DEBUG: Processing RVTools file {idx}: {file.filename if file else 'None'}")
                 if file and allowed_file(file.filename):
                     # Preserve original filename or use index
                     safe_filename = secure_filename(file.filename)
                     filepath = os.path.join(INPUT_DIR, safe_filename)
+                    print(f"DEBUG: Saving RVTools file to: {filepath}")
                     file.save(filepath)
                     rv_file_paths.append(filepath)
+                    print(f"DEBUG: RVTools file saved successfully: {safe_filename}")
                     
                     # Upload to S3 if enabled
                     if is_s3_enabled():
                         s3_key = upload_file_to_s3(filepath, case_id, safe_filename)
                         if s3_key:
                             rv_s3_keys.append(s3_key)
+                else:
+                    print(f"DEBUG: RVTools file rejected - file: {file}, allowed: {allowed_file(file.filename) if file else 'N/A'}")
             
             if rv_file_paths:
                 uploaded_files['rvTool'] = rv_file_paths
+                print(f"DEBUG: Total RVTools files uploaded: {len(rv_file_paths)}")
                 if rv_s3_keys:
                     s3_file_keys['rvTool'] = rv_s3_keys
+        else:
+            print("DEBUG: No 'rvTool' field found in request.files")
         
-        # Save project info to a file for agents to access
+        # Save project info and uploaded filenames to a file for agents to access
+        project_info_with_files = project_info.copy()
+        project_info_with_files['uploadedFiles'] = {
+            key: [os.path.basename(f) for f in files] if isinstance(files, list) else os.path.basename(files)
+            for key, files in uploaded_files.items()
+        }
+        
         project_info_file = os.path.join(INPUT_DIR, 'project_info.json')
         with open(project_info_file, 'w', encoding='utf-8') as f:
-            json.dump(project_info, f, indent=2)
+            json.dump(project_info_with_files, f, indent=2)
         
         # Run the business case generator
         result = run_business_case_generator(project_info, selected_agents)
@@ -515,27 +530,27 @@ def enhance_description():
                 import boto3
                 bedrock = boto3.client('bedrock-runtime', region_name=DYNAMODB_REGION)
                 
-                prompt = f"""You are an AWS migration expert. Enhance and expand the following project description for {customer_name}'s AWS migration project. 
+                prompt = f"""You are an AWS migration expert. Create a concise project description for {customer_name}'s AWS migration project. 
 
 User's input:
 {current_description}
 
 Instructions:
+- Keep it concise and focused (maximum 100 words)
 - Expand on the user's key points naturally
-- Add relevant AWS migration details and best practices
-- Keep the user's original requirements and constraints prominent
-- Make it professional and comprehensive
+- Add relevant AWS migration details
+- Keep the user's original requirements prominent
 - Target region: {aws_region}
-- Do not add section headers or bullet points unless the user's input has them
 - Write in paragraph form, naturally flowing from the user's input
+- Be brief and to the point
 
-Enhanced description:"""
+Concise description (max 100 words):"""
 
                 response = bedrock.invoke_model(
                     modelId='anthropic.claude-3-haiku-20240307-v1:0',
                     body=json.dumps({
                         "anthropic_version": "bedrock-2023-05-31",
-                        "max_tokens": 1000,
+                        "max_tokens": 200,  # Limit tokens for concise output
                         "messages": [
                             {
                                 "role": "user",
@@ -548,13 +563,25 @@ Enhanced description:"""
                 response_body = json.loads(response['body'].read())
                 enhanced = response_body['content'][0]['text'].strip()
                 
+                # Enforce 100-word limit
+                words = enhanced.split()
+                if len(words) > 100:
+                    enhanced = ' '.join(words[:100])
+                    print(f"Truncated AI response from {len(words)} to 100 words")
+                
             except Exception as ai_error:
                 print(f"AI enhancement failed: {str(ai_error)}")
-                # Fallback: Simple enhancement
-                enhanced = f"{current_description}\n\nThis AWS migration project for {customer_name} will involve a comprehensive assessment of the current infrastructure, development of a detailed migration strategy aligned with AWS best practices and the 6Rs framework, and execution planning following the AWS Migration Acceleration Program (MAP) methodology. The migration will target the {aws_region} region to provide optimal performance, cost efficiency, and compliance. Key focus areas include workload discovery and analysis, application dependency mapping, TCO comparison, risk assessment, and detailed technical recommendations for each application workload to ensure a successful migration that meets all stated objectives and timelines."
+                # Fallback: Concise template (under 100 words)
+                enhanced = f"Assess and plan {customer_name}'s migration to AWS in {aws_region}. Analyze current IT environment, VMware workloads, and organizational readiness. Develop migration strategy using 6Rs framework and AWS MAP methodology. Deliver TCO comparison, migration roadmap, risk assessment, and technical recommendations for successful cloud transformation."
         else:
-            # Generate new description from scratch
-            enhanced = f"This project aims to assess and plan the migration of {customer_name}'s on-premises infrastructure to AWS. The assessment will include a comprehensive analysis of the current IT environment, VMware workloads, organizational readiness, and provide detailed migration strategies aligned with AWS best practices. The business case will outline the total cost of ownership (TCO) comparison, migration roadmap using the 6Rs framework (Rehost, Replatform, Refactor, Repurchase, Retire, Retain), and a phased execution plan following the AWS Migration Acceleration Program (MAP) methodology. The target deployment region is {aws_region}, selected for optimal performance and compliance requirements. Key deliverables include infrastructure assessment reports, cost analysis, risk assessment, migration timeline, and detailed technical recommendations for each application workload."
+            # Generate new concise description from scratch (under 100 words)
+            enhanced = f"Assess and plan {customer_name}'s on-premises infrastructure migration to AWS. Comprehensive analysis of IT environment, VMware workloads, and organizational readiness. Develop migration strategy using 6Rs framework and AWS MAP methodology. Target region: {aws_region}. Deliverables include TCO comparison, migration roadmap, risk assessment, and technical recommendations."
+        
+        # Final safety check - ensure it's under 100 words
+        words = enhanced.split()
+        if len(words) > 100:
+            enhanced = ' '.join(words[:100])
+            print(f"Final truncation: {len(words)} words to 100 words")
         
         return jsonify({
             'success': True,

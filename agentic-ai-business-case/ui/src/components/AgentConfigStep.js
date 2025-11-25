@@ -56,7 +56,9 @@ const AgentConfigStep = ({ selectedAgents, setSelectedAgents, uploadedFiles }) =
       phase: 'Phase 2: Synthesis',
       duration: '~1-2 min',
       dependsOn: ['itInventory', 'rvTool', 'atx', 'mra'],
-      details: 'Combines technical and organizational assessments into comprehensive current state analysis.'
+      details: 'Combines technical and organizational assessments into comprehensive current state analysis.',
+      required: true,
+      alwaysRun: true
     },
     {
       id: 'costAnalysis',
@@ -65,7 +67,9 @@ const AgentConfigStep = ({ selectedAgents, setSelectedAgents, uploadedFiles }) =
       phase: 'Phase 2: Synthesis',
       duration: '~1-2 min',
       dependsOn: ['itInventory', 'rvTool', 'atx', 'mra'],
-      details: 'Projects AWS costs using multiple pricing models (On-Demand, Reserved Instances, Savings Plans) and performs 3-year TCO comparison.'
+      details: 'Projects AWS costs using multiple pricing models (On-Demand, Reserved Instances, Savings Plans) and performs 3-year TCO comparison.',
+      required: true,
+      alwaysRun: true
     },
     {
       id: 'migrationStrategy',
@@ -74,7 +78,9 @@ const AgentConfigStep = ({ selectedAgents, setSelectedAgents, uploadedFiles }) =
       phase: 'Phase 2: Synthesis',
       duration: '~1-2 min',
       dependsOn: ['itInventory', 'rvTool', 'atx', 'mra'],
-      details: 'Categorizes applications by 6Rs (Rehost, Replatform, Repurchase, Refactor, Retire, Retain) and creates wave planning.'
+      details: 'Categorizes applications by 6Rs (Rehost, Replatform, Repurchase, Refactor, Retire, Retain) and creates wave planning.',
+      required: true,
+      alwaysRun: true
     },
     {
       id: 'migrationPlan',
@@ -83,7 +89,9 @@ const AgentConfigStep = ({ selectedAgents, setSelectedAgents, uploadedFiles }) =
       phase: 'Phase 3: Planning',
       duration: '~1-2 min',
       dependsOn: ['currentState', 'costAnalysis', 'migrationStrategy'],
-      details: 'Develops detailed plan covering Assess, Mobilize, Migrate, and Modernize phases with timelines and resources.'
+      details: 'Develops detailed plan covering Assess, Mobilize, Migrate, and Modernize phases with timelines and resources.',
+      required: true,
+      alwaysRun: true
     },
     {
       id: 'businessCase',
@@ -93,7 +101,8 @@ const AgentConfigStep = ({ selectedAgents, setSelectedAgents, uploadedFiles }) =
       duration: '~1 min',
       dependsOn: ['currentState', 'costAnalysis', 'migrationStrategy', 'migrationPlan'],
       details: 'Compiles all analyses into executive-ready comprehensive business case document.',
-      required: true
+      required: true,
+      alwaysRun: true
     }
   ];
 
@@ -105,7 +114,14 @@ const AgentConfigStep = ({ selectedAgents, setSelectedAgents, uploadedFiles }) =
       });
       setSelectedAgents({ runAll: true, agents: allAgents });
     } else {
-      setSelectedAgents({ runAll: false, agents: { businessCase: true } });
+      // When turning off "Run All", keep Phase 2, 3, 4 agents enabled
+      const requiredAgents = {};
+      agentConfigs.forEach(agent => {
+        if (agent.alwaysRun) {
+          requiredAgents[agent.id] = true;
+        }
+      });
+      setSelectedAgents({ runAll: false, agents: requiredAgents });
     }
   };
 
@@ -187,7 +203,7 @@ const AgentConfigStep = ({ selectedAgents, setSelectedAgents, uploadedFiles }) =
     >
       <SpaceBetween size="l">
         <Alert type="info">
-          You can run all agents or select specific agents. Dependencies will be automatically enabled.
+          Phase 1 agents are optional based on uploaded files. Phase 2, 3, and 4 agents always run to generate the complete business case.
         </Alert>
 
         <Toggle
@@ -213,7 +229,7 @@ const AgentConfigStep = ({ selectedAgents, setSelectedAgents, uploadedFiles }) =
                       <Checkbox
                         checked={selectedAgents.agents[agent.id] || false}
                         onChange={({ detail }) => handleAgentToggle(agent.id, detail.checked)}
-                        disabled={agent.required || !isAgentAvailable(agent)}
+                        disabled={agent.alwaysRun || !isAgentAvailable(agent)}
                       >
                         <SpaceBetween size="xxs">
                           <Box variant="strong">{agent.name}</Box>
@@ -221,7 +237,7 @@ const AgentConfigStep = ({ selectedAgents, setSelectedAgents, uploadedFiles }) =
                           <Box variant="small" color="text-status-inactive">
                             Duration: {agent.duration}
                             {agent.dependsOn && ` • Depends on: ${agent.dependsOn.length} agent(s)`}
-                            {agent.required && ' • Required'}
+                            {agent.alwaysRun && ' • Always runs (required for business case)'}
                           </Box>
                           <Box variant="small">{agent.details}</Box>
                           {!isAgentAvailable(agent) && (

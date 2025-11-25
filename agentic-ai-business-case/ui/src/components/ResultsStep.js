@@ -10,6 +10,7 @@ import {
   Alert
 } from '@cloudscape-design/components';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import html2pdf from 'html2pdf.js';
 
 const ResultsStep = ({ businessCaseResult, projectInfo, dynamoDBEnabled, onSave, lastUpdated }) => {
@@ -131,6 +132,14 @@ const ResultsStep = ({ businessCaseResult, projectInfo, dynamoDBEnabled, onSave,
       <SpaceBetween size="l">
         <Alert type="success">
           Your business case has been generated successfully!
+          <Box variant="small" color="text-status-inactive" margin={{ top: 'xs' }}>
+            Generated at: {new Date().toLocaleString()} • Case ID: {businessCaseResult.caseId || 'N/A'}
+          </Box>
+          {businessCaseResult.s3FileKeys && businessCaseResult.s3BucketName && (
+            <Box variant="small" color="text-status-inactive" margin={{ top: 'xs' }}>
+              <strong>S3 Storage:</strong> s3://{businessCaseResult.s3BucketName}/{businessCaseResult.caseId}/
+            </Box>
+          )}
         </Alert>
 
         {saveMessage && (
@@ -152,8 +161,111 @@ const ResultsStep = ({ businessCaseResult, projectInfo, dynamoDBEnabled, onSave,
               id: 'preview',
               content: (
                 <Box padding={{ vertical: 'l' }}>
-                  <div id="business-case-content" style={{ padding: '20px' }}>
-                    <ReactMarkdown>{businessCaseResult.content}</ReactMarkdown>
+                  <div id="business-case-content" style={{ 
+                    padding: '20px',
+                    maxWidth: '1200px',
+                    margin: '0 auto'
+                  }}>
+                    <style>{`
+                      #business-case-content h1 {
+                        font-size: 2em;
+                        font-weight: 700;
+                        margin-top: 1.5em;
+                        margin-bottom: 0.5em;
+                        color: #16191f;
+                        border-bottom: 2px solid #e9ebed;
+                        padding-bottom: 0.3em;
+                      }
+                      #business-case-content h2 {
+                        font-size: 1.5em;
+                        font-weight: 600;
+                        margin-top: 1.2em;
+                        margin-bottom: 0.5em;
+                        color: #16191f;
+                      }
+                      #business-case-content h3 {
+                        font-size: 1.2em;
+                        font-weight: 600;
+                        margin-top: 1em;
+                        margin-bottom: 0.5em;
+                        color: #16191f;
+                      }
+                      #business-case-content p {
+                        line-height: 1.6;
+                        margin-bottom: 1em;
+                        color: #16191f;
+                      }
+                      #business-case-content table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        margin: 1.5em 0;
+                        font-size: 0.9em;
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                        overflow: hidden;
+                      }
+                      #business-case-content table thead {
+                        background-color: #232f3e;
+                        color: white;
+                      }
+                      #business-case-content table th {
+                        padding: 12px 15px;
+                        text-align: left;
+                        font-weight: 600;
+                        border: 1px solid #d5dbdb;
+                      }
+                      #business-case-content table td {
+                        padding: 10px 15px;
+                        border: 1px solid #d5dbdb;
+                        vertical-align: top;
+                      }
+                      #business-case-content table tbody tr:nth-child(even) {
+                        background-color: #f9fafb;
+                      }
+                      #business-case-content table tbody tr:hover {
+                        background-color: #eaeded;
+                      }
+                      #business-case-content ul, #business-case-content ol {
+                        margin-left: 1.5em;
+                        margin-bottom: 1em;
+                        line-height: 1.6;
+                      }
+                      #business-case-content li {
+                        margin-bottom: 0.5em;
+                      }
+                      #business-case-content code {
+                        background-color: #f4f4f4;
+                        padding: 2px 6px;
+                        border-radius: 3px;
+                        font-family: 'Monaco', 'Courier New', monospace;
+                        font-size: 0.9em;
+                      }
+                      #business-case-content pre {
+                        background-color: #f4f4f4;
+                        padding: 15px;
+                        border-radius: 5px;
+                        overflow-x: auto;
+                        margin: 1em 0;
+                      }
+                      #business-case-content blockquote {
+                        border-left: 4px solid #ff9900;
+                        padding-left: 1em;
+                        margin: 1em 0;
+                        color: #5f6b7a;
+                        font-style: italic;
+                      }
+                      #business-case-content strong {
+                        font-weight: 600;
+                        color: #16191f;
+                      }
+                      #business-case-content hr {
+                        border: none;
+                        border-top: 1px solid #e9ebed;
+                        margin: 2em 0;
+                      }
+                    `}</style>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {businessCaseResult.content}
+                    </ReactMarkdown>
                   </div>
                 </Box>
               )

@@ -13,6 +13,15 @@ import {
 
 const ProjectInfoStep = ({ projectInfo, setProjectInfo }) => {
   const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
+  const MAX_WORDS = 100;
+
+  const getWordCount = (text) => {
+    if (!text) return 0;
+    return text.trim().split(/\s+/).filter(word => word.length > 0).length;
+  };
+
+  const wordCount = getWordCount(projectInfo.projectDescription);
+  const isOverLimit = wordCount > MAX_WORDS;
 
   const awsRegions = [
     { label: 'US East (N. Virginia) - us-east-1', value: 'us-east-1' },
@@ -158,7 +167,12 @@ const ProjectInfoStep = ({ projectInfo, setProjectInfo }) => {
 
         <FormField
           label={<span>Project Description <span style={{ color: '#d91515' }}>*</span></span>}
-          description="Detailed description of the migration project and objectives"
+          description="Brief description of the migration project and objectives (max 100 words)"
+          constraintText={
+            <span style={{ color: isOverLimit ? '#d91515' : '#5f6b7a' }}>
+              {wordCount} / {MAX_WORDS} words {isOverLimit && '(exceeds limit)'}
+            </span>
+          }
           secondaryControl={
             <Button
               onClick={handleGenerateDescription}
@@ -175,10 +189,16 @@ const ProjectInfoStep = ({ projectInfo, setProjectInfo }) => {
             onChange={({ detail }) =>
               setProjectInfo({ ...projectInfo, projectDescription: detail.value })
             }
-            placeholder="Describe the migration project, objectives, and expected outcomes..."
+            placeholder="Describe the migration project, objectives, and expected outcomes (max 100 words)..."
             rows={6}
           />
         </FormField>
+
+        {isOverLimit && (
+          <Alert type="warning">
+            Project description exceeds {MAX_WORDS} words. Please shorten it to stay within the limit. Long descriptions can cause context overflow errors.
+          </Alert>
+        )}
       </SpaceBetween>
     </Container>
   );

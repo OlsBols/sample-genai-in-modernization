@@ -10,7 +10,7 @@ def get_project_context():
     Read project information from the input folder.
     Returns a formatted string with project context.
     """
-    project_info_file = os.path.join(input_folder_dir_path, 'project_info.json')
+    project_info_file = os.path.join(input_folder_dir_path, 'input', 'project_info.json')
     
     if not os.path.exists(project_info_file):
         return ""
@@ -36,8 +36,9 @@ def get_project_context():
 def get_project_info_dict():
     """
     Read project information and return as dictionary.
+    Includes uploaded filenames if available.
     """
-    project_info_file = os.path.join(input_folder_dir_path, 'project_info.json')
+    project_info_file = os.path.join(input_folder_dir_path, 'input', 'project_info.json')
     
     if not os.path.exists(project_info_file):
         return {}

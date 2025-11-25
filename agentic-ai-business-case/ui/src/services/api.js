@@ -13,7 +13,14 @@ export const generateBusinessCase = async ({ projectInfo, uploadedFiles, selecte
     // Add files
     Object.entries(uploadedFiles).forEach(([key, file]) => {
       if (file) {
-        formData.append(key, file);
+        // Handle multiple files (e.g., RVTools can have multiple files)
+        if (Array.isArray(file)) {
+          file.forEach(f => {
+            if (f) formData.append(key, f);
+          });
+        } else {
+          formData.append(key, file);
+        }
       }
     });
 

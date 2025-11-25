@@ -1,6 +1,12 @@
 {
-  "projectName": "Enterprise Cloud Migration 2025",
-  "projectDescription": "dc exit 18 months, modernise as much as possible, save license cost",
-  "customerName": "Acme Corp-1",
-  "awsRegion": "us-east-1"
+  "projectName": "Enterprise Cloud Migration - DC Exit",
+  "projectDescription": "Acme Corp's 18-month AWS migration project aims to optimize licensing costs and modernize their infrastructure as they exit their on-premises data center. The plan leverages AWS services to achieve a 3-year Next Unit of Computing (NUC) plan, maximizing efficiency and scalability. Key priorities include migrating workloads to the us-east-1 region, modernizing applications where feasible, and carefully managing licensing to reduce costs.",
+  "customerName": "Acme Corp",
+  "awsRegion": "us-east-1",
+  "uploadedFiles": {
+    "mra": "aws-customer-migration-readiness-assessment.md",
+    "rvTool": [
+      "rvtools_anon.xlsx"
+    ]
+  }
 }

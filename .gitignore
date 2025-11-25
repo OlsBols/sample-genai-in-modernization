@@ -4,3 +4,30 @@ output.txt
 .git
 .ruff_cache
 ~*
+
+# Log files
+*.log
+logs/
+agentic-ai-business-case/output/logs/
+
+# Generated output files
+agentic-ai-business-case/output/*.md
+agentic-ai-business-case/output/*.pdf
+agentic-ai-business-case/output/*.xlsx
+
+# Project info (contains user data)
+agentic-ai-business-case/input/project_info.json
+
+# Uploaded files (user data)
+agentic-ai-business-case/input/*.xlsx
+agentic-ai-business-case/input/*.xls
+agentic-ai-business-case/input/*.csv
+agentic-ai-business-case/input/*.pdf
+agentic-ai-business-case/input/*.pptx
+agentic-ai-business-case/input/*.ppt
+agentic-ai-business-case/input/*.docx
+agentic-ai-business-case/input/*.doc
+
+# Keep example/template files
+!agentic-ai-business-case/input/application-portfolio.csv
+!agentic-ai-business-case/input/aws-*.md
