@@ -6,6 +6,7 @@ import os
 from strands import Agent
 from strands.models import BedrockModel
 from config import model_id_claude3_7, model_temperature, MAX_TOKENS_BUSINESS_CASE, output_folder_dir_path
+from appendix_content import get_appendix
 
 def create_section_agent(section_prompt):
     """Create an agent for generating a specific section"""
@@ -70,6 +71,8 @@ Generate a concise Migration Strategy section.
 
 **Input**: Analysis from agent_migration_strategy covering 6Rs recommendations.
 
+**CRITICAL - DEPRECATED SERVICES**: Ensure all AWS service recommendations are current and NOT deprecated. Reference: https://aws.amazon.com/products/lifecycle/
+
 **Generate** (very concise):
 1. Recommended Approach (1 paragraph)
 2. 6Rs Distribution (well-formatted table with headers)
@@ -90,6 +93,8 @@ COST_ANALYSIS_PROMPT = """
 Generate a concise Cost Analysis and TCO section.
 
 **Input**: Analysis from agent_aws_cost_arr covering AWS costs and TCO.
+
+**CRITICAL - DEPRECATED SERVICES**: Do NOT include any deprecated or end-of-life AWS services in cost analysis. Only include current, actively supported services. Reference: https://aws.amazon.com/products/lifecycle/
 
 **Generate** (very concise):
 1. On-Premises TCO Calculation Methodology (1 paragraph explaining how on-prem costs were calculated: hardware depreciation, data center facilities, power/cooling, IT staff salaries, software licenses, maintenance)
@@ -320,6 +325,7 @@ def combine_sections(sections, project_context):
 5. Migration Roadmap
 6. Benefits and Risks
 7. Recommendations and Next Steps
+8. Appendix: AWS Partner Programs for Migration and Modernization
 
 ---
 
@@ -339,6 +345,9 @@ def combine_sections(sections, project_context):
     for section_key, section_title in section_order:
         content = sections.get(section_key, f'*{section_title} not available*')
         document += f"\n## {section_title}\n\n{content}\n\n---\n"
+    
+    # Add appendix with AWS partner programs
+    document += f"\n{get_appendix()}\n\n"
     
     # Add footer
     document += f"""

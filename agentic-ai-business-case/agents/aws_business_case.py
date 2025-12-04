@@ -15,6 +15,7 @@ from migration_plan import read_migration_plan_framework
 from project_context import get_project_context, get_project_info_dict
 from setup_logging import setup_logging
 from multi_stage_business_case import generate_multi_stage_business_case
+from appendix_content import get_appendix
 from prompt_library.agent_prompts import (
     system_message_aws_arr_cost, 
     system_message_rv_tool_analysis, 
@@ -182,7 +183,7 @@ logger.info("="*80)
 logger.info(f"Project: {project_info.get('projectName', 'N/A')}")
 logger.info(f"Customer: {project_info.get('customerName', 'N/A')}")
 logger.info(f"Region: {project_info.get('awsRegion', 'N/A')}")
-logger.info(f"Description: {project_info.get('projectDescription', 'N/A')[:100]}...")
+logger.info(f"Description: {project_info.get('projectDescription', 'N/A')}")
 logger.info("="*80)
 
 logger.info("Executing agent graph...")
@@ -233,6 +234,8 @@ else:
             file.write(f"Generated on: {result.execution_order[-1].execution_time}ms execution time\n\n")
             file.write("---\n\n")
             file.write(final_result_text)
+            file.write("\n\n---\n\n")
+            file.write(get_appendix())
         logger.info(f"Business case saved to: {file_path}")
     else:
         logger.error("Business case not found in results")

@@ -7,17 +7,25 @@ system_message_aws_arr_cost = """
     
     Please calculate estimated AWS costs for the provided inventory data with the following requirements:
 
+    **CRITICAL - DEPRECATED SERVICES CHECK**:
+    Before recommending ANY AWS service, verify it is NOT deprecated or scheduled for end-of-life.
+    Reference: https://aws.amazon.com/products/lifecycle/
+    - DO NOT recommend deprecated services (e.g., CognitoSync - use AppSync DataStore instead)
+    - DO NOT recommend services in end-of-life phase
+    - Always recommend current, actively supported AWS services
+    - If a service is deprecated, recommend the AWS-suggested replacement
+    
     (a) Use the following modernisation pathways and recommend AWS services for each applicable pathway:
             
-        1. Move to Cloud Native: API Gateway, Lambda, EventBridge, Step Functions, SQS, SNS, Amazon MQ, AppSync, Cognito, Amplify, X-Ray, Migration Hub Refactor Spaces, CognitoSync
+        1. Move to Cloud Native: API Gateway, Lambda, EventBridge, Step Functions, SQS, SNS, Amazon MQ, AppSync, Cognito, Amplify, X-Ray
         2. Move to Containers: EKS, ECS, ECR, Fargate, App Runner
         3. Move to Open Source: RDS (MySQL, Postgres, MariaDB), Aurora, Linux containers on ECS/EKS/Fargate, Lambda
-        4. Move to Managed Databases: RDS (MySQL, Postgres, MariaDB), Aurora, DocumentDB, KeySpaces, ElastiCache, MemoryDB, DMS, DynamoDB Accelerator (DAX), Neptune,KeySpaces, Timestream and MemoryDB
+        4. Move to Managed Databases: RDS (MySQL, Postgres, MariaDB), Aurora, DocumentDB, KeySpaces, ElastiCache, MemoryDB, DMS, DynamoDB Accelerator (DAX), Neptune, Timestream
         5. Move to Managed Analytics: Lake Formation, Kinesis, EMR, Redshift, MSK, Athena, Glue, QuickSight, OpenSearch, Kendra, MWAA, Appflow, HealthLake
-        6. Move to Modern DevOps: CloudFormation, Config, CodeBuild, CodeDeploy, CodePipeline, CodeGuru, Amplify, X-Ray, CodeArtifact, CodeCatalyst, Prometheus, DeviceFarm, DevOpsGuru
+        6. Move to Modern DevOps: CloudFormation, Config, CodeBuild, CodeDeploy, CodePipeline, Amplify, X-Ray, CodeArtifact, Prometheus, DeviceFarm, DevOpsGuru
         7. Move to AI: Amazon Bedrock, Q Developer, Sagemaker, A2I, Forecast, Lex, Polly, Transcribe, Personalize, Comprehend, Textract, Rekognition, Comprehend Medical, Translate
-        8. Additional AWS Services Assessment -Identify any additional AWS services required other the modernisation pathways (compute, storage, security, netwroking, minitoring)
-    (b) Provide rational bheind selecting AWS services 
+        8. Additional AWS Services Assessment - Identify any additional AWS services required other the modernisation pathways (compute, storage, security, networking, monitoring)
+    (b) Provide rationale behind selecting AWS services 
     (C) Analyse and present costs using multiple purchasing options:
         - On-Demand pricing: Pay-as-you-go hourly rates
         - 3-Year No Upfront Reserved Instances (3-Year NURI): Best long-term savings, no upfront payment
@@ -270,10 +278,12 @@ system_message_aws_business_case = """
     - Wave planning overview
     
     # 4. Target AWS Architecture
-    - Recommended AWS services
+    - Recommended AWS services (ONLY current, actively supported services - verify against https://aws.amazon.com/products/lifecycle/)
     - Architecture patterns
     - Security and compliance approach
     - High availability and disaster recovery
+    
+    **CRITICAL**: Do NOT recommend deprecated or end-of-life AWS services. Only recommend current, actively supported services.
     
     # 5. Cost Analysis and TCO
     - Current on-premises costs (if available)
@@ -390,9 +400,11 @@ system_message_atx_analysis = """
     
     ## (3) AWS Target Architecture & Mapping
     - Extract recommended AWS services for VMware workloads (EC2, VMware Cloud on AWS, etc.)
+    - **CRITICAL**: Verify all recommended services are NOT deprecated (check https://aws.amazon.com/products/lifecycle/)
     - Document instance type recommendations and rightsizing opportunities
     - Identify modernization opportunities (containers, serverless, managed services)
     - Review network architecture and connectivity requirements
+    - Replace any deprecated services with current AWS-recommended alternatives
     
     ## (4) Cost Analysis & TCO Comparison
     - Extract current VMware infrastructure costs (hardware, licensing, maintenance, facilities)

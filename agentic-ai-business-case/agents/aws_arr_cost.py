@@ -25,7 +25,7 @@ bedrock_model = BedrockModel(
 #         6. Move to Modern DevOps: CloudFormation, Config, CodeBuild, CodeDeploy, CodePipeline, CodeGuru, Amplify, X-Ray, CodeArtifact, CodeCatalyst, Prometheus, DeviceFarm, DevOpsGuru
 #         7. Move to AI: Amazon Bedrock, Q Developer, Sagemaker, A2I, Forecast, Lex, Polly, Transcribe, Personalize, Comprehend, Textract, Rekognition, Comprehend Medical, Translate
 #         8. Additional AWS Services Assessment -Identify any additional AWS services required other the modernisation pathways (compute, storage, security, netwroking, minitoring)
-#     (b) Provide rational bheind selecting AWS services 
+#     (b) Provide rational behind selecting AWS services 
 #     (C) Analyse and present costs using multiple purchasing options:
 #         - On-Demand pricing: Pay-as-you-go hourly rates
 #         - Reserved Instances: 1-year and 3-year commitment savings (Standard and Convertible)
