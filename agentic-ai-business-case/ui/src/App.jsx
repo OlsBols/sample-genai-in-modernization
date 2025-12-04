@@ -140,16 +140,10 @@ function App() {
   };
 
   const isProjectInfoValid = () => {
-    const MAX_WORDS = 100;
-    const wordCount = projectInfo.projectDescription 
-      ? projectInfo.projectDescription.trim().split(/\s+/).filter(word => word.length > 0).length 
-      : 0;
-    
     return projectInfo.projectName && 
            projectInfo.customerName && 
            projectInfo.projectDescription && 
-           projectInfo.awsRegion &&
-           wordCount <= MAX_WORDS;
+           projectInfo.awsRegion;
   };
 
   const isFileUploadValid = () => {
@@ -314,23 +308,15 @@ function App() {
               <Wizard
                 steps={steps}
                 activeStepIndex={activeStepIndex}
+                className={activeStepIndex === 3 ? 'hide-wizard-actions' : ''}
                 onNavigate={({ detail }) => {
                   const requestedStep = detail.requestedStepIndex;
                   
                   // Validate step 0 (Project Info) before moving forward
                   if (activeStepIndex === 0 && requestedStep > 0 && !isProjectInfoValid()) {
-                    const wordCount = projectInfo.projectDescription 
-                      ? projectInfo.projectDescription.trim().split(/\s+/).filter(word => word.length > 0).length 
-                      : 0;
-                    
-                    let errorMsg = 'Please fill in all required project information fields (Project Name, Customer Name, Project Description, and AWS Region).';
-                    if (wordCount > 100) {
-                      errorMsg = `Project description is too long (${wordCount} words). Please limit to 100 words to prevent context overflow.`;
-                    }
-                    
                     setGenerationStatus({
                       ...generationStatus,
-                      error: errorMsg
+                      error: 'Please fill in all required project information fields (Project Name, Customer Name, Project Description, and AWS Region).'
                     });
                     return;
                   }

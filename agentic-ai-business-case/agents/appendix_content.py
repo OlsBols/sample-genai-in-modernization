@@ -27,8 +27,8 @@ Specifically designed for Independent Software Vendor workload migrations. Suppo
 
 #### 4. VMware Migration Programs
 - **AWS Transform for VMware:** Streamlined service for migrating VMware workloads to AWS
-- **VMware Migration Accelerator (VMA):** Provides credits when migrating VMware Cloud on AWS workloads to Amazon EC2
 - **Amazon Elastic VMware Service (Amazon EVS):** Fastest path to migrate and operate VMware workloads on AWS
+- **VMware Migration Accelerator (VMA):** Provides credits when migrating VMware workloads to Amazon EC2
 
 **Learn more:** [VMware on AWS Migration](https://aws.amazon.com/vmware/)
 

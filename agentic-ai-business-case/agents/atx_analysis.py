@@ -81,7 +81,7 @@ When analyzing these ATX documents, focus on:
 - Assess workload performance requirements and patterns
 
 ## (3) AWS Target Architecture & Mapping
-- Extract recommended AWS services for VMware workloads (EC2, VMware Cloud on AWS, etc.)
+- Extract recommended AWS services for VMware workloads (EC2, Amazon Elastic VMware Service (EVS), etc.)
 - Document instance type recommendations and rightsizing opportunities
 - Identify modernization opportunities (containers, serverless, managed services)
 - Review network architecture and connectivity requirements

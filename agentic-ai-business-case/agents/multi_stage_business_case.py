@@ -28,24 +28,26 @@ Generate a comprehensive Executive Summary for the AWS migration business case.
 - If AWS costs are EQUAL or HIGHER, focus on business value and strategic benefits instead
 - Do NOT show negative savings or unfavorable cost comparisons
 
+**CRITICAL - AVOID REPETITION**:
+- Keep this section HIGH-LEVEL only - detailed numbers will be in later sections
+- Do NOT repeat detailed wave structures, timelines, or cost breakdowns
+- Focus on KEY takeaways and strategic overview only
+
 **Generate**:
 1. Project Overview (use EXACT customer name and project details from PROJECT CONTEXT)
-2. Current State Highlights with ACTUAL NUMBERS (e.g., "2,027 VMs, 7,581 vCPUs, 40,189 GB RAM")
-3. Recommended Approach (based on ACTUAL migration strategy analysis)
-4. Key Financial Metrics with ACTUAL VALUES:
+2. Current State Highlights - HIGH-LEVEL ONLY (e.g., "~2,000 VMs" not exact counts)
+3. Recommended Approach - STRATEGIC OVERVIEW (e.g., "phased approach over 18 months" without wave details)
+4. Key Financial Metrics - SUMMARY ONLY:
    **IF AWS < On-Prem**: Show cost savings
-   - On-Premises 3-Year TCO: $X
-   - AWS 3-Year TCO with NURI: $Y
-   - Total Savings: $Z
+   - Total 3-Year Savings: $X (Y% reduction)
    - Break-even: Month X
    
    **IF AWS >= On-Prem**: Show business value instead
    - AWS 3-Year Investment: $X
-   - Business Value: Agility, innovation velocity, reduced technical debt
-   - Strategic Benefits: Faster time-to-market, global scalability, managed services
-5. Expected Benefits (based on ACTUAL findings - emphasize operational and strategic benefits)
-6. Critical Success Factors
-7. Timeline Overview (use ACTUAL timeline from migration plan with RELATIVE timeframes - e.g., "12-18 months" not specific dates)
+   - Strategic Benefits: Agility, innovation, scalability
+5. Expected Benefits - TOP 3-4 ONLY (detailed list will be in Benefits section)
+6. Critical Success Factors - TOP 3 ONLY
+7. Timeline Overview - HIGH-LEVEL (e.g., "18-month phased approach" without wave breakdown)
 
 **Format**: Markdown, 400-500 words MAX, include key metrics table with ACTUAL numbers
 **Tone**: Executive-level, strategic, business-focused
@@ -80,13 +82,13 @@ Generate a concise Current State Analysis section.
 MIGRATION_STRATEGY_PROMPT = """
 Generate a concise Migration Strategy section.
 
-**Input**: Analysis from agent_migration_strategy covering 6Rs recommendations.
+**Input**: Analysis from agent_migration_strategy covering 7Rs recommendations.
 
 **CRITICAL - DEPRECATED SERVICES**: Ensure all AWS service recommendations are current and NOT deprecated. Reference: https://aws.amazon.com/products/lifecycle/
 
 **Generate** (very concise):
 1. Recommended Approach (1 paragraph)
-2. 6Rs Distribution (well-formatted table with headers)
+2. 7Rs Distribution (well-formatted table with headers: Retire, Retain, Rehost, Relocate, Replatform, Repurchase, Refactor)
 3. Wave Planning (brief, 2-3 sentences)
 4. Quick Wins (bullet points, 3-5 items)
 
@@ -204,14 +206,30 @@ Generate a concise Recommendations and Next Steps section.
 
 **Input**: All previous analyses and recommendations.
 
+**CRITICAL - AVOID REPETITION**:
+- Do NOT repeat cost savings numbers (already in Executive Summary and Cost Analysis)
+- Do NOT repeat wave structures (already in Migration Roadmap)
+- Do NOT repeat VM counts or infrastructure details (already in Current State)
+- Focus on ACTIONABLE next steps only
+
 **Generate** (very concise):
-1. Top 3 Recommendations (based on ACTUAL analysis provided)
+1. Top 3 Strategic Recommendations (NEW insights, not repeating previous sections)
 2. Immediate Actions (bullet points - do NOT recommend assessments that were already completed)
-3. 90-Day Plan (table with relative timeframes)
+3. Recommended Deep-Dive Assessments (if only basic data like RVTools was provided):
+   - **AWS Migration Evaluator**: Detailed TCO analysis and right-sizing recommendations
+   - **Migration Portfolio Assessment (MPA)**: Application dependency mapping and wave planning
+   - **AWS Partner ISV Tools**: Consider tools from https://aws.amazon.com/blogs/apn/accelerate-vmware-workload-modernization-with-aws-partner-solutions/
+     * CloudPhysics for VMware optimization
+     * Densify for workload rightsizing
+     * Cloudamize for cloud readiness
+     * Turbonomic for application resource management
+4. 90-Day Plan (table with relative timeframes - focus on ACTIONS not metrics)
 
 **CRITICAL REQUIREMENTS**:
 - Do NOT recommend conducting MRA if MRA analysis was already provided
 - Do NOT recommend RVTools assessment if RVTools data was already analyzed
+- Do NOT recommend ATX assessment if ATX data was already analyzed
+- If only RVTools data was provided, RECOMMEND deeper assessments (Migration Evaluator, MPA, Partner tools)
 - Focus on NEXT steps, not repeating assessments already done
 - Use RELATIVE timeframes (NOT specific dates):
   * Week 1-2, Week 3-4, Week 5-6, etc.
@@ -228,9 +246,9 @@ Generate a concise Recommendations and Next Steps section.
 | Month 2   | Execute pilot migration | Migration Team |
 | Month 3   | Review and optimize | Operations Team |
 
-**Format**: Markdown, 300-400 words MAX, include action items table with relative timeframes
+**Format**: Markdown, 400-500 words MAX, include action items table with relative timeframes
 **Tone**: Actionable, clear, prioritized, forward-looking
-**CRITICAL**: Stay under 400 words. Use relative timeframes only (Week 1-2, Month 1, etc.).
+**CRITICAL**: Stay under 500 words. Use relative timeframes only (Week 1-2, Month 1, etc.).
 """
 
 def generate_multi_stage_business_case(agent_results, project_context):
@@ -262,6 +280,19 @@ def generate_multi_stage_business_case(agent_results, project_context):
                 return result_text[:8000]
         return 'N/A'
     
+    # Determine which assessments were completed
+    completed_assessments = []
+    if 'agent_rv_tool_analysis' in agent_results and agent_results['agent_rv_tool_analysis'].result:
+        completed_assessments.append('RVTools VMware Assessment')
+    if 'agent_atx_analysis' in agent_results and agent_results['agent_atx_analysis'].result:
+        completed_assessments.append('AWS Transform (ATX) Assessment')
+    if 'agent_mra_analysis' in agent_results and agent_results['agent_mra_analysis'].result:
+        completed_assessments.append('Migration Readiness Assessment (MRA)')
+    if 'agent_it_analysis' in agent_results and agent_results['agent_it_analysis'].result:
+        completed_assessments.append('IT Infrastructure Inventory Analysis')
+    
+    assessments_note = f"\n**ASSESSMENTS ALREADY COMPLETED**: {', '.join(completed_assessments)}\n**DO NOT recommend these assessments again.**" if completed_assessments else ""
+    
     # Build comprehensive context with actual analysis results
     context = f"""
 {project_context}
@@ -279,6 +310,7 @@ def generate_multi_stage_business_case(agent_results, project_context):
 
 ### Migration Plan:
 {get_result_text('agent_migration_plan')}
+{assessments_note}
 
 **CRITICAL INSTRUCTIONS:**
 - Use ONLY the ACTUAL NUMBERS and data from the analysis results above

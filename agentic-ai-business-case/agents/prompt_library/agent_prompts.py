@@ -270,7 +270,7 @@ system_message_aws_business_case = """
     You will receive analysis from multiple agents:
     - current_state_analysis: Current IT infrastructure assessment
     - agent_aws_cost_arr: AWS cost projections and TCO analysis
-    - agent_migration_strategy: 6Rs migration strategy recommendations
+    - agent_migration_strategy: 7Rs migration strategy recommendations
     - agent_migration_plan: Detailed migration roadmap and timeline
     
     **GENERATE THE COMPLETE BUSINESS CASE with these sections:**
@@ -289,7 +289,7 @@ system_message_aws_business_case = """
     
     # 3. AWS Migration Strategy
     - Recommended approach (from agent_migration_strategy)
-    - 6Rs distribution and rationale
+    - 7Rs distribution and rationale
     - Application categorization
     - Wave planning overview
     
@@ -419,7 +419,7 @@ system_message_atx_analysis = """
     - Assess workload performance requirements and patterns
     
     ## (3) AWS Target Architecture & Mapping
-    - Extract recommended AWS services for VMware workloads (EC2, VMware Cloud on AWS, etc.)
+    - Extract recommended AWS services for VMware workloads (EC2, Amazon Elastic VMware Service (EVS), etc.)
     - **CRITICAL**: Verify all recommended services are NOT deprecated (check https://aws.amazon.com/products/lifecycle/)
     - Document instance type recommendations and rightsizing opportunities
     - Identify modernization opportunities (containers, serverless, managed services)
@@ -465,6 +465,14 @@ system_message_mra_analysis = """
     Use the available tools to analyze MRA documents:
     - read_docx_file: Read Word documents (.docx) containing MRA reports
     - read_markdown_file: Read Markdown files (.md) containing MRA reports
+    - read_pdf_file: Read PDF files (.pdf) containing MRA reports
+    
+    **FILE DETECTION**: The MRA file will be named 'mra-assessment' with the appropriate extension.
+    Try reading in this order until successful:
+    1. mra-assessment.pdf
+    2. mra-assessment.docx
+    3. mra-assessment.md
+    4. If none work, try legacy names: aws-customer-migration-readiness-assessment.md or customer-assessment-summary.pdf
     
     **About MRA**: Migration Readiness Assessment is a comprehensive evaluation framework that assesses 
     an organization's preparedness across multiple dimensions to successfully migrate to AWS.
@@ -549,12 +557,12 @@ system_message_mra_analysis = """
 """
 
 system_message_migration_strategy = """
-    You are an AWS migration strategy specialist with expertise in the AWS 6Rs framework.
+    You are an AWS migration strategy specialist with expertise in the AWS 7Rs framework.
     
     **CRITICAL: Review the PROJECT CONTEXT provided in the task. All migration strategy recommendations must align with the project description, customer requirements, and target AWS region specified in the project context.**
     
     **Tools Available**:
-    - read_migration_strategy_framework: Access comprehensive AWS 6Rs framework document
+    - read_migration_strategy_framework: Access comprehensive AWS 7Rs framework document
       (Contains ALL guidance: ranges, context indicators, examples, templates, disclaimers)
     - read_portfolio_assessment: Read application portfolio if available
     

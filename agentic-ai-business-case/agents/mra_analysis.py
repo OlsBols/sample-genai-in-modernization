@@ -2,6 +2,7 @@ import os
 from strands import Agent, tool
 from strands.models import BedrockModel
 from docx import Document
+from pypdf import PdfReader
 
 from config import input_folder_dir_path, model_id_claude3_7, model_temperature
 
@@ -16,6 +17,35 @@ def read_file_from_input_dir(filename):
     """Read file from the input directory"""
     full_path = os.path.join(input_folder_dir_path, "input", filename)
     return full_path
+
+def find_mra_file():
+    """Find the MRA file in the input directory (supports .md, .docx, .pdf)"""
+    input_dir = os.path.join(input_folder_dir_path, "input")
+    
+    # Check for MRA file with any supported extension
+    mra_patterns = [
+        'mra-assessment.pdf',
+        'mra-assessment.docx', 
+        'mra-assessment.md',
+        'mra-assessment.doc',
+        # Legacy patterns for backward compatibility
+        'aws-customer-migration-readiness-assessment.md',
+        'customer-assessment-summary.pdf'
+    ]
+    
+    for pattern in mra_patterns:
+        filepath = os.path.join(input_dir, pattern)
+        if os.path.exists(filepath):
+            return pattern
+    
+    # If no file found, list what's available for debugging
+    try:
+        files = os.listdir(input_dir)
+        print(f"Available files in input directory: {files}")
+    except Exception as e:
+        print(f"Error listing input directory: {e}")
+    
+    return None
 
 @tool(name="read_docx_file", description="Read Word document (.docx) from the input folder and extract text content")
 def read_docx_file(filename: str):
@@ -45,6 +75,20 @@ def read_markdown_file(filename: str):
         content = file.read()
     return content
 
+@tool(name="read_pdf_file", description="Read PDF file (.pdf) from the input folder and extract text content")
+def read_pdf_file(filename: str):
+    """Read PDF file and extract text content"""
+    full_path = read_file_from_input_dir(filename)
+    reader = PdfReader(full_path)
+    content = []
+    
+    for page_num, page in enumerate(reader.pages, 1):
+        text = page.extract_text()
+        if text.strip():
+            content.append(f"--- Page {page_num} ---\n{text}")
+    
+    return "\n\n".join(content)
+
 # System message for the MRA analysis agent
 system_message = """
 You are an AWS Migration Readiness Assessment (MRA) specialist with expertise in evaluating 
@@ -55,8 +99,13 @@ an organization's preparedness across multiple dimensions to successfully migrat
 gaps, risks, and provides actionable recommendations to improve migration readiness.
 
 You have access to tools to read MRA documents in various formats:
-- **read_docx_file**: Read Word documents (.docx)
+- **read_docx_file**: Read Word documents (.docx, .doc)
 - **read_markdown_file**: Read Markdown files (.md)
+- **read_pdf_file**: Read PDF files (.pdf)
+
+**IMPORTANT**: The MRA file will be named 'mra-assessment' with the appropriate extension (.pdf, .docx, or .md).
+First, try reading 'mra-assessment.pdf', then 'mra-assessment.docx', then 'mra-assessment.md' until you find the file.
+If none of these work, try legacy filenames like 'aws-customer-migration-readiness-assessment.md' or 'customer-assessment-summary.pdf'.
 
 When analyzing MRA documents, focus on extracting and synthesizing:
 
@@ -185,7 +234,7 @@ Format your response in markdown with clear headings, bullet points, and tables 
 agent = Agent(
     model=bedrock_model,
     system_prompt=system_message,
-    tools=[read_docx_file, read_markdown_file]
+    tools=[read_docx_file, read_markdown_file, read_pdf_file]
 )
 
 # Example usage (commented out)
@@ -203,16 +252,25 @@ if __name__ == "__main__":
     # Test the MRA analysis tools
     print("Testing Migration Readiness Assessment (MRA) Analysis Tools...")
     
-    # Test Markdown reading
-    try:
-        md_content = read_markdown_file("aws-customer-migration-readiness-assessment.md")
-        print(f"\n✓ MRA Markdown file loaded successfully ({len(md_content)} characters)")
-    except Exception as e:
-        print(f"\n✗ Error reading MRA Markdown: {e}")
+    # Auto-detect MRA file
+    mra_filename = find_mra_file()
     
-    # Test Word document reading (if available)
-    try:
-        docx_content = read_docx_file("Example Customer MRA Summary v2.docx")
-        print(f"✓ MRA Word document loaded successfully ({len(docx_content)} characters)")
-    except Exception as e:
-        print(f"✗ Error reading MRA Word document: {e}")
+    if not mra_filename:
+        print("\n✗ No MRA file found in input directory")
+        print("Expected files: mra-assessment.pdf, mra-assessment.docx, or mra-assessment.md")
+    else:
+        print(f"\n✓ Found MRA file: {mra_filename}")
+        
+        # Read the file based on extension
+        try:
+            if mra_filename.endswith('.pdf'):
+                content = read_pdf_file(mra_filename)
+                print(f"✓ MRA PDF file loaded successfully ({len(content)} characters)")
+            elif mra_filename.endswith(('.docx', '.doc')):
+                content = read_docx_file(mra_filename)
+                print(f"✓ MRA Word document loaded successfully ({len(content)} characters)")
+            elif mra_filename.endswith('.md'):
+                content = read_markdown_file(mra_filename)
+                print(f"✓ MRA Markdown file loaded successfully ({len(content)} characters)")
+        except Exception as e:
+            print(f"✗ Error reading MRA file: {e}")

@@ -30,8 +30,8 @@ const ReviewStep = ({
     mra: 'MRA Organizational Readiness',
     currentState: 'Current State Synthesis',
     costAnalysis: 'AWS Cost Analysis',
-    migrationStrategy: 'Migration Strategy (6Rs)',
-    migrationPlan: 'Migration Plan (MAP)',
+    migrationStrategy: 'Migration Strategy (7Rs)',
+    migrationPlan: 'Migration Plan',
     businessCase: 'Business Case Generation'
   };
   const handleGenerate = async () => {

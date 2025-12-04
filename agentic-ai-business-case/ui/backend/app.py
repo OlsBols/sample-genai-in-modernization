@@ -159,7 +159,6 @@ def generate_business_case():
             'atxExcel': 'atx_analysis.xlsx',
             'atxPdf': 'atx_report.pdf',
             'atxPptx': 'atx_business_case.pptx',
-            'mra': 'aws-customer-migration-readiness-assessment.md',
             'portfolio': 'application-portfolio.csv'
         }
         
@@ -181,6 +180,26 @@ def generate_business_case():
                         s3_key = upload_file_to_s3(filepath, case_id, target_filename)
                         if s3_key:
                             s3_file_keys[key] = s3_key
+        
+        # Handle MRA file separately - preserve original extension
+        if 'mra' in request.files:
+            file = request.files['mra']
+            if file and allowed_file(file.filename):
+                # Get the file extension
+                original_filename = secure_filename(file.filename)
+                file_ext = original_filename.rsplit('.', 1)[1].lower()
+                
+                # Save with appropriate extension
+                target_filename = f'mra-assessment.{file_ext}'
+                filepath = os.path.join(INPUT_DIR, target_filename)
+                file.save(filepath)
+                uploaded_files['mra'] = filepath
+                
+                # Upload to S3 if enabled
+                if is_s3_enabled():
+                    s3_key = upload_file_to_s3(filepath, case_id, target_filename)
+                    if s3_key:
+                        s3_file_keys['mra'] = s3_key
         
         # Handle multiple RVTools files
         if 'rvTool' in request.files:
@@ -434,7 +453,6 @@ def load_business_case(case_id):
                 'atxExcel': 'atx_analysis.xlsx',
                 'atxPdf': 'atx_report.pdf',
                 'atxPptx': 'atx_business_case.pptx',
-                'mra': 'aws-customer-migration-readiness-assessment.md',
                 'portfolio': 'application-portfolio.csv'
             }
             
@@ -455,6 +473,14 @@ def load_business_case(case_id):
                         # Single RVTools file (backward compatibility)
                         local_path = os.path.join(INPUT_DIR, os.path.basename(value))
                         files_restored[key] = download_file_from_s3(value, local_path)
+                elif key == 'mra':
+                    # Handle MRA file - preserve original filename from S3
+                    filename = os.path.basename(value)
+                    local_path = os.path.join(INPUT_DIR, filename)
+                    if download_file_from_s3(value, local_path):
+                        files_restored[key] = True
+                    else:
+                        files_restored[key] = False
                 elif key in file_mapping:
                     local_path = os.path.join(INPUT_DIR, file_mapping[key])
                     if download_file_from_s3(value, local_path):

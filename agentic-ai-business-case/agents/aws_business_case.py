@@ -9,7 +9,7 @@ from config import model_id_claude3_7, model_temperature, output_folder_dir_path
 from inventory_analysis import it_analysis
 from rv_tool_analysis import rv_tool_analysis
 from atx_analysis import read_excel_file, read_pdf_file, read_pptx_file
-from mra_analysis import read_docx_file, read_markdown_file
+from mra_analysis import read_docx_file, read_markdown_file, read_pdf_file
 from migration_strategy import read_migration_strategy_framework, read_portfolio_assessment
 from migration_plan import read_migration_plan_framework
 from project_context import get_project_context, get_project_info_dict
@@ -57,7 +57,7 @@ bedrock_model_business_case = BedrockModel(
 agent_it_analysis = Agent(model=bedrock_model,system_prompt= system_message_it_analysis,tools=[it_analysis])
 agent_rv_tool_analysis = Agent(model=bedrock_model,system_prompt= system_message_rv_tool_analysis,tools=[rv_tool_analysis])
 agent_atx_analysis = Agent(model=bedrock_model,system_prompt= system_message_atx_analysis,tools=[read_excel_file, read_pdf_file, read_pptx_file])
-agent_mra_analysis = Agent(model=bedrock_model,system_prompt= system_message_mra_analysis,tools=[read_docx_file, read_markdown_file])
+agent_mra_analysis = Agent(model=bedrock_model,system_prompt= system_message_mra_analysis,tools=[read_docx_file, read_markdown_file, read_pdf_file])
 agent_migration_strategy = Agent(model=bedrock_model,system_prompt= system_message_migration_strategy,tools=[read_migration_strategy_framework, read_portfolio_assessment])
 agent_migration_plan = Agent(model=bedrock_model,system_prompt= system_message_migration_plan,tools=[read_migration_plan_framework])
 agent_aws_cost_arr = Agent(model=bedrock_model_cost,system_prompt= system_message_aws_arr_cost,tools=[it_analysis,rv_tool_analysis])  # Use lower temperature for deterministic costs

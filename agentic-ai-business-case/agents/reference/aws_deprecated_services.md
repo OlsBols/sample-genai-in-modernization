@@ -90,6 +90,12 @@
   - **Replacement**: AWS HealthOmics Analytics Store (updated version)
   - **Status**: Specific component deprecated, use updated HealthOmics services
 
+### VMware Services
+- **VMware Cloud on AWS** - DEPRECATED
+  - **Replacement**: Amazon Elastic VMware Service (Amazon EVS)
+  - **Status**: Service being phased out
+  - **Migration Path**: Migrate to Amazon EVS for VMware workloads on AWS
+
 ### Workstation & Remote Access
 - **Amazon Web Access Client for PCoIP (STXHD)** - DEPRECATED
   - **Replacement**: Amazon WorkSpaces with native clients, Amazon AppStream 2.0
@@ -159,6 +165,11 @@
 - ✅ **AWS Systems Manager** - Core systems management (avoid deprecated Change Manager and Incident Manager)
 - ✅ **Amazon CloudWatch** - Monitoring and observability
 - ✅ **AWS Config** - Configuration management and compliance
+
+### VMware Services (Use These)
+- ✅ **Amazon Elastic VMware Service (Amazon EVS)** - Run VMware workloads on AWS (replaces VMware Cloud on AWS)
+- ✅ **AWS Transform for VMware** - Assessment and migration tool for VMware environments
+- ✅ **VMware Migration Accelerator (VMA)** - Credits for migrating VMware workloads to EC2
 
 ## Best Practices for Business Case Generation
 

@@ -63,10 +63,10 @@ const FileUploadStep = ({ uploadedFiles, setUploadedFiles }) => {
       key: 'mra',
       label: 'Migration Readiness Assessment (MRA)',
       description: 'Organizational readiness evaluation document',
-      acceptedFormats: '.md, .docx, .doc',
+      acceptedFormats: '.md, .docx, .doc, .pdf',
       required: true,
-      details: 'Migration Readiness Assessment evaluating organizational readiness across business, people, process, technology, security, operations, and financial dimensions.',
-      example: 'aws-customer-migration-readiness-assessment.md'
+      details: 'Migration Readiness Assessment evaluating organizational readiness across business, people, process, technology, security, operations, and financial dimensions. Supports Markdown, Word, and PDF formats.',
+      example: 'aws-customer-migration-readiness-assessment.md or mra-report.pdf'
     },
     {
       key: 'portfolio',

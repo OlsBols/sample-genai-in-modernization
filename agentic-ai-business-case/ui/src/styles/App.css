@@ -106,3 +106,19 @@
 #business-case-content a:hover {
   text-decoration: underline;
 }
+
+
+/* Hide wizard navigation buttons on Results page */
+.hide-wizard-actions .awsui-wizard-actions {
+  display: none !important;
+}
+
+/* Alternative selector if the above doesn't work */
+.hide-wizard-actions [class*="wizard-actions"] {
+  display: none !important;
+}
+
+/* Hide the entire footer on Results page */
+.hide-wizard-actions footer {
+  display: none !important;
+}

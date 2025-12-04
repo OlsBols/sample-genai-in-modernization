@@ -15,79 +15,47 @@ An AI-powered tool that generates comprehensive AWS migration business cases usi
 
 ## Quick Start
 
-### Prerequisites
-
-- Python 3.8+
-- Node.js 16+ (for UI)
-- AWS Account with Bedrock access
-- AWS credentials configured
-
-### Installation
+**Get started in 3 commands:**
 
 ```bash
-# Install Python dependencies
-cd agentic-ai-business-case
-pip install -r requirements.txt
+# 1. Configure AWS credentials
+aws configure
 
-# Install UI dependencies
-cd ui
-npm install
-```
+# 2. Run setup script (one-time)
+./setup.sh
 
-### Configuration
-
-1. **AWS Credentials**:
-```bash
-export AWS_ACCESS_KEY_ID=your_key
-export AWS_SECRET_ACCESS_KEY=your_secret
-export AWS_DEFAULT_REGION=us-east-1
-```
-
-2. **Bedrock Model Access**:
-   - Claude 3 Sonnet is enabled by default in AWS Bedrock
-
-3. **Optional - DynamoDB** (for saving cases):
-```bash
-cd ui/backend
-python setup_dynamodb.py
-```
-
-4. **Optional - S3** (for file persistence):
-```bash
-export S3_BUCKET_NAME=your-bucket-name
-python setup_s3.py
-```
-
-### Running the Application
-
-**Option 1: UI (Recommended)**
-```bash
-# Use the convenient start script
-cd agentic-ai-business-case/ui
-./start.sh
-
-# Or manually:
-# Terminal 1: Start backend
-cd agentic-ai-business-case/ui/backend
-python app.py
-
-# Terminal 2: Start frontend
-cd agentic-ai-business-case/ui
-npm start
+# 3. Start the application
+./start-all.sh
 ```
 
 Access at: `http://localhost:3000`
 
-**UI Workflow**:
-1. Enter project information
-2. Upload assessment files (agents auto-selected based on files)
-3. Review & generate business case
-4. Edit, save, and export results
+**For detailed setup instructions, troubleshooting, and manual installation, see [SETUP_GUIDE.md](SETUP_GUIDE.md)**
 
-**Option 2: Command Line**
+### Prerequisites
+
+- Python 3.8+
+- Node.js 16+
+- AWS Account with Bedrock access
+- AWS credentials configured
+
+### Basic Usage
+
+**Start the application:**
 ```bash
-cd agentic-ai-business-case
+./start-all.sh
+```
+
+**Stop the application:**
+```bash
+./stop-all.sh
+```
+
+**Command-line generator:**
+```bash
+source venv/bin/activate
 python agents/aws_business_case.py
+deactivate
 ```
 
 ## Cost Estimation
@@ -187,44 +155,19 @@ aws cloudwatch put-metric-alarm \
 
 ## Input Data Requirements
 
+**For detailed file requirements and formats, see [SETUP_GUIDE.md](SETUP_GUIDE.md#input-files)**
+
 ### Required Files
 
-1. **Migration Readiness Assessment** (Markdown or Word)
-   - Organizational readiness evaluation
-   - Skills assessment
-   - Change management readiness
-   - **Required for all business cases**
-
+1. **Migration Readiness Assessment** (Markdown, Word, or PDF) - Required
 2. **At least ONE infrastructure file**:
-   - RVTools Export, OR
-   - IT Infrastructure Inventory, OR
-   - ATX Assessment files
-
-### Infrastructure Files (Choose One or More)
-
-1. **RVTools Export** (Excel or CSV)
-   - vInfo sheet with VM inventory (prioritized for large datasets)
-   - Columns: VM name, CPUs, Memory, Storage, OS, Powerstate
-   - Recommended: 2,000-2,500 VMs max for optimal performance
-   - **Tip**: For large exports, upload vInfo file only to prevent timeouts
-
-2. **IT Infrastructure Inventory** (Excel)
-   - Server inventory
-   - Application portfolio
-   - Database inventory
-
-3. **ATX Assessment** (Excel, PDF, PowerPoint)
-   - VMware environment analysis from AWS Transform for VMware
-   - Cost projections
-   - Technical recommendations
-   - Can upload all three formats for comprehensive analysis
+   - RVTools Export (Excel/CSV), OR
+   - IT Infrastructure Inventory (Excel), OR
+   - ATX Assessment (Excel/PDF/PowerPoint)
 
 ### Optional Files
 
-4. **Application Portfolio** (CSV or Excel)
-   - Detailed application characteristics
-   - Dependencies and business criticality
-   - If not provided, industry-standard assumptions are used
+- Application Portfolio (CSV/Excel) - For more accurate 7Rs recommendations
 
 ## Architecture
 
@@ -311,7 +254,11 @@ aws cloudwatch put-metric-alarm \
 
 ## Configuration
 
-### Model Settings (agents/config.py)
+For detailed configuration options, see [SETUP_GUIDE.md](SETUP_GUIDE.md#configuration)
+
+### Quick Configuration Reference
+
+**Model Settings (agents/config.py)
 
 ```python
 # Model selection
@@ -370,38 +317,76 @@ Every business case includes an appendix with AWS Partner Programs:
 
 ## Troubleshooting
 
-### Common Issues
+**For comprehensive troubleshooting, see [SETUP_GUIDE.md](SETUP_GUIDE.md#troubleshooting)**
 
-**1. "RVTools data not available"**
-- Ensure file is uploaded through UI
-- Check file is in `input/` directory
-- Verify file matches pattern `rvtool*.xlsx`
-- For large datasets, upload vInfo file only
+### Quick Fixes
 
-**2. "AWS credentials expired"**
-- Refresh AWS credentials: `aws sso login --profile <profile>`
-- Or regenerate temporary credentials
-- Verify: `aws sts get-caller-identity`
+**Setup issues:**
+- Run `./setup.sh` again - it's safe to re-run
+- Check AWS credentials: `aws sts get-caller-identity`
+- Verify Python 3.8+: `python3 --version`
+- Verify Node.js 16+: `node --version`
 
-**3. Cost calculations vary between runs**
-- This is expected due to AI nature
-- Variation should be within ±10% with temperature=0.1
-- Use saved cases for consistency
-- TCO validation ensures AWS shows savings or focuses on business value
+**Runtime issues:**
+- Activate virtual environment: `source venv/bin/activate`
+- Check logs in `output/logs/` directory
+- Restart services: `./stop-all.sh && ./start-all.sh`
 
-**4. Token limit exceeded**
-- Reduce MAX_ROWS_RVTOOLS in config.py
-- Filter RVTools to powered-on VMs only
-- Upload vInfo file only for large datasets
-- Multi-stage generation helps (ENABLE_MULTI_STAGE=True)
+**AWS credential errors:**
+```bash
+aws sso login --profile <profile>
+# or
+aws configure
+```
 
-**5. Slow generation (>15 minutes)**
-- Check dataset size (>2,500 VMs?)
-- Verify AWS region latency
-- Consider reducing data limits
-- Ensure RVTools vInfo prioritization is working
+**boto3/botocore version errors:**
+```bash
+# Quick fix
+./fix-boto3.sh
+
+# Or manually
+source venv/bin/activate
+python3 -m pip install --upgrade boto3 botocore
+```
 
 **6. Deprecated services in output**
 - Should not happen - agents check against lifecycle page
 - If found, update `agents/reference/aws_deprecated_services.md`
 - Report issue for prompt strengthening
+
+**7.
+ Specific dates in timelines**
+- Should use relative timeframes (Week 1-2, Month 1-3)
+- If specific dates appear, check prompt updates were applied
+- Relative timeframes make documents evergreen
+
+## Documentation
+
+### Setup & Installation
+- **`SETUP_GUIDE.md`** - Comprehensive one-click setup guide
+- **`setup.sh`** - Automated setup script
+- `ui/DYNAMODB_SETUP.md` - Manual DynamoDB setup instructions
+- `ui/S3_STORAGE_SETUP.md` - Manual S3 storage setup instructions
+
+### Agent Configuration
+- `agents/reference/aws_deprecated_services.md` - List of deprecated services to avoid
+- `agents/reference/DEPRECATED_SERVICES_IMPLEMENTATION.md` - Implementation details
+- `agents/appendix_content.py` - AWS Partner Programs appendix content
+
+### UI Documentation
+- `ui/UI_REFACTORING_COMPLETE.md` - UI refactoring documentation
+- `ui/UI_REFACTORING_PLAN.md` - UI refactoring plan
+
+## Support
+
+For issues or questions:
+1. Check troubleshooting section above
+2. Review `SETUP_GUIDE.md` for setup issues
+3. Review documentation files in `agents/reference/` and `ui/`
+4. Check AWS Bedrock console for errors
+5. Verify AWS credentials: `aws sts get-caller-identity`
+6. Check logs in `output/logs/` directory
+
+## License
+
+MIT License - See LICENSE file for details

@@ -31,3 +31,12 @@ agentic-ai-business-case/input/*.doc
 # Keep example/template files
 !agentic-ai-business-case/input/application-portfolio.csv
 !agentic-ai-business-case/input/aws-*.md
+agentic-ai-business-case/ARR_CALCULATION_ANALYSIS.md
+agentic-ai-business-case/BOTO3_FIX.md
+agentic-ai-business-case/BUSINESS_CASE_IMPROVEMENTS.md
+agentic-ai-business-case/DEPRECATED_SERVICE_REMOVAL.md
+agentic-ai-business-case/fix-boto3.sh
+agentic-ai-business-case/MRA_FILE_HANDLING_FIX.md
+agentic-ai-business-case/QUICK_FIX_SUMMARY.md
+agentic-ai-business-case/RECOMMENDATIONS_AND_UI_FIXES.md
+agentic-ai-business-case/input/aws-customer-migration-readiness-assessment.md
