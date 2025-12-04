@@ -370,15 +370,6 @@ The tool uses standardized formulas for consistency:
 - Verify AWS region latency
 - Consider reducing data limits
 
-## Documentation
-
-- [CLAUDE_35_SETUP.md](CLAUDE_35_SETUP.md) - Upgrade to Claude 3.5
-- [DYNAMODB_SETUP.md](ui/DYNAMODB_SETUP.md) - Database persistence
-- [S3_STORAGE_SETUP.md](ui/S3_STORAGE_SETUP.md) - File storage
-- [IMPROVING_BUSINESS_CASE_QUALITY.md](IMPROVING_BUSINESS_CASE_QUALITY.md) - Quality tips
-- [DATA_ACCURACY_FIXES.md](DATA_ACCURACY_FIXES.md) - Recent fixes
-- [VM_COUNT_ANALYSIS.md](VM_COUNT_ANALYSIS.md) - VM counting logic
-
 ## Support
 
 For issues or questions:
