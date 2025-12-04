@@ -19,8 +19,21 @@ const ReviewStep = ({
   selectedAgents,
   generationStatus,
   setGenerationStatus,
-  setBusinessCaseResult
+  setBusinessCaseResult,
+  setActiveStepIndex
 }) => {
+  
+  const agentNames = {
+    itInventory: 'IT Inventory Analysis',
+    rvTool: 'RVTool VMware Analysis',
+    atx: 'ATX VMware Analysis',
+    mra: 'MRA Organizational Readiness',
+    currentState: 'Current State Synthesis',
+    costAnalysis: 'AWS Cost Analysis',
+    migrationStrategy: 'Migration Strategy (6Rs)',
+    migrationPlan: 'Migration Plan (MAP)',
+    businessCase: 'Business Case Generation'
+  };
   const handleGenerate = async () => {
     setGenerationStatus({
       isGenerating: true,
@@ -63,6 +76,11 @@ const ReviewStep = ({
         completed: true,
         error: null
       });
+      
+      // Auto-navigate to results step after successful generation
+      setTimeout(() => {
+        setActiveStepIndex(3); // Move to results step
+      }, 1000);
     } catch (error) {
       setGenerationStatus({
         isGenerating: false,
@@ -123,13 +141,32 @@ const ReviewStep = ({
                 columns={1}
                 items={[
                   { label: 'Files Uploaded', value: `${getFileCount()} files` },
-                  { label: 'Agents Selected', value: `${getAgentCount()} agents` },
-                  { label: 'Run Mode', value: selectedAgents.runAll ? 'All Agents' : 'Custom Selection' }
+                  { label: 'Agents Selected', value: `${getAgentCount()} agents` }
                 ]}
               />
             </Box>
           </SpaceBetween>
         </ColumnLayout>
+
+        <Box>
+          <Box variant="awsui-key-label" margin={{ bottom: 's' }}>Agents That Will Run</Box>
+          <Alert type="info">
+            Agents are automatically selected based on your uploaded files. Phase 2, 3, and 4 agents always run to generate the complete business case.
+          </Alert>
+          <Box margin={{ top: 's' }}>
+            <SpaceBetween size="xs">
+              {Object.entries(selectedAgents.agents)
+                .filter(([_, enabled]) => enabled)
+                .map(([agentId, _]) => (
+                  <Box key={agentId}>
+                    <StatusIndicator type="success">
+                      {agentNames[agentId] || agentId}
+                    </StatusIndicator>
+                  </Box>
+                ))}
+            </SpaceBetween>
+          </Box>
+        </Box>
 
         {generationStatus.isGenerating && (
           <SpaceBetween size="m">

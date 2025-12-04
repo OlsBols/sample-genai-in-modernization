@@ -83,45 +83,6 @@ python agents/aws_business_case.py
 
 The tool uses Amazon Bedrock with Claude 3 Sonnet. Costs vary by input size:
 
-#### Small Dataset (< 500 VMs)
-- **Input Tokens**: ~50,000 tokens
-- **Output Tokens**: ~15,000 tokens
-- **Cost per Run**: ~$0.50 - $0.75
-- **Generation Time**: 3-5 minutes
-
-**Breakdown**:
-- RVTools analysis: ~15K input, ~3K output
-- IT inventory: ~10K input, ~2K output
-- Current state synthesis: ~8K input, ~2K output
-- Cost analysis: ~7K input, ~3K output
-- Multi-stage business case: ~10K input, ~5K output
-
-#### Medium Dataset (500-1,500 VMs)
-- **Input Tokens**: ~100,000 tokens
-- **Output Tokens**: ~20,000 tokens
-- **Cost per Run**: ~$1.00 - $1.50
-- **Generation Time**: 5-8 minutes
-
-**Breakdown**:
-- RVTools analysis: ~35K input, ~4K output
-- IT inventory: ~20K input, ~3K output
-- Current state synthesis: ~15K input, ~3K output
-- Cost analysis: ~15K input, ~4K output
-- Multi-stage business case: ~15K input, ~6K output
-
-#### Large Dataset (1,500-2,500 VMs)
-- **Input Tokens**: ~150,000 tokens
-- **Output Tokens**: ~25,000 tokens
-- **Cost per Run**: ~$1.50 - $2.25
-- **Generation Time**: 8-12 minutes
-
-**Breakdown**:
-- RVTools analysis: ~50K input, ~5K output
-- IT inventory: ~30K input, ~4K output
-- Current state synthesis: ~25K input, ~4K output
-- Cost analysis: ~20K input, ~5K output
-- Multi-stage business case: ~25K input, ~7K output
-
 ### Pricing Model (Claude 3 Sonnet)
 
 - **Input**: $0.003 per 1K tokens
@@ -180,8 +141,7 @@ Total: $0.83 per business case
 2. **Filter RVTools data** to powered-on VMs only (already implemented)
 3. **Limit MAX_ROWS_RVTOOLS** in config.py (default: 2,500)
 4. **Reuse saved cases** instead of regenerating
-5. **Skip optional agents** if not needed
-6. **Use lower temperature** for cost calculations (already set to 0.1)
+5. **Use lower temperature** for cost calculations (already set to 0.1)
 
 ### Cost Monitoring
 

@@ -41,6 +41,12 @@ system_message_aws_arr_cost = """
         - Monthly cost in USD($) for target AWS region
         - Estimate ARR (annual recurring costs) in USD($) 
     (E) Annual Cost Projection and TCO Comparison (Summary Only)
+        **CRITICAL TCO VALIDATION RULE**:
+        - ONLY include on-premises TCO comparison if AWS shows cost savings (AWS < On-Prem)
+        - If AWS costs are HIGHER than on-premises, DO NOT show TCO comparison
+        - Instead, focus on business value: agility, innovation, reduced technical debt, faster time-to-market
+        - Emphasize operational benefits and strategic advantages over pure cost comparison
+        
         - On-Premises TCO Calculation Methodology: Use these standard formulas:
           * Hardware: $5,000 per physical server/year (depreciation + refresh)
           * VMware licensing: $200 per VM/year
@@ -57,11 +63,21 @@ system_message_aws_arr_cost = """
           * Storage: $0.10 per GB-month (EBS gp3)
           * Data transfer: ~5% of compute cost
         
-        - On-Premises TCO (Year 1, 2, 3): Calculate using formulas above
-        - AWS Costs with 3-Year NURI (Year 1, 2, 3): Calculate using VM distribution and pricing above
+        **TCO Comparison Logic**:
+        1. Calculate On-Premises TCO (Year 1, 2, 3) using formulas above
+        2. Calculate AWS Costs with 3-Year NURI (Year 1, 2, 3) using VM distribution and pricing above
+        3. Compare: IF (AWS 3-Year Total < On-Prem 3-Year Total) THEN show TCO comparison
+        4. IF (AWS >= On-Prem) THEN skip TCO table, focus on business value instead
+        
         - 18-Month Migration Cost Ramp: Show gradual transition (Months 1-6, 7-12, 13-18)
         - Key pricing model comparison (On-Demand vs 3-Year NURI)
         - Growth assumptions: 10% year-over-year
+        
+        **When AWS Costs Are Higher**:
+        - Emphasize: Agility, scalability, innovation velocity, reduced technical debt
+        - Highlight: Faster time-to-market, global reach, managed services reducing operational burden
+        - Focus on: Strategic business outcomes rather than pure cost comparison
+        - Note: "While AWS may have higher infrastructure costs, the business value from increased agility, innovation, and reduced operational complexity provides significant strategic advantages"
         
     **CRITICAL FOR CONSISTENCY**: 
         - Use the SAME calculation method every time for the same input
@@ -286,15 +302,16 @@ system_message_aws_business_case = """
     **CRITICAL**: Do NOT recommend deprecated or end-of-life AWS services. Only recommend current, actively supported services.
     
     # 5. Cost Analysis and TCO
-    - Current on-premises costs (if available)
     - Projected AWS costs (from agent_aws_cost_arr)
-    - 3-year TCO comparison
+    - **CRITICAL**: ONLY include on-premises TCO comparison if AWS shows cost savings (AWS < On-Prem)
+    - **IF AWS >= On-Prem**: Skip TCO comparison, focus on business value (agility, innovation, scalability)
     - Cost optimization opportunities
     - Pricing model recommendations
+    - Business value justification (strategic benefits beyond cost)
     
     # 6. Migration Roadmap
     - Phased approach (from agent_migration_plan)
-    - Timeline and milestones
+    - Timeline and milestones (use RELATIVE timeframes: Month 1-3, Quarter 1, etc. - NOT specific dates)
     - Resource requirements
     - Dependencies and prerequisites
     
@@ -311,18 +328,21 @@ system_message_aws_business_case = """
     - Success criteria
     
     # 9. Recommendations and Next Steps
-    - Immediate actions
-    - Short-term priorities
-    - Long-term roadmap
+    - Immediate actions (Week 1-2, Month 1, etc.)
+    - Short-term priorities (use RELATIVE timeframes: Month 1-3, Quarter 1, etc.)
+    - Long-term roadmap (use RELATIVE timeframes: Month 6-12, Year 1-2, etc.)
     - Decision points
+    
+    **CRITICAL**: Use RELATIVE timeframes throughout (Week 1-2, Month 1-3, Quarter 1, Year 1) - NOT specific calendar dates
     
     **FORMAT REQUIREMENTS:**
     - Use markdown with clear headings (# ## ###)
-    - Include tables for cost comparisons and timelines
+    - Include tables for cost comparisons and timelines (use RELATIVE timeframes only)
     - Use bullet points for lists
     - Keep sections concise but comprehensive
     - Reference specific data from agent analyses
     - Total length: 3000-5000 words
+    - **CRITICAL**: All timelines must use RELATIVE timeframes (Week 1-2, Month 1-3, Quarter 1, Year 1) - NO specific calendar dates
     
     **IMPORTANT: Write the actual business case content. Do not just outline or acknowledge - generate the complete document with all details from the agent analyses.**
     """

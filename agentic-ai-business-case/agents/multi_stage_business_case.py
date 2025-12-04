@@ -23,18 +23,29 @@ Generate a comprehensive Executive Summary for the AWS migration business case.
 
 **Input**: You will receive analysis from multiple agents covering current state, costs, strategy, and migration plan.
 
+**CRITICAL - TCO PRESENTATION RULE**:
+- ONLY show cost savings metrics if AWS demonstrates lower TCO than on-premises
+- If AWS costs are EQUAL or HIGHER, focus on business value and strategic benefits instead
+- Do NOT show negative savings or unfavorable cost comparisons
+
 **Generate**:
 1. Project Overview (use EXACT customer name and project details from PROJECT CONTEXT)
 2. Current State Highlights with ACTUAL NUMBERS (e.g., "2,027 VMs, 7,581 vCPUs, 40,189 GB RAM")
 3. Recommended Approach (based on ACTUAL migration strategy analysis)
-4. Key Financial Metrics with ACTUAL VALUES - ensure these match the Cost Analysis section exactly:
-   - On-Premises 3-Year TCO: $X (explain calculation basis)
+4. Key Financial Metrics with ACTUAL VALUES:
+   **IF AWS < On-Prem**: Show cost savings
+   - On-Premises 3-Year TCO: $X
    - AWS 3-Year TCO with NURI: $Y
    - Total Savings: $Z
    - Break-even: Month X
-5. Expected Benefits (based on ACTUAL findings)
+   
+   **IF AWS >= On-Prem**: Show business value instead
+   - AWS 3-Year Investment: $X
+   - Business Value: Agility, innovation velocity, reduced technical debt
+   - Strategic Benefits: Faster time-to-market, global scalability, managed services
+5. Expected Benefits (based on ACTUAL findings - emphasize operational and strategic benefits)
 6. Critical Success Factors
-7. Timeline Overview (use ACTUAL timeline from migration plan)
+7. Timeline Overview (use ACTUAL timeline from migration plan with RELATIVE timeframes - e.g., "12-18 months" not specific dates)
 
 **Format**: Markdown, 400-500 words MAX, include key metrics table with ACTUAL numbers
 **Tone**: Executive-level, strategic, business-focused
@@ -96,13 +107,20 @@ Generate a concise Cost Analysis and TCO section.
 
 **CRITICAL - DEPRECATED SERVICES**: Do NOT include any deprecated or end-of-life AWS services in cost analysis. Only include current, actively supported services. Reference: https://aws.amazon.com/products/lifecycle/
 
+**CRITICAL - TCO VALIDATION RULE**:
+- ONLY show on-premises TCO comparison if AWS demonstrates cost savings (AWS < On-Prem)
+- If AWS costs are EQUAL or HIGHER than on-premises, SKIP the TCO comparison table
+- Instead, focus on business value: agility, innovation, scalability, reduced technical debt
+- Emphasize strategic advantages and operational benefits over pure cost comparison
+
 **Generate** (very concise):
-1. On-Premises TCO Calculation Methodology (1 paragraph explaining how on-prem costs were calculated: hardware depreciation, data center facilities, power/cooling, IT staff salaries, software licenses, maintenance)
-2. Current On-Premises vs AWS Costs Comparison (table with Year 1, 2, 3)
-3. 18-Month Migration Cost Ramp (table showing gradual AWS cost increase as workloads migrate, and on-prem cost decrease)
-4. 3-Year TCO using 3-Year No Upfront RI pricing (summary)
+1. AWS Cost Summary (AWS services and projected costs with 3-Year NURI)
+2. **IF AWS < On-Prem**: Include On-Premises TCO Calculation Methodology and comparison table
+3. **IF AWS >= On-Prem**: Skip TCO comparison, focus on business value and strategic benefits
+4. 18-Month Migration Cost Ramp (table showing gradual AWS cost increase as workloads migrate)
 5. Cost Optimization opportunities (bullet points)
-6. Break-Even Analysis (1 paragraph)
+6. **IF AWS < On-Prem**: Break-Even Analysis (1 paragraph)
+7. **IF AWS >= On-Prem**: Business Value Justification (agility, innovation, time-to-market, reduced operational complexity)
 
 **CRITICAL REQUIREMENTS FOR DETERMINISTIC CALCULATIONS**:
 - Use "3-Year No Upfront RI" or "3-Year NURI" (NURI = No Upfront Reserved Instance)
@@ -130,15 +148,28 @@ Generate a concise Migration Roadmap section.
 
 **Input**: Analysis from agent_migration_plan covering MAP methodology.
 
+**CRITICAL - TIMEFRAME FORMAT**:
+- Use RELATIVE timeframes only (Week 1-2, Month 1-3, Quarter 1, etc.)
+- DO NOT use specific calendar dates or months (e.g., "January 2026" or "Q1 2025")
+- Use generic timeframes: "Month 1-3", "Month 4-6", "Month 7-12", etc.
+- For phases: "Phase 1 (Months 1-3)", "Phase 2 (Months 4-9)", etc.
+
 **Generate** (very concise):
-1. Phased Approach (table with phases)
-2. Timeline (table)
-3. Key Milestones (bullet points)
+1. Phased Approach (table with phases and relative durations)
+2. Timeline (table with relative timeframes - Month 1, Month 2, etc.)
+3. Key Milestones (bullet points with relative timing)
 4. Success Criteria (brief)
 
-**Format**: Markdown, 400-500 words MAX, include timeline table
+**Example Timeline Format**:
+| Phase | Duration | Key Activities |
+|-------|----------|----------------|
+| Assess | Month 1-2 | Discovery, assessment |
+| Mobilize | Month 3-4 | Landing zone, pilot planning |
+| Migrate | Month 5-12 | Wave-based migration |
+
+**Format**: Markdown, 400-500 words MAX, include timeline table with relative timeframes
 **Tone**: Practical, detailed, project-focused
-**CRITICAL**: Stay under 500 words. Complete the section fully within this limit.
+**CRITICAL**: Stay under 500 words. Use relative timeframes only (no specific dates).
 """
 
 BENEFITS_RISKS_PROMPT = """
@@ -146,8 +177,15 @@ Generate a concise Benefits and Risks section.
 
 **Input**: All previous agent analyses.
 
+**IMPORTANT**: Emphasize both financial AND strategic/operational benefits. Even if cost savings are minimal, highlight:
+- Agility and faster time-to-market
+- Innovation enablement (AI/ML, analytics, modern services)
+- Reduced technical debt and operational complexity
+- Global scalability and reliability
+- Security and compliance improvements
+
 **Generate** (very concise):
-1. Key Benefits (bullet points, 5-7 items)
+1. Key Benefits (bullet points, 5-7 items - include both cost and strategic benefits)
 2. Main Risks (bullet points, 5-7 items)
 3. Mitigation Strategies (bullet points, 3-5 items)
 
@@ -169,22 +207,30 @@ Generate a concise Recommendations and Next Steps section.
 **Generate** (very concise):
 1. Top 3 Recommendations (based on ACTUAL analysis provided)
 2. Immediate Actions (bullet points - do NOT recommend assessments that were already completed)
-3. 90-Day Plan (table with specific FUTURE dates)
+3. 90-Day Plan (table with relative timeframes)
 
 **CRITICAL REQUIREMENTS**:
 - Do NOT recommend conducting MRA if MRA analysis was already provided
 - Do NOT recommend RVTools assessment if RVTools data was already analyzed
 - Focus on NEXT steps, not repeating assessments already done
-- Use FUTURE dates starting from TODAY (November 25, 2025):
-  * Week 1-4: November 25 - December 22, 2025
-  * Week 5-8: December 23, 2025 - January 19, 2026
-  * Week 9-12: January 20 - February 16, 2026
-- Format dates as "Dec 2025" or "Jan 2026" for readability
-- NO past dates (2023-2024)
+- Use RELATIVE timeframes (NOT specific dates):
+  * Week 1-2, Week 3-4, Week 5-6, etc.
+  * Month 1, Month 2, Month 3, etc.
+  * Quarter 1, Quarter 2, etc.
+- DO NOT use specific calendar dates (e.g., "November 25" or "Dec 2025")
+- Use generic timeframes that work regardless of when the document is generated
 
-**Format**: Markdown, 300-400 words MAX, include action items table with FUTURE dates
+**Example Format**:
+| Timeframe | Activity | Owner |
+|-----------|----------|-------|
+| Week 1-2  | Finalize landing zone design | Cloud Architecture Team |
+| Week 3-4  | Complete pilot wave planning | Migration Team |
+| Month 2   | Execute pilot migration | Migration Team |
+| Month 3   | Review and optimize | Operations Team |
+
+**Format**: Markdown, 300-400 words MAX, include action items table with relative timeframes
 **Tone**: Actionable, clear, prioritized, forward-looking
-**CRITICAL**: Stay under 400 words. Use dates starting from November 2025.
+**CRITICAL**: Stay under 400 words. Use relative timeframes only (Week 1-2, Month 1, etc.).
 """
 
 def generate_multi_stage_business_case(agent_results, project_context):

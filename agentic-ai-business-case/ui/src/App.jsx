@@ -13,7 +13,6 @@ import {
 } from '@cloudscape-design/components';
 import ProjectInfoStep from './components/ProjectInfoStep.jsx';
 import FileUploadStep from './components/FileUploadStep.jsx';
-import AgentConfigStep from './components/AgentConfigStep.jsx';
 import ReviewStep from './components/ReviewStep.jsx';
 import ResultsStep from './components/ResultsStep.jsx';
 import SavedCasesModal from './components/SavedCasesModal.jsx';
@@ -29,20 +28,29 @@ function App() {
   });
   const [uploadedFiles, setUploadedFiles] = useState({});
   const [selectedAgents, setSelectedAgents] = useState({
-    runAll: true,
-    agents: {
-      itInventory: true,
-      rvTool: true,
-      atx: true,
-      mra: true,
-      // Phase 2, 3, 4 agents always run
+    runAll: false,
+    agents: {}
+  });
+
+  // Auto-select agents based on uploaded files
+  useEffect(() => {
+    const agents = {
+      // Phase 1: Data Analysis - based on uploaded files
+      itInventory: !!uploadedFiles.itInventory,
+      rvTool: !!(uploadedFiles.rvTool && (Array.isArray(uploadedFiles.rvTool) ? uploadedFiles.rvTool.length > 0 : true)),
+      atx: !!(uploadedFiles.atxExcel || uploadedFiles.atxPdf || uploadedFiles.atxPptx),
+      mra: !!uploadedFiles.mra,
+      // Phase 2, 3, 4: Always run
       currentState: true,
       costAnalysis: true,
       migrationStrategy: true,
       migrationPlan: true,
       businessCase: true
-    }
-  });
+    };
+    
+    const runAll = Object.values(agents).every(v => v === true);
+    setSelectedAgents({ runAll, agents });
+  }, [uploadedFiles]);
   const [generationStatus, setGenerationStatus] = useState({
     isGenerating: false,
     progress: 0,
@@ -128,7 +136,7 @@ function App() {
     });
     setCurrentCaseId(caseData.caseId);
     setLastUpdated(caseData.lastUpdated);
-    setActiveStepIndex(4); // Go to results step
+    setActiveStepIndex(3); // Go to results step (now step 3 instead of 4)
   };
 
   const isProjectInfoValid = () => {
@@ -184,16 +192,6 @@ function App() {
       )
     },
     {
-      title: 'Configure Agents',
-      content: (
-        <AgentConfigStep
-          selectedAgents={selectedAgents}
-          setSelectedAgents={setSelectedAgents}
-          uploadedFiles={uploadedFiles}
-        />
-      )
-    },
-    {
       title: 'Review & Generate',
       content: (
         <ReviewStep
@@ -203,6 +201,7 @@ function App() {
           generationStatus={generationStatus}
           setGenerationStatus={setGenerationStatus}
           setBusinessCaseResult={setBusinessCaseResult}
+          setActiveStepIndex={setActiveStepIndex}
         />
       )
     },
@@ -211,10 +210,12 @@ function App() {
       content: (
         <ResultsStep
           businessCaseResult={businessCaseResult}
+          setBusinessCaseResult={setBusinessCaseResult}
           projectInfo={projectInfo}
           dynamoDBEnabled={dynamoDBEnabled}
           onSave={saveToDatabase}
           lastUpdated={lastUpdated}
+          currentCaseId={currentCaseId}
         />
       ),
       isOptional: false
@@ -339,6 +340,15 @@ function App() {
                     setGenerationStatus({
                       ...generationStatus,
                       error: 'Please upload at least one infrastructure file (IT Inventory, RVTools, or ATX) and the MRA document.'
+                    });
+                    return;
+                  }
+                  
+                  // Prevent navigation away from Review & Generate step during generation
+                  if (activeStepIndex === 2 && generationStatus.isGenerating) {
+                    setGenerationStatus({
+                      ...generationStatus,
+                      error: 'Please wait for business case generation to complete before navigating.'
                     });
                     return;
                   }

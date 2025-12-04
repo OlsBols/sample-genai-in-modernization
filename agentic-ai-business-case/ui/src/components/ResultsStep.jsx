@@ -13,11 +13,42 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import html2pdf from 'html2pdf.js';
 
-const ResultsStep = ({ businessCaseResult, projectInfo, dynamoDBEnabled, onSave, lastUpdated }) => {
+const ResultsStep = ({ businessCaseResult, setBusinessCaseResult, projectInfo, dynamoDBEnabled, onSave, lastUpdated, currentCaseId }) => {
   const [activeTabId, setActiveTabId] = useState('preview');
   const [isExporting, setIsExporting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState(null);
+  const [editedContent, setEditedContent] = useState('');
+  const [isEdited, setIsEdited] = useState(false);
+
+  // Initialize edited content when business case result changes
+  React.useEffect(() => {
+    if (businessCaseResult?.content) {
+      setEditedContent(businessCaseResult.content);
+      setIsEdited(false);
+    }
+  }, [businessCaseResult]);
+
+  const handleContentChange = (e) => {
+    setEditedContent(e.target.value);
+    setIsEdited(true);
+  };
+
+  const handleSaveChanges = () => {
+    // Update the business case result with edited content
+    setBusinessCaseResult({
+      ...businessCaseResult,
+      content: editedContent
+    });
+    setIsEdited(false);
+    setSaveMessage({ type: 'success', text: 'Changes saved locally. Click "Save to Database" to persist.' });
+  };
+
+  const handleDiscardChanges = () => {
+    setEditedContent(businessCaseResult?.content || '');
+    setIsEdited(false);
+    setSaveMessage({ type: 'info', text: 'Changes discarded.' });
+  };
 
   const handleExportPDF = async () => {
     setIsExporting(true);
@@ -39,7 +70,8 @@ const ResultsStep = ({ businessCaseResult, projectInfo, dynamoDBEnabled, onSave,
   };
 
   const handleExportMarkdown = () => {
-    const blob = new Blob([businessCaseResult?.content || ''], { type: 'text/markdown' });
+    // Export the currently displayed (possibly edited) content
+    const blob = new Blob([editedContent || ''], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -51,7 +83,9 @@ const ResultsStep = ({ businessCaseResult, projectInfo, dynamoDBEnabled, onSave,
   };
 
   const handleCopyToClipboard = () => {
-    navigator.clipboard.writeText(businessCaseResult?.content || '');
+    navigator.clipboard.writeText(editedContent || '');
+    setSaveMessage({ type: 'success', text: 'Copied to clipboard!' });
+    setTimeout(() => setSaveMessage(null), 2000);
   };
 
   const handleSaveToDatabase = async () => {
@@ -90,7 +124,23 @@ const ResultsStep = ({ businessCaseResult, projectInfo, dynamoDBEnabled, onSave,
           description="View and export your generated business case"
           actions={
             <SpaceBetween direction="horizontal" size="xs">
-              {dynamoDBEnabled && (
+              {isEdited && (
+                <>
+                  <Button
+                    onClick={handleDiscardChanges}
+                  >
+                    Discard Changes
+                  </Button>
+                  <Button
+                    iconName="check"
+                    onClick={handleSaveChanges}
+                    variant="primary"
+                  >
+                    Save Changes
+                  </Button>
+                </>
+              )}
+              {dynamoDBEnabled && !isEdited && (
                 <Button
                   iconName="upload"
                   onClick={handleSaveToDatabase}
@@ -133,14 +183,20 @@ const ResultsStep = ({ businessCaseResult, projectInfo, dynamoDBEnabled, onSave,
         <Alert type="success">
           Your business case has been generated successfully!
           <Box variant="small" color="text-status-inactive" margin={{ top: 'xs' }}>
-            Generated at: {new Date().toLocaleString()} • Case ID: {businessCaseResult.caseId || 'N/A'}
+            Generated at: {new Date().toLocaleString()} • Case ID: {currentCaseId || businessCaseResult.caseId || 'N/A'}
           </Box>
           {businessCaseResult.s3FileKeys && businessCaseResult.s3BucketName && (
             <Box variant="small" color="text-status-inactive" margin={{ top: 'xs' }}>
-              <strong>S3 Storage:</strong> s3://{businessCaseResult.s3BucketName}/{businessCaseResult.caseId}/
+              <strong>S3 Storage:</strong> s3://{businessCaseResult.s3BucketName}/{currentCaseId || businessCaseResult.caseId}/
             </Box>
           )}
         </Alert>
+
+        {isEdited && (
+          <Alert type="warning">
+            You have unsaved changes. Click "Save Changes" to apply them, or "Discard Changes" to revert.
+          </Alert>
+        )}
 
         {saveMessage && (
           <Alert
@@ -264,32 +320,37 @@ const ResultsStep = ({ businessCaseResult, projectInfo, dynamoDBEnabled, onSave,
                       }
                     `}</style>
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {businessCaseResult.content}
+                      {editedContent}
                     </ReactMarkdown>
                   </div>
                 </Box>
               )
             },
             {
-              label: 'Markdown Source',
+              label: 'Edit Markdown',
               id: 'markdown',
               content: (
                 <Box padding={{ vertical: 'l' }}>
-                  <textarea
-                    value={businessCaseResult.content}
-                    readOnly
-                    style={{
-                      width: '100%',
-                      height: '600px',
-                      fontFamily: 'monospace',
-                      fontSize: '14px',
-                      padding: '16px',
-                      border: '1px solid #e9ebed',
-                      borderRadius: '8px',
-                      backgroundColor: '#fafafa',
-                      resize: 'vertical'
-                    }}
-                  />
+                  <SpaceBetween size="m">
+                    <Alert type="info">
+                      Edit the markdown content below. Changes will be reflected in the Preview tab. Click "Save Changes" to apply your edits.
+                    </Alert>
+                    <textarea
+                      value={editedContent}
+                      onChange={handleContentChange}
+                      style={{
+                        width: '100%',
+                        height: '600px',
+                        fontFamily: 'monospace',
+                        fontSize: '14px',
+                        padding: '16px',
+                        border: '1px solid #e9ebed',
+                        borderRadius: '8px',
+                        backgroundColor: '#ffffff',
+                        resize: 'vertical'
+                      }}
+                    />
+                  </SpaceBetween>
                 </Box>
               )
             },
