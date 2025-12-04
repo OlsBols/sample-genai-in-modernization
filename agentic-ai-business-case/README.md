@@ -4,11 +4,13 @@ An AI-powered tool that generates comprehensive AWS migration business cases usi
 
 ## Features
 
-- **Multi-Agent Analysis**: 8 specialized AI agents analyze different aspects of your migration
+- **Multi-Agent Analysis**: 9 specialized AI agents analyze different aspects of your migration
+- **Smart Agent Selection**: Automatically selects agents based on uploaded files
 - **Comprehensive Business Case**: Executive summary, current state, costs, strategy, roadmap, benefits/risks
 - **Multiple Data Sources**: RVTools, IT inventory, ATX assessments, MRA reports
-- **Cost Analysis**: TCO comparison, 3-year projections, migration cost ramp
-- **Save & Load**: DynamoDB integration for case persistence
+- **Cost Analysis**: TCO comparison with validation, 3-year projections, migration cost ramp
+- **Editable Output**: Edit generated markdown directly in the UI
+- **Save & Load**: DynamoDB integration for case persistence with version tracking
 - **S3 Storage**: Optional file storage for uploaded documents
 
 ## Quick Start
@@ -60,6 +62,11 @@ python setup_s3.py
 
 **Option 1: UI (Recommended)**
 ```bash
+# Use the convenient start script
+cd agentic-ai-business-case/ui
+./start.sh
+
+# Or manually:
 # Terminal 1: Start backend
 cd agentic-ai-business-case/ui/backend
 python app.py
@@ -70,6 +77,12 @@ npm start
 ```
 
 Access at: `http://localhost:3000`
+
+**UI Workflow**:
+1. Enter project information
+2. Upload assessment files (agents auto-selected based on files)
+3. Review & generate business case
+4. Edit, save, and export results
 
 **Option 2: Command Line**
 ```bash
@@ -176,31 +189,46 @@ aws cloudwatch put-metric-alarm \
 
 ### Required Files
 
-1. **RVTools Export** (Excel or CSV)
-   - vInfo sheet with VM inventory
-   - Columns: VM name, CPUs, Memory, Storage, OS, Powerstate
-   - Recommended: 2,000-2,500 VMs max for optimal performance
-
-2. **Migration Readiness Assessment** (Markdown)
+1. **Migration Readiness Assessment** (Markdown or Word)
    - Organizational readiness evaluation
    - Skills assessment
    - Change management readiness
+   - **Required for all business cases**
 
-### Optional Files
+2. **At least ONE infrastructure file**:
+   - RVTools Export, OR
+   - IT Infrastructure Inventory, OR
+   - ATX Assessment files
 
-3. **IT Infrastructure Inventory** (Excel)
+### Infrastructure Files (Choose One or More)
+
+1. **RVTools Export** (Excel or CSV)
+   - vInfo sheet with VM inventory (prioritized for large datasets)
+   - Columns: VM name, CPUs, Memory, Storage, OS, Powerstate
+   - Recommended: 2,000-2,500 VMs max for optimal performance
+   - **Tip**: For large exports, upload vInfo file only to prevent timeouts
+
+2. **IT Infrastructure Inventory** (Excel)
    - Server inventory
    - Application portfolio
    - Database inventory
 
-4. **ATX Assessment** (Excel, PDF, PowerPoint)
-   - VMware environment analysis
+3. **ATX Assessment** (Excel, PDF, PowerPoint)
+   - VMware environment analysis from AWS Transform for VMware
    - Cost projections
    - Technical recommendations
+   - Can upload all three formats for comprehensive analysis
+
+### Optional Files
+
+4. **Application Portfolio** (CSV or Excel)
+   - Detailed application characteristics
+   - Dependencies and business criticality
+   - If not provided, industry-standard assumptions are used
 
 ## Architecture
 
-### Multi-Agent System
+### Multi-Agent System (9 Agents)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -211,20 +239,23 @@ aws cloudwatch put-metric-alarm \
         ┌────────────┴────────────┐
         │   Phase 1: Analysis     │
         │  (Parallel Execution)   │
+        │  Auto-selected based    │
+        │  on uploaded files      │
         └────────────┬────────────┘
                      │
-    ┌────────────────┼────────────────┐
-    │                │                │
-┌───▼───┐      ┌────▼────┐      ┌───▼────┐
-│  RV   │      │   IT    │      │  ATX   │
-│ Tools │      │Inventory│      │Analysis│
-└───┬───┘      └────┬────┘      └───┬────┘
-    │               │                │
-    └───────────────┼────────────────┘
+    ┌────────────────┼────────────────┬────────────┐
+    │                │                │            │
+┌───▼───┐      ┌────▼────┐      ┌───▼────┐  ┌───▼───┐
+│  RV   │      │   IT    │      │  ATX   │  │  MRA  │
+│ Tools │      │Inventory│      │Analysis│  │       │
+└───┬───┘      └────┬────┘      └───┬────┘  └───┬───┘
+    │               │                │           │
+    └───────────────┼────────────────┴───────────┘
                     │
         ┌───────────▼───────────┐
         │  Phase 2: Synthesis   │
         │ (Conditional Edges)   │
+        │  Always runs          │
         └───────────┬───────────┘
                     │
     ┌───────────────┼───────────────┐
@@ -238,6 +269,7 @@ aws cloudwatch put-metric-alarm \
                    │
         ┌──────────▼──────────┐
         │ Phase 3: Planning   │
+        │  Always runs        │
         └──────────┬──────────┘
                    │
             ┌──────▼──────┐
@@ -248,22 +280,34 @@ aws cloudwatch put-metric-alarm \
         ┌──────────▼──────────────┐
         │ Phase 4: Multi-Stage    │
         │   Business Case Gen     │
+        │  Always runs            │
         └──────────┬──────────────┘
                    │
-    ┌──────────────┼──────────────┐
-    │              │              │
-┌───▼───┐    ┌────▼────┐    ┌───▼────┐
-│Exec   │    │Current  │    │  Cost  │
-│Summary│    │ State   │    │Analysis│
-└───────┘    └─────────┘    └────────┘
+    ┌──────────────┼──────────────┬──────────────┐
+    │              │              │              │
+┌───▼───┐    ┌────▼────┐    ┌───▼────┐    ┌───▼────┐
+│Exec   │    │Current  │    │  Cost  │    │Strategy│
+│Summary│    │ State   │    │Analysis│    │        │
+└───────┘    └─────────┘    └────────┘    └────────┘
+                   │
+    ┌──────────────┼──────────────┬──────────────┐
+    │              │              │              │
+┌───▼────┐   ┌────▼────┐   ┌────▼────┐   ┌────▼────┐
+│Roadmap │   │Benefits │   │  Recs   │   │Appendix │
+│        │   │ & Risks │   │         │   │         │
+└────────┘   └─────────┘   └─────────┘   └─────────┘
 ```
 
 ### Key Features
 
-- **Parallel Execution**: Phase 1 agents run simultaneously
-- **Conditional Edges**: Phase 2 waits for all Phase 1 agents
-- **Multi-Stage Generation**: 7 sections generated independently
-- **Token Optimization**: Each section gets full token budget
+- **Smart Agent Selection**: Phase 1 agents auto-selected based on uploaded files
+- **Parallel Execution**: Phase 1 agents run simultaneously for speed
+- **Conditional Edges**: Phase 2 waits for all Phase 1 agents to complete
+- **Multi-Stage Generation**: 7 sections + appendix generated independently
+- **Token Optimization**: Each section gets full token budget (8,192 tokens)
+- **Deprecated Services Check**: All agents verify services are not deprecated
+- **TCO Validation**: Only shows on-prem comparison if AWS demonstrates savings
+- **Relative Timeframes**: Uses Week 1-2, Month 1-3 instead of specific dates
 
 ## Configuration
 
@@ -272,7 +316,7 @@ aws cloudwatch put-metric-alarm \
 ```python
 # Model selection
 model_id_claude3_7 = "anthropic.claude-3-sonnet-20240229-v1:0"
-max_tokens_default = 4096
+max_tokens_default = 8192  # Increased for Claude 3.5
 
 # Temperature (lower = more deterministic)
 model_temperature = 0.3  # General agents
@@ -283,13 +327,13 @@ MAX_ROWS_RVTOOLS = 2500  # Max VMs to analyze
 MAX_ROWS_IT_INVENTORY = 1500
 MAX_ROWS_PORTFOLIO = 1000
 
-# Multi-stage generation
+# Multi-stage generation (recommended)
 ENABLE_MULTI_STAGE = True
 ```
 
 ### Cost Calculation Formulas
 
-The tool uses standardized formulas for consistency:
+The tool uses standardized formulas for consistency. Recommended to use AWS Pricing calculator, AWS Transform, Migration Evaluator or Migration Portfolio Assessment.
 
 **On-Premises TCO**:
 - Hardware: $5,000 per server/year
@@ -306,6 +350,24 @@ The tool uses standardized formulas for consistency:
 - XLarge VM (9+ vCPU): $1,500-2,500/month
 - Storage: $0.10 per GB-month
 
+### Deprecated Services Prevention
+
+The tool automatically avoids recommending deprecated AWS services:
+- References: `agents/reference/aws_deprecated_services.md`
+- Checks against AWS lifecycle page: https://aws.amazon.com/products/lifecycle/
+- Examples avoided: Migration Hub, CodeGuru Reviewer, Cognito Sync, etc.
+- Recommends current alternatives: MGN, Amazon Q Developer, AppSync, etc.
+
+### Appendix Content
+
+Every business case includes an appendix with AWS Partner Programs:
+- MAP (Migration Acceleration Program)
+- OLA (Optimization and Licensing Assessment)
+- ISV Workload Migration Program
+- VMware Migration Programs
+- POC Program
+- Additional migration resources
+
 ## Troubleshooting
 
 ### Common Issues
@@ -314,30 +376,32 @@ The tool uses standardized formulas for consistency:
 - Ensure file is uploaded through UI
 - Check file is in `input/` directory
 - Verify file matches pattern `rvtool*.xlsx`
+- For large datasets, upload vInfo file only
 
-**2. Cost calculations vary between runs**
+**2. "AWS credentials expired"**
+- Refresh AWS credentials: `aws sso login --profile <profile>`
+- Or regenerate temporary credentials
+- Verify: `aws sts get-caller-identity`
+
+**3. Cost calculations vary between runs**
 - This is expected due to AI nature
 - Variation should be within ±10% with temperature=0.1
 - Use saved cases for consistency
+- TCO validation ensures AWS shows savings or focuses on business value
 
-**3. Token limit exceeded**
+**4. Token limit exceeded**
 - Reduce MAX_ROWS_RVTOOLS in config.py
 - Filter RVTools to powered-on VMs only
-- Consider upgrading to Claude 3.5 (8192 tokens)
+- Upload vInfo file only for large datasets
+- Multi-stage generation helps (ENABLE_MULTI_STAGE=True)
 
-**4. Slow generation (>15 minutes)**
+**5. Slow generation (>15 minutes)**
 - Check dataset size (>2,500 VMs?)
 - Verify AWS region latency
 - Consider reducing data limits
+- Ensure RVTools vInfo prioritization is working
 
-## Support
-
-For issues or questions:
-1. Check troubleshooting section above
-2. Review documentation files
-3. Check AWS Bedrock console for errors
-4. Verify AWS credentials: `aws sts get-caller-identity`
-
-## License
-
-MIT License - See LICENSE file for details
+**6. Deprecated services in output**
+- Should not happen - agents check against lifecycle page
+- If found, update `agents/reference/aws_deprecated_services.md`
+- Report issue for prompt strengthening
