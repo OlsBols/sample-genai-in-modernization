@@ -27,8 +27,12 @@ def excel_to_json(filename, create_file=False, max_rows_per_sheet=3000):
     Limits each sheet to max_rows_per_sheet to stay within model context limits.
     """
     try:
-        # Get input folder path from config.py and join with filename  directory and construct full path
-        full_path = os.path.join(input_folder_dir_path, filename)
+        from project_context import get_input_file_path
+        
+        # Get input folder path from config.py and join with filename directory and construct full path
+        # Extract just the filename if path is included
+        filename_only = os.path.basename(filename)
+        full_path = get_input_file_path(filename_only)
         
         # Read Excel file
         excel_file = pd.read_excel(full_path, sheet_name=None, engine='openpyxl')

@@ -14,13 +14,16 @@ bedrock_model = BedrockModel(
 )
 
 def read_file_from_input_dir(filename):
-    """Read file from the input directory"""
-    full_path = os.path.join(input_folder_dir_path, "input", filename)
+    """Read file from the case-specific input directory"""
+    from project_context import get_case_input_directory
+    input_dir = get_case_input_directory()
+    full_path = os.path.join(input_dir, filename)
     return full_path
 
 def find_mra_file():
     """Find the MRA file in the input directory (supports .md, .docx, .pdf)"""
-    input_dir = os.path.join(input_folder_dir_path, "input")
+    from project_context import get_case_input_directory
+    input_dir = get_case_input_directory()
     
     # Check for MRA file with any supported extension
     mra_patterns = [

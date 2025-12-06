@@ -202,9 +202,7 @@ const AgentConfigStep = ({ selectedAgents, setSelectedAgents, uploadedFiles }) =
       }
     >
       <SpaceBetween size="l">
-        <Alert type="info">
-          Phase 1 agents are optional based on uploaded files. Phase 2, 3, and 4 agents always run to generate the complete business case.
-        </Alert>
+
 
         <Toggle
           onChange={({ detail }) => handleRunAllToggle(detail.checked)}

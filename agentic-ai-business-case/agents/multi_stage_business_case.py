@@ -5,7 +5,13 @@ Generates business case in sections to maximize quality and detail
 import os
 from strands import Agent
 from strands.models import BedrockModel
-from config import model_id_claude3_7, model_temperature, MAX_TOKENS_BUSINESS_CASE, output_folder_dir_path
+from config import (
+    model_id_claude3_7, 
+    model_temperature, 
+    MAX_TOKENS_BUSINESS_CASE, 
+    output_folder_dir_path,
+    TCO_COMPARISON_CONFIG
+)
 from appendix_content import get_appendix
 
 def create_section_agent(section_prompt):
@@ -35,28 +41,30 @@ Generate a comprehensive Executive Summary for the AWS migration business case.
 
 **Generate**:
 1. Project Overview (use EXACT customer name and project details from PROJECT CONTEXT)
-2. Current State Highlights - HIGH-LEVEL ONLY (e.g., "~2,000 VMs" not exact counts)
+2. Current State Highlights - Use EXACT VM counts from analysis (e.g., "51 virtual machines" not "approximately 50")
 3. Recommended Approach - STRATEGIC OVERVIEW (e.g., "phased approach over 18 months" without wave details)
 4. Key Financial Metrics - SUMMARY ONLY:
-   **IF AWS < On-Prem**: Show cost savings
-   - Total 3-Year Savings: $X (Y% reduction)
-   - Break-even: Month X
-   
-   **IF AWS >= On-Prem**: Show business value instead
-   - AWS 3-Year Investment: $X
-   - Strategic Benefits: Agility, innovation, scalability
+   **CRITICAL - EXTRACT FROM COST ANALYSIS**:
+   - Search the "Cost Analysis" section in the input for these EXACT values:
+   - Total Monthly AWS Cost: Find "Total AWS Cost" or "monthly_total" in Cost Analysis
+   - Total Annual Recurring Revenue (ARR): Find "total_arr" or "Annual Cost" in Cost Analysis
+   - 3-Year AWS Investment: Calculate as (Monthly Cost × 36) or find "3-Year" in Cost Analysis
+   - DO NOT use any other numbers - ONLY extract from the Cost Analysis section provided
+   - If you see multiple cost numbers, use the ones from "agent_aws_cost_arr" or "Cost Analysis" section
+   **CRITICAL**: Check TCO_ENABLED flag in context:
+   - IF TCO_ENABLED=True AND AWS < On-Prem: Include "Break-even: Month X"
+   - IF TCO_ENABLED=False OR AWS >= On-Prem: DO NOT include break-even, show business value instead
 5. Expected Benefits - TOP 3-4 ONLY (detailed list will be in Benefits section)
 6. Critical Success Factors - TOP 3 ONLY
 7. Timeline Overview - HIGH-LEVEL (e.g., "18-month phased approach" without wave breakdown)
 
-**Format**: Markdown, 400-500 words MAX, include key metrics table with ACTUAL numbers
+**Format**: Markdown, 400-500 words MAX, include key metrics table
 **Tone**: Executive-level, strategic, business-focused
 **CRITICAL**: 
-- Stay under 500 words. Complete the section fully within this limit.
-- Use ACTUAL NUMBERS from the analysis - NO placeholders
-- Ensure financial metrics are CONSISTENT with Cost Analysis section
-- Extract real values from the provided analysis text
-- Reference the EXACT customer name from project context
+- Use ACTUAL NUMBERS from analysis - NO placeholders or approximations
+- Financial metrics MUST match Cost Analysis exactly (e.g., if Cost Analysis shows $5,941.43/month, use that exact number)
+- VM counts must be exact (e.g., "51 VMs" not "approximately 50")
+- NO meta-commentary - write only the content itself
 """
 
 CURRENT_STATE_PROMPT = """
@@ -65,18 +73,14 @@ Generate a concise Current State Analysis section.
 **Input**: Analysis from current_state_analysis, IT inventory, RVTools, ATX, and MRA agents.
 
 **Generate** (very concise):
-1. IT Infrastructure Overview with ACTUAL NUMBERS (e.g., "2,027 VMs, 7,581 vCPUs, 40,189 GB RAM, 376.3 TB storage")
+1. IT Infrastructure Overview with ACTUAL NUMBERS from the analysis (Total VMs, vCPUs, RAM, Storage)
 2. Key Challenges (from ACTUAL analysis findings)
 3. Technical Debt (from ACTUAL assessment data)
 4. Organizational Readiness (from ACTUAL MRA findings)
 
-**Format**: Markdown, 400-500 words MAX, include 1 summary table with ACTUAL numbers
+**Format**: Markdown, 400-500 words MAX, include 1 summary table
 **Tone**: Technical but accessible, data-driven
-**CRITICAL**: 
-- Stay under 500 words. Complete the section fully within this limit.
-- Use ACTUAL NUMBERS from the analysis - NO placeholders like [total VM count] or [X VMs]
-- Extract real values from the provided analysis text (look for numbers like "2,027 VMs" or "7,581 vCPUs")
-- NO generic or placeholder data
+**CRITICAL**: Use ACTUAL numbers from analysis - NO placeholders, examples, or cached data. NO meta-commentary.
 """
 
 MIGRATION_STRATEGY_PROMPT = """
@@ -84,25 +88,32 @@ Generate a concise Migration Strategy section.
 
 **Input**: Analysis from agent_migration_strategy covering 7Rs recommendations.
 
+**CRITICAL - TIMELINE REQUIREMENT**: 
+- Check PROJECT CONTEXT for migration timeline (e.g., "18 months", "24 months")
+- ALL phases and waves MUST fit within this EXACT timeline
+- DO NOT exceed the specified duration
+- Example for 18 months: Wave 1 (Months 1-6) + Wave 2 (Months 7-12) + Wave 3 (Months 13-18) = 18 months
+- Example for 24 months: Wave 1 (Months 1-8) + Wave 2 (Months 9-16) + Wave 3 (Months 17-24) = 24 months
+
 **CRITICAL - DEPRECATED SERVICES**: Ensure all AWS service recommendations are current and NOT deprecated. Reference: https://aws.amazon.com/products/lifecycle/
 
 **Generate** (very concise):
-1. Recommended Approach (1 paragraph)
-2. 7Rs Distribution (well-formatted table with headers: Retire, Retain, Rehost, Relocate, Replatform, Repurchase, Refactor)
-3. Wave Planning (brief, 2-3 sentences)
+1. Recommended Approach (1 paragraph) - mention the EXACT timeline from PROJECT CONTEXT
+2. 7Rs Distribution (well-formatted table with actual numbers or percentages - NO "TBD" values. If exact numbers unavailable, use reasonable estimates based on VM analysis)
+3. Wave Planning (brief, 2-3 sentences) - waves MUST fit within project timeline
 4. Quick Wins (bullet points, 3-5 items)
 
-**Format**: Markdown with proper formatting:
-- Use proper table syntax with alignment
-- Clear section headers (###)
-- Bullet points with consistent formatting
-- 400-500 words MAX
-
+**Format**: Markdown, 400-500 words MAX, proper tables and bullets
 **Tone**: Strategic, practical, actionable
-**CRITICAL**: Stay under 500 words. Use proper markdown formatting for tables and lists.
+**CRITICAL**: NO meta-commentary - write only the content itself. RESPECT the project timeline.
 """
 
-COST_ANALYSIS_PROMPT = """
+def get_cost_analysis_prompt():
+    """Generate cost analysis prompt based on TCO config"""
+    tco_enabled = TCO_COMPARISON_CONFIG.get('enable_tco_comparison', False)
+    
+    if tco_enabled:
+        return """
 Generate a concise Cost Analysis and TCO section.
 
 **Input**: Analysis from agent_aws_cost_arr covering AWS costs and TCO.
@@ -131,9 +142,15 @@ Generate a concise Cost Analysis and TCO section.
 - If cost analysis shows "Year 1 AWS: $X", use that EXACT figure - don't round or estimate
 - On-premises costs should be HIGHER than AWS costs
 - Show 18-month migration ramp: Month 1-6, 7-12, 13-18 with gradual AWS increase and on-prem decrease
-- Use actual VM counts and specs from the analysis (e.g., 2,027 VMs)
+- Use actual VM counts and specs from the analysis
 - Include cost breakdown by service (Compute, Storage, Database, Networking)
-- Show calculation basis: "Based on 2,027 VMs with average cost of $X per VM"
+- Show calculation basis with actual numbers from the analysis
+
+**CRITICAL - OS DISTRIBUTION COUNTS**:
+- SEARCH for "PRE-COMPUTED RVTOOLS SUMMARY" in the context
+- Use ONLY the Windows VMs and Linux VMs counts from that summary
+- Example: If summary shows "Windows VMs: 781" and "Linux VMs: 1246", use EXACTLY those numbers
+- These counts are consistent with pricing calculator (Other VMs are treated as Linux)
 
 **Format**: Markdown with proper formatting:
 - Use proper table syntax with alignment (| Column | Column |)
@@ -144,34 +161,112 @@ Generate a concise Cost Analysis and TCO section.
 **Tone**: Financial, analytical, data-driven showing AWS cost advantage
 **CRITICAL**: Stay under 600 words. Ensure cost consistency and proper table formatting.
 """
+    else:
+        return """
+Generate a concise Cost Analysis section (TCO COMPARISON DISABLED).
+
+**Input**: Analysis from agent_aws_cost_arr covering AWS costs.
+
+**CRITICAL - TCO DISABLED**: 
+- DO NOT include on-premises cost calculations
+- DO NOT show TCO comparison tables
+- DO NOT show break-even analysis
+- DO NOT mention cost savings vs on-premises
+- DO NOT calculate or reference on-premises infrastructure costs
+- Focus ONLY on AWS costs and business value
+
+**CRITICAL - DEPRECATED SERVICES**: Do NOT include any deprecated or end-of-life AWS services in cost analysis. Only include current, actively supported services.
+
+**Generate** (very concise):
+1. AWS Cost Summary (AWS services and projected costs with 3-Year NURI)
+   - Total Monthly AWS Cost
+   - Total Annual AWS Cost (ARR)
+   - Breakdown by service (Compute, Storage, Database, Networking)
+   - Breakdown by instance type (ONLY if provided in cost analysis - DO NOT make up instance counts)
+   - Cost per VM average
+   
+   **CRITICAL - INSTANCE DISTRIBUTION**:
+   - ONLY include instance types explicitly mentioned in the cost analysis
+   - Instance counts MUST sum to the total VM count (e.g., if 51 VMs total, all instance counts must sum to 51)
+   - DO NOT list made-up instance types or counts
+   - If instance distribution not provided, SKIP this subsection
+   
+   **CRITICAL - OS DISTRIBUTION**:
+   - SEARCH for "PRE-COMPUTED RVTOOLS SUMMARY" in the context
+   - Use ONLY the Windows VMs and Linux VMs counts from that summary
+   - Windows + Linux counts MUST equal total migrating VMs from the summary
+   - Example: If summary shows "Windows VMs: 781" and "Linux VMs: 1246", use EXACTLY those numbers
+   - These counts are consistent with pricing calculator (Other VMs are treated as Linux)
+2. 18-Month Migration Cost Ramp (table showing ONLY AWS costs ramping up as migration progresses)
+   - Month 1-6: X% of workloads, $Y AWS cost
+   - Month 7-12: X% of workloads, $Y AWS cost
+   - Month 13-18: 100% of workloads, $Y AWS cost
+   - DO NOT show on-premises cost reduction
+3. Cost Optimization Opportunities (bullet points, 5-7 items)
+   - Reserved Instances and Savings Plans
+   - Right-sizing recommendations
+   - Storage optimization
+   - Spot instances for suitable workloads
+4. Business Value Justification (focus on strategic benefits, NOT cost savings)
+   - Agility and faster time-to-market
+   - Innovation enablement (AI/ML, analytics, modern services)
+   - Reduced technical debt and operational complexity
+   - Global scalability and reliability
+   - Security and compliance improvements
+
+**CRITICAL REQUIREMENTS**:
+- Use the EXACT cost calculations from the cost analysis provided - DO NOT recalculate
+- Ensure ALL cost figures are CONSISTENT throughout the section
+- Use actual VM counts and specs from the analysis
+- Include cost breakdown by service (Compute, Storage, Database, Networking)
+- Show calculation basis: "Based on X VMs with average cost of $Y per VM"
+- DO NOT mention on-premises costs anywhere
+
+**Format**: Markdown, 400-500 words MAX, proper tables
+**Tone**: Financial, analytical, business-value focused
+**CRITICAL**: NO on-premises costs. Ensure cost consistency. NO meta-commentary.
+"""
+
+COST_ANALYSIS_PROMPT = get_cost_analysis_prompt()
 
 MIGRATION_ROADMAP_PROMPT = """
 Generate a concise Migration Roadmap section.
 
 **Input**: Analysis from agent_migration_plan covering MAP methodology.
 
+**CRITICAL - TIMELINE REQUIREMENT**: 
+- Check PROJECT CONTEXT for migration timeline (e.g., "18 months", "24 months")
+- ALL phases MUST fit within this EXACT timeline
+- DO NOT exceed the specified duration
+- Calculate phase durations to sum to the project timeline
+- Example for 18 months: Phase 1 (Months 1-6) + Phase 2 (Months 7-12) + Phase 3 (Months 13-18) = 18 months
+- Example for 24 months: Phase 1 (Months 1-8) + Phase 2 (Months 9-16) + Phase 3 (Months 17-24) = 24 months
+
+**TABLE FORMATTING**: When creating the Phased Approach table, use wider column widths for Phase and Duration columns (minimum 15-20 characters) for better readability.
+
 **CRITICAL - TIMEFRAME FORMAT**:
 - Use RELATIVE timeframes only (Week 1-2, Month 1-3, Quarter 1, etc.)
 - DO NOT use specific calendar dates or months (e.g., "January 2026" or "Q1 2025")
 - Use generic timeframes: "Month 1-3", "Month 4-6", "Month 7-12", etc.
 - For phases: "Phase 1 (Months 1-3)", "Phase 2 (Months 4-9)", etc.
+- ENSURE phase durations sum to the project timeline from PROJECT CONTEXT
 
 **Generate** (very concise):
-1. Phased Approach (table with phases and relative durations)
+1. Phased Approach (table with phases and relative durations that sum to project timeline)
 2. Timeline (table with relative timeframes - Month 1, Month 2, etc.)
 3. Key Milestones (bullet points with relative timing)
 4. Success Criteria (brief)
 
-**Example Timeline Format**:
+**Example Timeline Format for 18-month project**:
 | Phase | Duration | Key Activities |
 |-------|----------|----------------|
 | Assess | Month 1-2 | Discovery, assessment |
-| Mobilize | Month 3-4 | Landing zone, pilot planning |
-| Migrate | Month 5-12 | Wave-based migration |
+| Mobilize | Month 3-5 | Landing zone, pilot planning |
+| Migrate | Month 6-18 | Wave-based migration |
 
-**Format**: Markdown, 400-500 words MAX, include timeline table with relative timeframes
+**Format**: Markdown, 400-500 words MAX, timeline table with relative timeframes
 **Tone**: Practical, detailed, project-focused
-**CRITICAL**: Stay under 500 words. Use relative timeframes only (no specific dates).
+**CRITICAL**: Use relative timeframes only (no specific dates). NO meta-commentary.
 """
 
 BENEFITS_RISKS_PROMPT = """
@@ -191,14 +286,9 @@ Generate a concise Benefits and Risks section.
 2. Main Risks (bullet points, 5-7 items)
 3. Mitigation Strategies (bullet points, 3-5 items)
 
-**Format**: Markdown with proper formatting:
-- Use clear section headers (###)
-- Consistent bullet point formatting
-- Optional: summary table at the end
-- 300-400 words MAX
-
+**Format**: Markdown, 300-400 words MAX, clear headers and bullets
 **Tone**: Balanced, realistic, comprehensive
-**CRITICAL**: Stay under 400 words. Use proper markdown formatting.
+**CRITICAL**: NO meta-commentary - write only the content itself
 """
 
 RECOMMENDATIONS_PROMPT = """
@@ -218,11 +308,9 @@ Generate a concise Recommendations and Next Steps section.
 3. Recommended Deep-Dive Assessments (if only basic data like RVTools was provided):
    - **AWS Migration Evaluator**: Detailed TCO analysis and right-sizing recommendations
    - **Migration Portfolio Assessment (MPA)**: Application dependency mapping and wave planning
-   - **AWS Partner ISV Tools**: Consider tools from https://aws.amazon.com/blogs/apn/accelerate-vmware-workload-modernization-with-aws-partner-solutions/
-     * CloudPhysics for VMware optimization
-     * Densify for workload rightsizing
-     * Cloudamize for cloud readiness
-     * Turbonomic for application resource management
+   - **ISV Migration Tools**: Evaluate third-party solutions for enhanced migration capabilities:
+     * Comprehensive cloud readiness assessments
+     * Application resource management and optimization
 4. 90-Day Plan (table with relative timeframes - focus on ACTIONS not metrics)
 
 **CRITICAL REQUIREMENTS**:
@@ -246,9 +334,9 @@ Generate a concise Recommendations and Next Steps section.
 | Month 2   | Execute pilot migration | Migration Team |
 | Month 3   | Review and optimize | Operations Team |
 
-**Format**: Markdown, 400-500 words MAX, include action items table with relative timeframes
+**Format**: Markdown, 400-500 words MAX, action items table with relative timeframes
 **Tone**: Actionable, clear, prioritized, forward-looking
-**CRITICAL**: Stay under 500 words. Use relative timeframes only (Week 1-2, Month 1, etc.).
+**CRITICAL**: Use relative timeframes only (Week 1-2, Month 1, etc.). NO meta-commentary.
 """
 
 def generate_multi_stage_business_case(agent_results, project_context):
@@ -293,9 +381,14 @@ def generate_multi_stage_business_case(agent_results, project_context):
     
     assessments_note = f"\n**ASSESSMENTS ALREADY COMPLETED**: {', '.join(completed_assessments)}\n**DO NOT recommend these assessments again.**" if completed_assessments else ""
     
+    # Get TCO configuration
+    tco_enabled = TCO_COMPARISON_CONFIG.get('enable_tco_comparison', False)
+    tco_note = f"\n**TCO_ENABLED**: {tco_enabled}\n**CRITICAL**: {'Include on-premises TCO comparison if AWS < On-Prem' if tco_enabled else 'DO NOT include on-premises costs, TCO comparison, or break-even analysis'}"
+    
     # Build comprehensive context with actual analysis results
     context = f"""
 {project_context}
+{tco_note}
 
 **ANALYSIS RESULTS FROM PREVIOUS AGENTS:**
 
@@ -314,10 +407,12 @@ def generate_multi_stage_business_case(agent_results, project_context):
 
 **CRITICAL INSTRUCTIONS:**
 - Use ONLY the ACTUAL NUMBERS and data from the analysis results above
-- Extract and use REAL values like "2,027 VMs" or "$1.8M" - NOT placeholders like [total VM count] or [$X]
+- Extract and use REAL values from the analysis - NOT placeholders like [total VM count] or [$X]
 - Look for specific metrics in the analysis text and use those exact numbers
 - Do NOT make up generic examples or use placeholder data
+- IGNORE any example numbers you may have seen in prompts or previous responses
 - Ensure all recommendations align with the project context and actual findings
+- RESPECT the TCO_ENABLED flag above - if False, DO NOT include any on-premises cost calculations
 """
     
     # Generate each section
@@ -441,7 +536,30 @@ def combine_sections(sections, project_context):
 *This business case was generated using AI-powered analysis of your infrastructure data, assessment reports, and migration readiness evaluation. All recommendations should be validated with AWS solutions architects and your technical teams.*
 """
     
+    # Clean up markdown code fences
+    document = cleanup_markdown_fences(document)
+    
     return document
+
+
+def cleanup_markdown_fences(text):
+    """
+    Remove markdown code fence markers (```markdown, ```, etc.) from the text
+    These sometimes appear in LLM output and should be removed for cleaner presentation
+    """
+    import re
+    
+    # Remove ```markdown at the start of code blocks
+    text = re.sub(r'```markdown\s*\n', '', text)
+    
+    # Remove ``` at the end of code blocks (but preserve code blocks that are intentional)
+    # Only remove standalone ``` on its own line
+    text = re.sub(r'\n```\s*\n', '\n\n', text)
+    
+    # Remove any remaining ``` that appear at start or end of lines
+    text = re.sub(r'^```\s*$', '', text, flags=re.MULTILINE)
+    
+    return text
 
 if __name__ == "__main__":
     print("Multi-stage business case generator module loaded")

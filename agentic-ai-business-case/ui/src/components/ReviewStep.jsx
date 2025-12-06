@@ -44,38 +44,68 @@ const ReviewStep = ({
     });
 
     try {
-      // Simulate progress updates
       const agents = Object.entries(selectedAgents.agents)
         .filter(([_, enabled]) => enabled)
         .map(([id, _]) => id);
 
-      for (let i = 0; i < agents.length; i++) {
-        setGenerationStatus(prev => ({
-          ...prev,
-          progress: ((i + 1) / agents.length) * 100,
-          currentAgent: `Running ${agents[i]} agent...`
-        }));
+      // Estimated phases with progress percentages
+      const phases = [
+        { name: 'Initializing...', progress: 5 },
+        { name: 'Analyzing IT inventory...', progress: 15 },
+        { name: 'Processing RVTools data...', progress: 25 },
+        { name: 'Analyzing MRA assessment...', progress: 35 },
+        { name: 'Calculating AWS costs...', progress: 50 },
+        { name: 'Developing migration strategy...', progress: 65 },
+        { name: 'Creating migration plan...', progress: 80 },
+        { name: 'Generating business case...', progress: 95 }
+      ];
+
+      // Simulate progress updates while API is running
+      let currentPhase = 0;
+      const progressInterval = setInterval(() => {
+        if (currentPhase < phases.length) {
+          setGenerationStatus(prev => ({
+            ...prev,
+            progress: phases[currentPhase].progress,
+            currentAgent: phases[currentPhase].name
+          }));
+          currentPhase++;
+        }
+      }, 15000); // Update every 15 seconds
+
+      // Show initial progress
+      setGenerationStatus(prev => ({
+        ...prev,
+        progress: phases[0].progress,
+        currentAgent: phases[0].name
+      }));
+
+      try {
+        // Call the actual API (this is the real work)
+        const result = await generateBusinessCase({
+          projectInfo,
+          uploadedFiles,
+          selectedAgents: agents
+        });
+
+        // Clear the progress interval
+        clearInterval(progressInterval);
+
+        console.log('API Result:', result); // Debug log
+        setBusinessCaseResult(result);
         
-        // Simulate agent execution time
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // Only show 100% when actually complete
+        setGenerationStatus({
+          isGenerating: false,
+          progress: 100,
+          currentAgent: 'Business case generated successfully',
+          completed: true,
+          error: null
+        });
+      } catch (apiError) {
+        clearInterval(progressInterval);
+        throw apiError;
       }
-
-      // Call the actual API
-      const result = await generateBusinessCase({
-        projectInfo,
-        uploadedFiles,
-        selectedAgents: agents
-      });
-
-      console.log('API Result:', result); // Debug log
-      setBusinessCaseResult(result);
-      setGenerationStatus({
-        isGenerating: false,
-        progress: 100,
-        currentAgent: 'Completed',
-        completed: true,
-        error: null
-      });
       
       // Auto-navigate to results step after successful generation
       setTimeout(() => {
@@ -150,9 +180,7 @@ const ReviewStep = ({
 
         <Box>
           <Box variant="awsui-key-label" margin={{ bottom: 's' }}>Agents That Will Run</Box>
-          <Alert type="info">
-            Agents are automatically selected based on your uploaded files. Phase 2, 3, and 4 agents always run to generate the complete business case.
-          </Alert>
+
           <Box margin={{ top: 's' }}>
             <SpaceBetween size="xs">
               {Object.entries(selectedAgents.agents)

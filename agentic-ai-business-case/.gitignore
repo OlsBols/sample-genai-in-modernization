@@ -39,7 +39,7 @@ output/*.docx
 # Project info (contains user data)
 input/project_info.json
 
-# Uploaded user files
+# Uploaded user files (base directory)
 input/*.xlsx
 input/*.xls
 input/*.csv
@@ -48,6 +48,9 @@ input/*.pptx
 input/*.ppt
 input/*.docx
 input/*.doc
+
+# Case-specific subdirectories (all files in subfolders)
+input/case-*/
 
 # Keep example/template files
 !input/application-portfolio.csv
@@ -72,3 +75,6 @@ ui/backend/*.pyc
 *.tmp
 *.temp
 .cache/
+
+# Process ID files and logs
+.pids/

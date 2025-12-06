@@ -22,6 +22,8 @@ An AI-powered tool that generates comprehensive AWS migration business cases usi
 aws configure
 
 # 2. Run setup script (one-time)
+# Optional to store input/output files in s3 bucket
+# export S3_BUCKET_NAME=my-custom-bucket-name
 ./setup.sh
 
 # 3. Start the application

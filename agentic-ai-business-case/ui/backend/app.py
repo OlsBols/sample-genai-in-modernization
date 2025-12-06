@@ -149,9 +149,10 @@ def generate_business_case():
         if not case_id:
             case_id = f"case-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}"
         
-        # Create temporary input directory for this request
-        temp_input_dir = os.path.join(UPLOAD_FOLDER, 'input')
-        os.makedirs(temp_input_dir, exist_ok=True)
+        # Create case-specific input directory
+        case_input_dir = os.path.join(INPUT_DIR, case_id)
+        os.makedirs(case_input_dir, exist_ok=True)
+        print(f"Created case-specific input directory: {case_input_dir}")
         
         # Save uploaded files
         file_mapping = {
@@ -165,15 +166,16 @@ def generate_business_case():
         uploaded_files = {}
         s3_file_keys = {}
         
-        # Handle single files
+        # Handle single files - save to case-specific directory
         for key, target_filename in file_mapping.items():
             if key in request.files:
                 file = request.files[key]
                 if file and allowed_file(file.filename):
-                    # Save to input directory with expected filename
-                    filepath = os.path.join(INPUT_DIR, target_filename)
+                    # Save to case-specific input directory ONLY
+                    filepath = os.path.join(case_input_dir, target_filename)
                     file.save(filepath)
                     uploaded_files[key] = filepath
+                    print(f"✓ Saved {key} to case directory: {filepath}")
                     
                     # Upload to S3 if enabled
                     if is_s3_enabled():
@@ -191,9 +193,12 @@ def generate_business_case():
                 
                 # Save with appropriate extension
                 target_filename = f'mra-assessment.{file_ext}'
-                filepath = os.path.join(INPUT_DIR, target_filename)
+                
+                # Save to case-specific directory ONLY
+                filepath = os.path.join(case_input_dir, target_filename)
                 file.save(filepath)
                 uploaded_files['mra'] = filepath
+                print(f"✓ Saved MRA to case directory: {filepath}")
                 
                 # Upload to S3 if enabled
                 if is_s3_enabled():
@@ -201,7 +206,7 @@ def generate_business_case():
                     if s3_key:
                         s3_file_keys['mra'] = s3_key
         
-        # Handle multiple RVTools files
+        # Handle multiple RVTools files - save to case-specific directory
         if 'rvTool' in request.files:
             rv_files = request.files.getlist('rvTool')
             print(f"DEBUG: Received {len(rv_files)} RVTools file(s)")
@@ -211,13 +216,14 @@ def generate_business_case():
             for idx, file in enumerate(rv_files):
                 print(f"DEBUG: Processing RVTools file {idx}: {file.filename if file else 'None'}")
                 if file and allowed_file(file.filename):
-                    # Preserve original filename or use index
+                    # Preserve original filename
                     safe_filename = secure_filename(file.filename)
-                    filepath = os.path.join(INPUT_DIR, safe_filename)
-                    print(f"DEBUG: Saving RVTools file to: {filepath}")
+                    
+                    # Save to case-specific directory ONLY
+                    filepath = os.path.join(case_input_dir, safe_filename)
                     file.save(filepath)
                     rv_file_paths.append(filepath)
-                    print(f"DEBUG: RVTools file saved successfully: {safe_filename}")
+                    print(f"✓ Saved RVTools file to case directory: {filepath}")
                     
                     # Upload to S3 if enabled
                     if is_s3_enabled():
@@ -237,23 +243,51 @@ def generate_business_case():
         
         # Save project info and uploaded filenames to a file for agents to access
         project_info_with_files = project_info.copy()
+        project_info_with_files['caseId'] = case_id
         project_info_with_files['uploadedFiles'] = {
             key: [os.path.basename(f) for f in files] if isinstance(files, list) else os.path.basename(files)
             for key, files in uploaded_files.items()
         }
         
+        # Save to case-specific directory ONLY
+        case_project_info_file = os.path.join(case_input_dir, 'project_info.json')
+        with open(case_project_info_file, 'w', encoding='utf-8') as f:
+            json.dump(project_info_with_files, f, indent=2)
+        print(f"✓ Saved project info to case directory: {case_project_info_file}")
+        
+        # ALSO save to main input directory so agents can find it
+        # (agents look for project_info.json in base input/ to get case ID)
         project_info_file = os.path.join(INPUT_DIR, 'project_info.json')
         with open(project_info_file, 'w', encoding='utf-8') as f:
             json.dump(project_info_with_files, f, indent=2)
+        print(f"✓ Saved project info to base directory: {project_info_file}")
         
         # Run the business case generator
         result = run_business_case_generator(project_info, selected_agents)
         
         # Read the generated business case
         output_file = os.path.join(OUTPUT_DIR, 'aws_business_case.md')
+        excel_file = os.path.join(OUTPUT_DIR, 'vm_to_ec2_mapping.xlsx')
+        
+        output_s3_keys = {}
+        
         if os.path.exists(output_file):
             with open(output_file, 'r', encoding='utf-8') as f:
                 content = f.read()
+            
+            # Upload business case to S3 if enabled
+            if is_s3_enabled():
+                s3_key = upload_file_to_s3(output_file, case_id, 'aws_business_case.md')
+                if s3_key:
+                    output_s3_keys['business_case'] = s3_key
+                    print(f"✓ Business case uploaded to S3: {s3_key}")
+            
+            # Upload Excel file to S3 if it exists and S3 is enabled
+            if os.path.exists(excel_file) and is_s3_enabled():
+                s3_key = upload_file_to_s3(excel_file, case_id, 'vm_to_ec2_mapping.xlsx')
+                if s3_key:
+                    output_s3_keys['excel_mapping'] = s3_key
+                    print(f"✓ Excel mapping uploaded to S3: {s3_key}")
             
             return jsonify({
                 'success': True,
@@ -265,7 +299,8 @@ def generate_business_case():
                 'caseId': case_id,
                 'uploadedFiles': list(uploaded_files.keys()),
                 's3FileKeys': s3_file_keys if is_s3_enabled() else None,
-                's3BucketName': S3_BUCKET_NAME if is_s3_enabled() else None
+                's3BucketName': S3_BUCKET_NAME if is_s3_enabled() else None,
+                'outputS3Keys': output_s3_keys if is_s3_enabled() else None
             })
         else:
             return jsonify({
@@ -366,6 +401,7 @@ def save_to_dynamodb():
             'lastUpdated': datetime.utcnow().isoformat(),
             'executionStats': data.get('executionStats', {}),
             's3FileKeys': data.get('s3FileKeys', {}) if is_s3_enabled() else {},
+            'outputS3Keys': data.get('outputS3Keys', {}) if is_s3_enabled() else {},
             's3BucketName': S3_BUCKET_NAME if is_s3_enabled() else None,
             's3Enabled': is_s3_enabled()
         }
@@ -445,7 +481,7 @@ def load_business_case(case_id):
         
         case_data = response['Item']
         
-        # Restore files from S3 if available
+        # Restore input files from S3 if available
         files_restored = {}
         if is_s3_enabled() and 's3FileKeys' in case_data:
             file_mapping = {
@@ -488,10 +524,36 @@ def load_business_case(case_id):
                     else:
                         files_restored[key] = False
         
+        # Restore output files from S3 if available
+        output_files_restored = {}
+        if is_s3_enabled() and 'outputS3Keys' in case_data:
+            output_s3_keys = case_data.get('outputS3Keys', {})
+            
+            # Restore business case
+            if 'business_case' in output_s3_keys:
+                s3_key = output_s3_keys['business_case']
+                local_path = os.path.join(OUTPUT_DIR, 'aws_business_case.md')
+                if download_file_from_s3(s3_key, local_path):
+                    output_files_restored['business_case'] = True
+                    print(f"✓ Restored business case from S3: {s3_key}")
+                else:
+                    output_files_restored['business_case'] = False
+            
+            # Restore Excel mapping
+            if 'excel_mapping' in output_s3_keys:
+                s3_key = output_s3_keys['excel_mapping']
+                local_path = os.path.join(OUTPUT_DIR, 'vm_to_ec2_mapping.xlsx')
+                if download_file_from_s3(s3_key, local_path):
+                    output_files_restored['excel_mapping'] = True
+                    print(f"✓ Restored Excel mapping from S3: {s3_key}")
+                else:
+                    output_files_restored['excel_mapping'] = False
+        
         return jsonify({
             'success': True,
             'case': case_data,
             'filesRestored': files_restored if files_restored else None,
+            'outputFilesRestored': output_files_restored if output_files_restored else None,
             's3Enabled': is_s3_enabled()
         })
         
@@ -556,27 +618,26 @@ def enhance_description():
                 import boto3
                 bedrock = boto3.client('bedrock-runtime', region_name=DYNAMODB_REGION)
                 
-                prompt = f"""You are an AWS migration expert. Create a concise project description for {customer_name}'s AWS migration project. 
+                prompt = f"""You are an AWS migration expert. Create a comprehensive project description for {customer_name}'s AWS migration project. 
 
 User's input:
 {current_description}
 
 Instructions:
-- Keep it concise and focused (maximum 100 words)
 - Expand on the user's key points naturally
 - Add relevant AWS migration details
 - Keep the user's original requirements prominent
 - Target region: {aws_region}
 - Write in paragraph form, naturally flowing from the user's input
-- Be brief and to the point
+- Be thorough but focused (aim for 150-200 words)
 
-Concise description (max 100 words):"""
+Enhanced description:"""
 
                 response = bedrock.invoke_model(
                     modelId='anthropic.claude-3-haiku-20240307-v1:0',
                     body=json.dumps({
                         "anthropic_version": "bedrock-2023-05-31",
-                        "max_tokens": 200,  # Limit tokens for concise output
+                        "max_tokens": 500,  # Allow longer descriptions
                         "messages": [
                             {
                                 "role": "user",
@@ -589,25 +650,16 @@ Concise description (max 100 words):"""
                 response_body = json.loads(response['body'].read())
                 enhanced = response_body['content'][0]['text'].strip()
                 
-                # Enforce 100-word limit
-                words = enhanced.split()
-                if len(words) > 100:
-                    enhanced = ' '.join(words[:100])
-                    print(f"Truncated AI response from {len(words)} to 100 words")
+                # No truncation - keep full AI response
+                print(f"AI enhanced description: {len(enhanced.split())} words")
                 
             except Exception as ai_error:
                 print(f"AI enhancement failed: {str(ai_error)}")
-                # Fallback: Concise template (under 100 words)
-                enhanced = f"Assess and plan {customer_name}'s migration to AWS in {aws_region}. Analyze current IT environment, VMware workloads, and organizational readiness. Develop migration strategy using 6Rs framework and AWS MAP methodology. Deliver TCO comparison, migration roadmap, risk assessment, and technical recommendations for successful cloud transformation."
+                # Fallback: Comprehensive template
+                enhanced = f"This project aims to assess and plan {customer_name}'s migration to AWS in the {aws_region} region. The assessment will analyze the current IT environment, including VMware workloads, infrastructure dependencies, and organizational readiness for cloud adoption. We will develop a comprehensive migration strategy using the 6Rs framework (Rehost, Replatform, Repurchase, Refactor, Retire, Retain) aligned with AWS Migration Acceleration Program (MAP) methodology. Deliverables include a detailed TCO comparison between on-premises and AWS costs, a phased migration roadmap with wave planning, risk assessment and mitigation strategies, and technical recommendations for successful cloud transformation."
         else:
-            # Generate new concise description from scratch (under 100 words)
-            enhanced = f"Assess and plan {customer_name}'s on-premises infrastructure migration to AWS. Comprehensive analysis of IT environment, VMware workloads, and organizational readiness. Develop migration strategy using 6Rs framework and AWS MAP methodology. Target region: {aws_region}. Deliverables include TCO comparison, migration roadmap, risk assessment, and technical recommendations."
-        
-        # Final safety check - ensure it's under 100 words
-        words = enhanced.split()
-        if len(words) > 100:
-            enhanced = ' '.join(words[:100])
-            print(f"Final truncation: {len(words)} words to 100 words")
+            # Generate new comprehensive description from scratch
+            enhanced = f"This project aims to assess and plan {customer_name}'s on-premises infrastructure migration to AWS. The assessment will include a comprehensive analysis of the current IT environment, VMware workloads, application portfolio, and organizational readiness for cloud adoption. We will develop a detailed migration strategy using the 6Rs framework and AWS MAP methodology, targeting the {aws_region} region. Deliverables include TCO comparison, migration roadmap with wave planning, risk assessment, and technical recommendations for successful cloud transformation."
         
         return jsonify({
             'success': True,

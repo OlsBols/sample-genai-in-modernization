@@ -16,8 +16,8 @@ bedrock_model = BedrockModel(
 
 def read_file_from_input_dir(filename):
     """Read file from the input directory"""
-    full_path = os.path.join(input_folder_dir_path, "input", filename)
-    return full_path
+    from project_context import get_input_file_path
+    return get_input_file_path(filename)
 
 @tool(name="read_excel_file", description="Read Excel file from the input folder and return its content as a dataframe")
 def read_excel_file(filename: str):

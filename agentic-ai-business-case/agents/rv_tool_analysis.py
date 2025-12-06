@@ -18,7 +18,11 @@ def read_csv_from_current_dir(filename, max_rows=MAX_ROWS_RVTOOLS):
     Read CSV/Excel file with row limit to prevent context overflow.
     For large datasets, only reads first max_rows to stay within context limits.
     """
-    full_path = os.path.join(input_folder_dir_path, filename)
+    from project_context import get_input_file_path
+    
+    # Extract just the filename if path is included
+    filename_only = os.path.basename(filename)
+    full_path = get_input_file_path(filename_only)
     
     if filename.endswith('.csv'):
         df = pd.read_csv(full_path, nrows=max_rows)
@@ -80,11 +84,25 @@ def generate_vm_summary(df):
         }
     
     # OS distribution (critical for licensing)
-    if 'OS' in df.columns:
-        os_series = df['OS'].fillna('Unknown')
-        summary['windows_vms'] = len(os_series[os_series.str.contains('Windows', case=False, na=False)])
-        summary['linux_vms'] = len(os_series[os_series.str.contains('Linux|Red Hat|CentOS|Ubuntu', case=False, na=False)])
-        summary['other_vms'] = len(df) - summary['windows_vms'] - summary['linux_vms']
+    # RVTools has multiple possible OS column names depending on version
+    os_col = None
+    for col_name in ['OS according to the VMware Tools', 'OS according to the configuration file', 'OS', 'Guest OS']:
+        if col_name in df.columns:
+            os_col = col_name
+            break
+    
+    if os_col:
+        # Use shared OS detection logic for consistency
+        from os_detection import count_os_distribution
+        os_counts = count_os_distribution(df[os_col])
+        summary['windows_vms'] = os_counts['windows']
+        summary['linux_vms'] = os_counts['linux']
+        summary['other_vms'] = os_counts['other']
+    else:
+        # No OS column found - cannot determine OS distribution
+        summary['windows_vms'] = 0
+        summary['linux_vms'] = 0
+        summary['other_vms'] = len(df)
     
     return summary
 
@@ -122,8 +140,12 @@ def rv_tool_analysis(filename_or_pattern):
     """
     # Check if pattern contains wildcard
     if '*' in filename_or_pattern:
-        # Find all matching files
-        pattern_path = os.path.join(input_folder_dir_path, filename_or_pattern)
+        from project_context import get_case_input_directory
+        
+        # Find all matching files in case-specific directory
+        filename_pattern = os.path.basename(filename_or_pattern)
+        case_dir = get_case_input_directory()
+        pattern_path = os.path.join(case_dir, filename_pattern)
         matching_files = glob.glob(pattern_path)
         
         if not matching_files:
@@ -215,6 +237,21 @@ def rv_tool_analysis(filename_or_pattern):
         print(f"Reading single RVTools file: {filename_or_pattern}")
         df = read_csv_from_current_dir(filename_or_pattern)
         print(f"Loaded {len(df)} rows")
+        
+        # Filter to powered-on VMs only (powered-off VMs not included in migration)
+        if 'Powerstate' in df.columns or 'Power state' in df.columns:
+            powerstate_col = 'Powerstate' if 'Powerstate' in df.columns else 'Power state'
+            total_vms = len(df)
+            powered_on = len(df[df[powerstate_col] == 'poweredOn'])
+            powered_off = len(df[df[powerstate_col] != 'poweredOn'])
+            print(f"  - Total VMs: {total_vms}")
+            print(f"  - PoweredOn VMs: {powered_on}")
+            print(f"  - PoweredOff VMs: {powered_off}")
+            
+            # Filter to powered-on only for migration analysis
+            df = df[df[powerstate_col] == 'poweredOn'].copy()
+            print(f"  - Filtered to {len(df)} powered-on VMs for migration cost analysis")
+        
         return df
 
 # system_message = """

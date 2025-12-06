@@ -13,8 +13,8 @@ bedrock_model = BedrockModel(
 
 def read_file_from_input_dir(filename):
     """Read file from the input directory"""
-    full_path = os.path.join(input_folder_dir_path, "input", filename)
-    return full_path
+    from project_context import get_input_file_path
+    return get_input_file_path(filename)
 
 @tool(name="read_migration_strategy_framework", description="Read the AWS 6Rs migration strategy framework reference document")
 def read_migration_strategy_framework(filename: str = "aws-migration-strategy-6rs-framework.md"):

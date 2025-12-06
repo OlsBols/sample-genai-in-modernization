@@ -1,10 +1,19 @@
 from strands import Agent, tool
 from strands.models import BedrockModel
 
-
-from config import model_id_claude3_7,model_temperature
+from config import model_id_claude3_7, model_temperature, USE_DETERMINISTIC_PRICING, output_folder_dir_path
 from inventory_analysis import it_analysis
 from rv_tool_analysis import rv_tool_analysis
+import json
+import os
+
+# Conditionally import pricing tools based on config
+if USE_DETERMINISTIC_PRICING:
+    from pricing_tools import calculate_exact_aws_arr, get_vm_cost_breakdown, compare_pricing_models
+    from excel_export import export_vm_to_ec2_mapping
+    print("✓ Deterministic pricing enabled (config: USE_DETERMINISTIC_PRICING = True)")
+else:
+    print("⚠ Using LLM-based pricing estimation (config: USE_DETERMINISTIC_PRICING = False)")
 
 # Create a BedrockModel
 bedrock_model = BedrockModel(
