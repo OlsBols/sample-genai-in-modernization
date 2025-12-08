@@ -78,3 +78,6 @@ ui/backend/*.pyc
 
 # Process ID files and logs
 .pids/
+
+# Internal documentation
+docs/

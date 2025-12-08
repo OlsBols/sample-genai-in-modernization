@@ -20,11 +20,12 @@ if USE_DETERMINISTIC_PRICING:
     **DETERMINISTIC PRICING TOOLS AVAILABLE**:
     You have access to these tools that provide EXACT, CONSISTENT AWS pricing:
     
+    **FOR RVTOOLS INPUT**:
     1. **calculate_exact_aws_arr**: Get exact AWS costs from RVTools data
        - Uses AWS Price List API for accurate pricing
        - Returns deterministic results (same input → same output every time)
        - Provides breakdown by instance type, OS, and cost components
-       - Use this for PRIMARY cost calculations
+       - Use this for PRIMARY cost calculations from RVTools
     
     2. **compare_pricing_models**: Compare On-Demand vs 1-Year RI vs 3-Year RI
        - Shows cost differences across purchasing options
@@ -35,36 +36,81 @@ if USE_DETERMINISTIC_PRICING:
        - Useful for what-if analysis
        - Shows instance type mapping and exact costs
     
+    **FOR IT INVENTORY INPUT**:
+    4. **calculate_it_inventory_arr**: Calculate AWS ARR from IT Infrastructure Inventory
+       - Analyzes Servers tab (maps to EC2) and Databases tab (maps to RDS)
+       - Uses AWS Price List API for EC2 and RDS pricing
+       - Returns detailed cost breakdown and generates Excel output
+       - Use this when IT Inventory file is provided
+    
+    **FOR ATX INPUT**:
+    5. **extract_atx_arr_tool**: Extract pre-calculated ARR from ATX Excel file
+       - ATX (AWS Transform for VMware) already calculates costs
+       - Extracts VM counts, OS distribution, and cost breakdown
+       - Use this when ATX analysis file is provided
+    
     **CRITICAL - HOW TO USE PRICING TOOLS**:
-    1. ALWAYS call calculate_exact_aws_arr FIRST to get base AWS costs
-    2. Use the EXACT numbers returned by the tool - DO NOT recalculate or estimate
-    3. Present the tool's results directly in your analysis
-    4. Add context, recommendations, and strategic insights around the numbers
-    5. DO NOT make up or assume any cost figures - use only tool-provided data
+    1. IDENTIFY the input type provided (RVTools, IT Inventory, or ATX)
+    2. Call the APPROPRIATE pricing tool based on input type
+    3. Use the EXACT numbers returned by the tool - DO NOT recalculate or estimate
+    4. Present the tool's results directly in your analysis
+    5. Add context, recommendations, and strategic insights around the numbers
+    6. DO NOT make up or assume any cost figures - use only tool-provided data
     
     **MANDATORY WORKFLOW - YOU MUST FOLLOW THIS**:
     
-    YOUR FIRST ACTION MUST BE:
-    Call calculate_exact_aws_arr(rvtools_file="[filename from task]", region="[region from task]")
+    YOUR FIRST ACTION MUST BE TO IDENTIFY INPUT TYPE AND CALL THE APPROPRIATE TOOL:
     
-    DO NOT WRITE ANY TEXT BEFORE CALLING THIS TOOL.
+    **PRIORITY RULES (when multiple files available)**:
+    1. **RVTools** (HIGHEST PRIORITY) - Most comprehensive VM-level data, use this if available
+    2. **IT Inventory** (MEDIUM PRIORITY) - Good for servers + databases, use if RVTools not available
+    3. **ATX** (LOWEST PRIORITY) - Pre-calculated costs, use only if neither RVTools nor IT Inventory available
+    
+    **IF RVTOOLS INPUT** (file pattern: rvtool*.xlsx or RVTools*.xlsx):
+    Call calculate_exact_aws_arr(rvtools_file="[filename from task]", region="[region from task]")
+    - This is MANDATORY for RVTools input
+    - The tool will automatically generate Excel export
+    - Example: calculate_exact_aws_arr(rvtools_file="RVTools_Export.xlsx", region="us-east-1")
+    - **USE THIS if RVTools is available, even if other files are also present**
+    
+    **IF IT INVENTORY INPUT** (file pattern: it-infrastructure-inventory.xlsx):
+    Call calculate_it_inventory_arr(inventory_filename="[filename from task]", target_region="[region from task]")
+    - This is MANDATORY for IT Inventory input
+    - Analyzes Servers tab (EC2) and Databases tab (RDS)
+    - Generates Excel output with detailed breakdown
+    - Example: calculate_it_inventory_arr(inventory_filename="it-infrastructure-inventory.xlsx", target_region="us-east-1")
+    - **USE THIS if IT Inventory is available and RVTools is NOT available**
+    
+    **IF ATX INPUT** (file pattern: atx_analysis.xlsx):
+    Call extract_atx_arr_tool(atx_filename="[filename from task]", target_region="[region from task]")
+    - This is MANDATORY for ATX input
+    - Extracts pre-calculated costs from ATX analysis
+    - Example: extract_atx_arr_tool(atx_filename="atx_analysis.xlsx", target_region="us-east-1")
+    - **USE THIS only if ATX is available and neither RVTools nor IT Inventory are available**
+    
+    **IF MULTIPLE FILES AVAILABLE**:
+    - Check agent outputs: rv_tool_analysis, it_analysis, atx_analysis
+    - Use RVTools if rv_tool_analysis has data (HIGHEST PRIORITY)
+    - Otherwise use IT Inventory if it_analysis has data (MEDIUM PRIORITY)
+    - Otherwise use ATX if atx_analysis has data (LOWEST PRIORITY)
+    - You can reference other sources for context, but use the highest priority source for cost calculations
+    
+    DO NOT WRITE ANY TEXT BEFORE CALLING THE APPROPRIATE TOOL.
     DO NOT ESTIMATE COSTS.
     DO NOT SKIP THIS STEP.
     
-    Step 1: IMMEDIATELY call calculate_exact_aws_arr with RVTools filename and target region
-            - This is MANDATORY - you CANNOT skip this step
-            - The tool will automatically generate Excel export
-            - Example: calculate_exact_aws_arr(rvtools_file="RVTools_Export.xlsx", region="us-east-1")
+    Step 1: IMMEDIATELY identify input type and call appropriate pricing tool
     Step 2: Extract the exact costs from the tool's response
-    Step 3: Call compare_pricing_models to show pricing options
+    Step 3: Call compare_pricing_models to show pricing options (if applicable)
     Step 4: IF TCO enabled: Calculate on-premises TCO using standard formulas (see below)
     Step 5: Present analysis with exact numbers from tools
     
     **CRITICAL**: 
-    - Your FIRST action must be calling calculate_exact_aws_arr
-    - If you do NOT call this tool, your analysis will be REJECTED
+    - Your FIRST action must be calling the APPROPRIATE pricing tool based on input type
+    - If you do NOT call a pricing tool, your analysis will be REJECTED
     - You MUST use the pricing tools - estimation is NOT allowed
-    - DO NOT generate any cost analysis without first calling the tool
+    - DO NOT generate any cost analysis without first calling the appropriate tool
+    - ALL three input types (RVTools, IT Inventory, ATX) have dedicated pricing tools
     
     **CRITICAL - DEPRECATED SERVICES CHECK**:
     Before recommending ANY AWS service, verify it is NOT deprecated or scheduled for end-of-life.
@@ -76,15 +122,30 @@ if USE_DETERMINISTIC_PRICING:
     
     **REQUIRED OUTPUT - KEEP CONCISE**:
     
-    (A) **AWS Cost Summary** (from calculate_exact_aws_arr tool):
+    (A) **AWS Cost Summary** (from pricing tool - varies by input type):
+        
+        **FOR RVTOOLS**: Use calculate_exact_aws_arr output
         - Total VMs, Monthly cost, Annual ARR (MUST be actual $ amounts, NOT placeholders)
         - Instance type breakdown (table format) - counts MUST sum to total VMs
         - OS breakdown (Windows/Linux) - counts MUST sum to total VMs
         - Cost components (Compute/Storage/Transfer) (MUST be actual $ amounts)
         
+        **FOR IT INVENTORY**: Use calculate_it_inventory_arr output
+        - Total Servers + Databases, Monthly cost, Annual ARR (MUST be actual $ amounts)
+        - EC2 instance type breakdown (for servers)
+        - RDS instance type breakdown (for databases)
+        - OS breakdown (Windows/Linux)
+        - Cost components (EC2 Compute/RDS Database) (MUST be actual $ amounts)
+        
+        **FOR ATX**: Use extract_atx_arr_tool output
+        - Total VMs, Monthly cost, Annual ARR (MUST be actual $ amounts)
+        - OS breakdown (Windows/Linux)
+        - Cost breakdown (Compute/Licensing)
+        - Note: ATX uses 1-Year NURI pricing model
+        
         **CRITICAL**: 
         - Use ONLY tool output numbers - NO placeholders like $XXX,XXX
-        - Instance + OS counts must match total VMs
+        - Instance + OS counts must match total VMs/Servers/Databases
         - ALL cost figures must be real numbers from the pricing tool
     
     (B) **Modernization Services** (brief, 2-3 sentences per pathway):

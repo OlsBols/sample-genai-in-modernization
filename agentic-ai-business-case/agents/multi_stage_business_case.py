@@ -3,6 +3,8 @@ Multi-stage business case generator
 Generates business case in sections to maximize quality and detail
 """
 import os
+import pandas as pd
+import glob
 from strands import Agent
 from strands.models import BedrockModel
 from config import (
@@ -13,6 +15,117 @@ from config import (
     TCO_COMPARISON_CONFIG
 )
 from appendix_content import get_appendix
+
+
+def extract_exact_costs_from_excel():
+    """
+    Extract exact cost numbers from the Excel file to prevent LLM hallucination
+    Returns formatted string with exact costs to inject into context
+    """
+    try:
+        # Find the most recent IT inventory pricing Excel file
+        excel_files = glob.glob(os.path.join(output_folder_dir_path, 'it_inventory_aws_pricing_*.xlsx'))
+        if not excel_files:
+            return None
+        
+        latest_excel = max(excel_files, key=os.path.getmtime)
+        
+        # Read the Pricing_Comparison sheet
+        df = pd.read_excel(latest_excel, sheet_name='Pricing_Comparison')
+        
+        # Extract values (they're in the 'Value' column)
+        values = df['Value'].tolist()
+        
+        # Parse ALL the values from the Pricing_Comparison sheet
+        # Row 0: Total Servers
+        # Row 1: Total Databases
+        # Row 4: Option 1 EC2 Monthly Cost
+        # Row 5: Option 1 RDS Monthly Cost
+        # Row 6: Option 1 Total Monthly Cost
+        # Row 7: Option 1 Total Annual Cost
+        # Row 8: Option 1 3-Year Total Cost
+        # Row 9: Option 1 RDS Upfront Fees
+        # Row 12: Option 2 EC2 Monthly Cost
+        # Row 13: Option 2 RDS Monthly Cost
+        # Row 14: Option 2 Total Monthly Cost
+        # Row 15: Option 2 Total Annual Cost
+        # Row 16: Option 2 3-Year Total Cost
+        # Row 17: Option 2 RDS Upfront Fees
+        # Row 20: EC2 Monthly Savings
+        # Row 21: RDS Monthly Savings
+        # Row 22: Total Monthly Savings
+        # Row 23: Annual Savings
+        # Row 24: 3-Year Savings
+        # Row 25: Savings Percentage
+        
+        total_servers = values[0] if len(values) > 0 else None
+        total_databases = values[1] if len(values) > 1 else None
+        
+        opt1_ec2_monthly = values[4] if len(values) > 4 else None
+        opt1_rds_monthly = values[5] if len(values) > 5 else None
+        opt1_total_monthly = values[6] if len(values) > 6 else None
+        opt1_annual = values[7] if len(values) > 7 else None
+        opt1_3year = values[8] if len(values) > 8 else None
+        opt1_rds_upfront = values[9] if len(values) > 9 else None
+        
+        opt2_ec2_monthly = values[12] if len(values) > 12 else None
+        opt2_rds_monthly = values[13] if len(values) > 13 else None
+        opt2_total_monthly = values[14] if len(values) > 14 else None
+        opt2_annual = values[15] if len(values) > 15 else None
+        opt2_3year = values[16] if len(values) > 16 else None
+        opt2_rds_upfront = values[17] if len(values) > 17 else None
+        
+        ec2_savings = values[20] if len(values) > 20 else None
+        rds_savings = values[21] if len(values) > 21 else None
+        total_savings = values[22] if len(values) > 22 else None
+        annual_savings = values[23] if len(values) > 23 else None
+        three_year_savings = values[24] if len(values) > 24 else None
+        savings_pct = values[25] if len(values) > 25 else None
+        
+        # Format the exact costs string with ALL details
+        exact_costs = f"""
+================================================================================
+EXACT COSTS FROM EXCEL FILE (DO NOT MODIFY THESE NUMBERS)
+================================================================================
+Total Servers: {total_servers}
+Total Databases: {total_databases}
+
+OPTION 1: EC2 Instance SP (3yr) + RDS Partial Upfront (3yr) - RECOMMENDED
+  EC2 Monthly Cost: {opt1_ec2_monthly}
+  RDS Monthly Cost: {opt1_rds_monthly}
+  Total Monthly Cost: {opt1_total_monthly}
+  Total Annual Cost (ARR): {opt1_annual}
+  3-Year Total Cost: {opt1_3year}
+  RDS Upfront Fees (One-time): {opt1_rds_upfront}
+
+OPTION 2: Compute SP (3yr) + RDS No Upfront (1yr × 3)
+  EC2 Monthly Cost: {opt2_ec2_monthly}
+  RDS Monthly Cost: {opt2_rds_monthly}
+  Total Monthly Cost: {opt2_total_monthly}
+  Total Annual Cost (ARR): {opt2_annual}
+  3-Year Total Cost: {opt2_3year}
+  RDS Upfront Fees: {opt2_rds_upfront}
+
+SAVINGS (Option 1 vs Option 2)
+  EC2 Monthly Savings: {ec2_savings}
+  RDS Monthly Savings: {rds_savings}
+  Total Monthly Savings: {total_savings}
+  Annual Savings: {annual_savings}
+  3-Year Savings: {three_year_savings}
+  Savings Percentage: {savings_pct}
+================================================================================
+USE THESE EXACT NUMBERS IN THE COST ANALYSIS SECTION
+DO NOT ROUND, MODIFY, OR ESTIMATE - COPY THEM EXACTLY AS SHOWN ABOVE
+DO NOT MAKE UP ANY NUMBERS - ALL VALUES ARE PROVIDED ABOVE
+================================================================================
+"""
+        return exact_costs
+        
+    except Exception as e:
+        print(f"Warning: Could not extract exact costs from Excel: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 def create_section_agent(section_prompt):
     """Create an agent for generating a specific section"""
@@ -45,18 +158,25 @@ Generate a comprehensive Executive Summary for the AWS migration business case.
 3. Recommended Approach - STRATEGIC OVERVIEW (e.g., "phased approach over 18 months" without wave details)
 4. Key Financial Metrics - SUMMARY ONLY:
    **CRITICAL - EXTRACT FROM COST ANALYSIS**:
-   - Search the "Cost Analysis" section in the input for these EXACT values:
-   - Total Monthly AWS Cost: Find "Total AWS Cost" or "monthly_total" in Cost Analysis
-   - Total Annual Recurring Revenue (ARR): Find "total_arr" or "Annual Cost" in Cost Analysis
-   - 3-Year AWS Investment: Calculate as (Monthly Cost × 36) or find "3-Year" in Cost Analysis
+   - Search the "Cost Analysis" section for BOTH pricing models
+   - Show PRIMARY pricing (3-Year EC2 Instance Savings Plan):
+     * Total Monthly AWS Cost
+     * Total Annual AWS Cost (ARR)
+     * 3-Year Pricing
+   - Add note: "Pricing based on 3-Year EC2 Instance Savings Plan (Option 1 - Recommended). Alternative 3-Year Compute Savings Plan pricing (Option 2) available in Cost Analysis section."
    - DO NOT use any other numbers - ONLY extract from the Cost Analysis section provided
-   - If you see multiple cost numbers, use the ones from "agent_aws_cost_arr" or "Cost Analysis" section
+   - If you see multiple cost numbers, use the EC2 Instance Savings Plan numbers as primary
    **CRITICAL**: Check TCO_ENABLED flag in context:
    - IF TCO_ENABLED=True AND AWS < On-Prem: Include "Break-even: Month X"
    - IF TCO_ENABLED=False OR AWS >= On-Prem: DO NOT include break-even, show business value instead
 5. Expected Benefits - TOP 3-4 ONLY (detailed list will be in Benefits section)
 6. Critical Success Factors - TOP 3 ONLY
-7. Timeline Overview - HIGH-LEVEL (e.g., "18-month phased approach" without wave breakdown)
+7. Timeline Overview - HIGH-LEVEL:
+   **CRITICAL - USE ACTUAL PROJECT TIMELINE**:
+   - Extract timeline from PROJECT CONTEXT (e.g., "9 months", "18 months", "24 months")
+   - Use EXACT timeline in overview (e.g., "9-month phased approach" NOT "18-month")
+   - Do NOT use hardcoded timelines - ALWAYS use the actual project timeline
+   - Example: If project is 9 months, say "9-month phased approach" NOT "18-month"
 
 **Format**: Markdown, 400-500 words MAX, include key metrics table
 **Tone**: Executive-level, strategic, business-focused
@@ -126,22 +246,66 @@ Generate a concise Cost Analysis and TCO section.
 - Instead, focus on business value: agility, innovation, scalability, reduced technical debt
 - Emphasize strategic advantages and operational benefits over pure cost comparison
 
+**CRITICAL - COST NUMBERS MUST BE EXACT**:
+Before generating this section, the system will extract exact costs from the Excel file and provide them to you.
+You MUST use these exact numbers - DO NOT modify, round, or estimate them.
+
 **Generate** (very concise):
-1. AWS Cost Summary (AWS services and projected costs with 3-Year NURI)
-2. **IF AWS < On-Prem**: Include On-Premises TCO Calculation Methodology and comparison table
+1. AWS Cost Summary - Show BOTH pricing options:
+   
+   **CRITICAL - YOU WILL RECEIVE EXACT COST NUMBERS**:
+   The system will provide you with ALL exact cost numbers from the Excel file.
+   You MUST use these EXACT numbers - DO NOT modify, round, estimate, or make up ANY numbers.
+   
+   **Option 1: EC2 Instance SP (3yr) + RDS Partial Upfront (3yr) - RECOMMENDED**
+   - EC2 Monthly Cost: Use EXACT value from "Option 1 EC2 Monthly Cost"
+   - RDS Monthly Cost: Use EXACT value from "Option 1 RDS Monthly Cost"
+   - Total Monthly Cost: Use EXACT value from "Option 1 Total Monthly Cost"
+   - Total Annual Cost (ARR): Use EXACT value from "Option 1 Total Annual Cost"
+   - 3-Year Total Cost: Use EXACT value from "Option 1 3-Year Total Cost"
+   - RDS Upfront Fees: Use EXACT value from "Option 1 RDS Upfront Fees"
+   - Note: "Based on 3-Year EC2 Instance Savings Plan for EC2 and 3-Year Partial Upfront RI for RDS"
+   
+   **Option 2: Compute SP (3yr) + RDS No Upfront (1yr × 3)**
+   - EC2 Monthly Cost: Use EXACT value from "Option 2 EC2 Monthly Cost"
+   - RDS Monthly Cost: Use EXACT value from "Option 2 RDS Monthly Cost"
+   - Total Monthly Cost: Use EXACT value from "Option 2 Total Monthly Cost"
+   - Total Annual Cost (ARR): Use EXACT value from "Option 2 Total Annual Cost"
+   - 3-Year Total Cost: Use EXACT value from "Option 2 3-Year Total Cost"
+   - RDS Upfront Fees: Use EXACT value from "Option 2 RDS Upfront Fees"
+   - Note: "Based on 3-Year Compute Savings Plan for EC2 and 1-Year No Upfront RI (renewed 3 times) for RDS"
+   
+   **SAVINGS (Option 1 vs Option 2)**
+   - EC2 Monthly Savings: Use EXACT value from "EC2 Monthly Savings"
+   - RDS Monthly Savings: Use EXACT value from "RDS Monthly Savings"
+   - Total Monthly Savings: Use EXACT value from "Total Monthly Savings"
+   - Annual Savings: Use EXACT value from "Annual Savings"
+   - 3-Year Savings: Use EXACT value from "3-Year Savings"
+   - Savings Percentage: Use EXACT value from "Savings Percentage"
+   - Recommendation: "Option 1 saves $[Total Monthly Savings]/month ([Savings Percentage]%) vs Option 2"
+   - Breakdown: "EC2 savings: $[EC2 Monthly Savings]/month, RDS savings: $[RDS Monthly Savings]/month"
+   
+2. **IF AWS < On-Prem**: Include On-Premises TCO Calculation Methodology and comparison table (use Option 1/EC2 Instance Savings Plan pricing)
 3. **IF AWS >= On-Prem**: Skip TCO comparison, focus on business value and strategic benefits
-4. 18-Month Migration Cost Ramp (table showing gradual AWS cost increase as workloads migrate)
+4. Migration Cost Ramp (table showing gradual AWS cost increase as workloads migrate - use project timeline from PROJECT CONTEXT)
 5. Cost Optimization opportunities (bullet points)
 6. **IF AWS < On-Prem**: Break-Even Analysis (1 paragraph)
 7. **IF AWS >= On-Prem**: Business Value Justification (agility, innovation, time-to-market, reduced operational complexity)
 
 **CRITICAL REQUIREMENTS FOR DETERMINISTIC CALCULATIONS**:
-- Use "3-Year No Upfront RI" or "3-Year NURI" (NURI = No Upfront Reserved Instance)
+- Show BOTH pricing options: 
+  * Option 1 (Recommended): "EC2 Instance SP (3yr) + RDS Partial Upfront (3yr)"
+  * Option 2: "Compute SP (3yr) + RDS No Upfront (1yr × 3)"
 - Use the EXACT cost calculations from the cost analysis provided - DO NOT recalculate
 - Ensure ALL cost figures are CONSISTENT throughout the section (don't show $6.2M in one place and $516K in another)
 - If cost analysis shows "Year 1 AWS: $X", use that EXACT figure - don't round or estimate
 - On-premises costs should be HIGHER than AWS costs
-- Show 18-month migration ramp: Month 1-6, 7-12, 13-18 with gradual AWS increase and on-prem decrease
+- Explain RDS pricing difference: 3-year Partial Upfront (lower monthly, requires upfront payment) vs 1-year No Upfront (higher monthly, no upfront payment)
+- **MIGRATION COST RAMP**: Use the ACTUAL project timeline from PROJECT CONTEXT (e.g., 3 months, 18 months, 24 months)
+  * For 3 months: Month 1 (20%), Month 2 (50%), Month 3 (100%)
+  * For 18 months: Months 1-6 (30%), Months 7-12 (70%), Months 13-18 (100%)
+  * For 24 months: Months 1-8 (30%), Months 9-16 (70%), Months 17-24 (100%)
+  * Title should match timeline: "3-Month Migration Cost Ramp" or "18-Month Migration Cost Ramp"
 - Use actual VM counts and specs from the analysis
 - Include cost breakdown by service (Compute, Storage, Database, Networking)
 - Show calculation basis with actual numbers from the analysis
@@ -178,9 +342,23 @@ Generate a concise Cost Analysis section (TCO COMPARISON DISABLED).
 **CRITICAL - DEPRECATED SERVICES**: Do NOT include any deprecated or end-of-life AWS services in cost analysis. Only include current, actively supported services.
 
 **Generate** (very concise):
-1. AWS Cost Summary (AWS services and projected costs with 3-Year NURI)
+1. AWS Cost Summary - Show BOTH pricing options:
+   
+   **Option 1: EC2 Instance SP (3yr) + RDS Partial Upfront (3yr) - RECOMMENDED**
    - Total Monthly AWS Cost
    - Total Annual AWS Cost (ARR)
+   - 3-Year Pricing: Monthly × 36 months
+   - RDS Upfront Fees (if applicable)
+   - Note: "Based on 3-Year EC2 Instance Savings Plan for EC2 and 3-Year Partial Upfront RI for RDS"
+   
+   **Option 2: Compute SP (3yr) + RDS No Upfront (1yr × 3)**
+   - Total Monthly AWS Cost
+   - Total Annual AWS Cost (ARR)
+   - 3-Year Pricing: Monthly × 36 months
+   - Note: "Based on 3-Year Compute Savings Plan for EC2 and 1-Year No Upfront RI (renewed 3 times) for RDS"
+   - Cost difference vs Option 1: Show savings amount and breakdown (EC2 + RDS)
+   
+   **Cost Breakdown** (use Option 1/EC2 Instance Savings Plan pricing):
    - Breakdown by service (Compute, Storage, Database, Networking)
    - Breakdown by instance type (ONLY if provided in cost analysis - DO NOT make up instance counts)
    - Cost per VM average
@@ -197,13 +375,17 @@ Generate a concise Cost Analysis section (TCO COMPARISON DISABLED).
    - Windows + Linux counts MUST equal total migrating VMs from the summary
    - Example: If summary shows "Windows VMs: 781" and "Linux VMs: 1246", use EXACTLY those numbers
    - These counts are consistent with pricing calculator (Other VMs are treated as Linux)
-2. 18-Month Migration Cost Ramp (table showing ONLY AWS costs ramping up as migration progresses)
-   - Month 1-6: X% of workloads, $Y AWS cost
-   - Month 7-12: X% of workloads, $Y AWS cost
-   - Month 13-18: 100% of workloads, $Y AWS cost
+2. Migration Cost Ramp (table showing ONLY AWS costs ramping up as migration progresses)
+   - **CRITICAL**: Use the ACTUAL project timeline from PROJECT CONTEXT (e.g., 3 months, 18 months, 24 months)
+   - **CRITICAL**: Title MUST match timeline (e.g., "3-Month Migration Cost Ramp" for 3-month project)
+   - Divide timeline into 3 phases with appropriate percentages:
+     * For 3 months: Month 1 (20%), Month 2 (50%), Month 3 (100%)
+     * For 18 months: Months 1-6 (30%), Months 7-12 (70%), Months 13-18 (100%)
+     * For 24 months: Months 1-8 (30%), Months 9-16 (70%), Months 17-24 (100%)
    - DO NOT show on-premises cost reduction
+   - DO NOT use hardcoded "18-month" if project timeline is different
 3. Cost Optimization Opportunities (bullet points, 5-7 items)
-   - Reserved Instances and Savings Plans
+   - Compute Savings Plans and EC2 Instance Savings Plans (already included in pricing)
    - Right-sizing recommendations
    - Storage optimization
    - Spot instances for suitable workloads
@@ -230,43 +412,26 @@ Generate a concise Cost Analysis section (TCO COMPARISON DISABLED).
 COST_ANALYSIS_PROMPT = get_cost_analysis_prompt()
 
 MIGRATION_ROADMAP_PROMPT = """
-Generate a concise Migration Roadmap section.
+Generate a BRIEF Migration Roadmap section.
 
 **Input**: Analysis from agent_migration_plan covering MAP methodology.
 
-**CRITICAL - TIMELINE REQUIREMENT**: 
-- Check PROJECT CONTEXT for migration timeline (e.g., "18 months", "24 months")
-- ALL phases MUST fit within this EXACT timeline
-- DO NOT exceed the specified duration
-- Calculate phase durations to sum to the project timeline
-- Example for 18 months: Phase 1 (Months 1-6) + Phase 2 (Months 7-12) + Phase 3 (Months 13-18) = 18 months
-- Example for 24 months: Phase 1 (Months 1-8) + Phase 2 (Months 9-16) + Phase 3 (Months 17-24) = 24 months
+**CRITICAL - TIMELINE**: Check PROJECT CONTEXT for timeline (e.g., "3 months", "18 months"). ALL phases MUST fit within this EXACT timeline.
 
-**TABLE FORMATTING**: When creating the Phased Approach table, use wider column widths for Phase and Duration columns (minimum 15-20 characters) for better readability.
+**Generate** (ULTRA concise - 200-300 words MAX):
+1. Phased Approach (simple table, 3 phases max)
+2. Key Milestones (3-5 bullets with relative timing like "Month 1", "Week 2")
+3. Success Criteria (3 bullets max)
 
-**CRITICAL - TIMEFRAME FORMAT**:
-- Use RELATIVE timeframes only (Week 1-2, Month 1-3, Quarter 1, etc.)
-- DO NOT use specific calendar dates or months (e.g., "January 2026" or "Q1 2025")
-- Use generic timeframes: "Month 1-3", "Month 4-6", "Month 7-12", etc.
-- For phases: "Phase 1 (Months 1-3)", "Phase 2 (Months 4-9)", etc.
-- ENSURE phase durations sum to the project timeline from PROJECT CONTEXT
-
-**Generate** (very concise):
-1. Phased Approach (table with phases and relative durations that sum to project timeline)
-2. Timeline (table with relative timeframes - Month 1, Month 2, etc.)
-3. Key Milestones (bullet points with relative timing)
-4. Success Criteria (brief)
-
-**Example Timeline Format for 18-month project**:
+**Example for 3-month project**:
 | Phase | Duration | Key Activities |
 |-------|----------|----------------|
-| Assess | Month 1-2 | Discovery, assessment |
-| Mobilize | Month 3-5 | Landing zone, pilot planning |
-| Migrate | Month 6-18 | Wave-based migration |
+| Assess | Month 1 | Discovery, planning |
+| Mobilize | Month 2 | Landing zone setup |
+| Migrate | Month 3 | Execute migration |
 
-**Format**: Markdown, 400-500 words MAX, timeline table with relative timeframes
-**Tone**: Practical, detailed, project-focused
-**CRITICAL**: Use relative timeframes only (no specific dates). NO meta-commentary.
+**Format**: Markdown, 200-300 words MAX (STRICT), use relative timeframes (Month 1, Week 2, etc.)
+**CRITICAL**: Keep it EXTREMELY brief. NO lengthy explanations. NO meta-commentary.
 """
 
 BENEFITS_RISKS_PROMPT = """
@@ -431,8 +596,18 @@ def generate_multi_stage_business_case(agent_results, project_context):
         try:
             agent = create_section_agent(prompt)
             
-            # Create task with context and agent results
-            task = f"{context}\n\nGenerate the {section_name} section based on the available analysis."
+            # For Cost Analysis section, inject exact costs from Excel
+            if section_key == 'cost_analysis':
+                exact_costs = extract_exact_costs_from_excel()
+                if exact_costs:
+                    print("✓ Injecting exact costs from Excel file to prevent LLM hallucination")
+                    task = f"{context}\n\n{exact_costs}\n\nGenerate the {section_name} section based on the available analysis."
+                else:
+                    print("⚠ Could not extract exact costs from Excel, using tool output only")
+                    task = f"{context}\n\nGenerate the {section_name} section based on the available analysis."
+            else:
+                # Create task with context and agent results
+                task = f"{context}\n\nGenerate the {section_name} section based on the available analysis."
             
             result = agent(task)
             

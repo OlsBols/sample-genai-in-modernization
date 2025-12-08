@@ -61,8 +61,11 @@ PRICING_CONFIG = {
     'default_region': 'us-east-1',
     
     # Pricing model to use
-    # Options: '3yr_no_upfront', '1yr_no_upfront', 'on_demand'
-    'pricing_model': '3yr_no_upfront',
+    # Options: '3yr_compute_sp', '3yr_ec2_sp', '3yr_no_upfront', '1yr_no_upfront', 'on_demand'
+    # '3yr_compute_sp' = 3-Year Compute Savings Plan (recommended, most flexible, typically cheapest)
+    # '3yr_ec2_sp' = 3-Year EC2 Instance Savings Plan (less flexible, typically more expensive than Compute SP)
+    # '3yr_no_upfront' = 3-Year Reserved Instance No Upfront
+    'pricing_model': '3yr_compute_sp',
     
     # Storage pricing (EBS gp3 per GB-month)
     'storage_rate_per_gb': 0.08,  # us-east-1 base rate

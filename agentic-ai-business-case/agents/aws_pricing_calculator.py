@@ -570,6 +570,7 @@ class AWSPricingCalculator:
         self.use_api = use_api if use_api is not None else PRICING_CONFIG.get('use_aws_pricing_api', False)
         self.pricing_client = None
         self.verbose = PRICING_CONFIG.get('verbose_logging', True)
+        self._last_upfront_fee = 0.0  # Track upfront fees for Partial/All Upfront RIs
         
         if self.use_api:
             try:
@@ -782,6 +783,335 @@ class AWSPricingCalculator:
         
         return base_rate
     
+    @lru_cache(maxsize=500)
+    def get_ec2_price_by_term(self, instance_type: str, os_type: str, region: str, term: str = '3yr', purchase_option: str = 'No Upfront') -> float:
+        """
+        Get EC2 pricing from AWS Price List API for specific term
+        
+        Args:
+            instance_type: EC2 instance type (e.g., 'm5.xlarge')
+            os_type: 'Linux' or 'Windows'
+            region: AWS region code
+            term: '1yr', '3yr' for Reserved Instances, '3yr_compute_sp' for Compute Savings Plan, 'on_demand' for On-Demand
+            purchase_option: 'No Upfront', 'Partial Upfront', or 'All Upfront'
+        
+        Returns:
+            Hourly rate
+        """
+        # Handle Compute Savings Plan by getting actual pricing from Savings Plans API
+        if term == '3yr_compute_sp':
+            try:
+                return self.get_savings_plan_price(instance_type, os_type, region, '3yr', plan_type='COMPUTE_SP')
+            except Exception as e:
+                print(f"⚠️  Compute Savings Plan API failed, using fallback: {e}")
+                # Fallback: Compute SP is typically MORE EXPENSIVE than EC2 Instance SP
+                # Use EC2 Instance SP price and add ~10% markup
+                try:
+                    ec2_sp_price = self.get_ec2_price_by_term(instance_type, os_type, region, '3yr_ec2_sp')
+                    return ec2_sp_price * 1.10  # Compute SP is ~10% more expensive
+                except:
+                    # Double fallback: Use On-Demand with 66% discount
+                    on_demand_price = self.get_ec2_price_by_term(instance_type, os_type, region, 'on_demand')
+                    return on_demand_price * 0.34  # 66% discount from On-Demand
+        
+        # Handle EC2 Instance Savings Plan
+        if term == '3yr_ec2_sp':
+            try:
+                return self.get_savings_plan_price(instance_type, os_type, region, '3yr', plan_type='EC2_INSTANCE_SP')
+            except Exception as e:
+                print(f"⚠️  EC2 Instance Savings Plan API failed, using fallback: {e}")
+                # Fallback: EC2 Instance SP is CHEAPER than Compute SP
+                # Use 3-year RI price and apply small discount
+                try:
+                    ri_price = self.get_ec2_price_by_term(instance_type, os_type, region, '3yr', 'No Upfront')
+                    return ri_price * 0.95  # EC2 Instance SP is ~5% cheaper than RI
+                except:
+                    # Double fallback: Use On-Demand with 62% discount
+                    on_demand_price = self.get_ec2_price_by_term(instance_type, os_type, region, 'on_demand')
+                    return on_demand_price * 0.38  # 62% discount from On-Demand
+        
+        # Handle 1-Year Compute Savings Plan
+        if term == '1yr_compute_sp':
+            try:
+                return self.get_savings_plan_price(instance_type, os_type, region, '1yr', plan_type='COMPUTE_SP')
+            except Exception as e:
+                print(f"⚠️  1-Year Compute Savings Plan API failed, using fallback: {e}")
+                # Fallback: Get On-Demand and apply typical 42% discount
+                on_demand_price = self.get_ec2_price_by_term(instance_type, os_type, region, 'on_demand')
+                return on_demand_price * 0.58  # 42% discount from On-Demand
+        
+        # Handle 1-Year EC2 Instance Savings Plan
+        if term == '1yr_ec2_sp':
+            try:
+                return self.get_savings_plan_price(instance_type, os_type, region, '1yr', plan_type='EC2_INSTANCE_SP')
+            except Exception as e:
+                print(f"⚠️  1-Year EC2 Instance Savings Plan API failed, using fallback: {e}")
+                # Fallback: Get On-Demand and apply typical 38% discount
+                on_demand_price = self.get_ec2_price_by_term(instance_type, os_type, region, 'on_demand')
+                return on_demand_price * 0.62  # 38% discount from On-Demand
+        if not self.pricing_client:
+            raise Exception("Pricing API not available")
+        
+        location = self.REGION_LOCATIONS.get(region, 'US East (N. Virginia)')
+        
+        try:
+            filters = [
+                {'Type': 'TERM_MATCH', 'Field': 'instanceType', 'Value': instance_type},
+                {'Type': 'TERM_MATCH', 'Field': 'operatingSystem', 'Value': os_type},
+                {'Type': 'TERM_MATCH', 'Field': 'location', 'Value': location},
+                {'Type': 'TERM_MATCH', 'Field': 'tenancy', 'Value': 'Shared'},
+                {'Type': 'TERM_MATCH', 'Field': 'preInstalledSw', 'Value': 'NA'},
+                {'Type': 'TERM_MATCH', 'Field': 'capacitystatus', 'Value': 'Used'}
+            ]
+            
+            response = self.pricing_client.get_products(
+                ServiceCode='AmazonEC2',
+                Filters=filters,
+                MaxResults=100
+            )
+            
+            if not response.get('PriceList'):
+                raise Exception(f"No pricing found for {instance_type} {os_type} in {region}")
+            
+            # Parse pricing data
+            for price_item in response['PriceList']:
+                price_data = json.loads(price_item)
+                
+                if term == 'on_demand':
+                    # Look in On-Demand terms
+                    terms = price_data.get('terms', {}).get('OnDemand', {})
+                    for term_key, term_data in terms.items():
+                        price_dimensions = term_data.get('priceDimensions', {})
+                        for dimension in price_dimensions.values():
+                            price_per_unit = dimension.get('pricePerUnit', {})
+                            if 'USD' in price_per_unit:
+                                return float(price_per_unit['USD'])
+                else:
+                    # Look in Reserved Instance terms
+                    terms = price_data.get('terms', {}).get('Reserved', {})
+                    for term_key, term_data in terms.items():
+                        term_attributes = term_data.get('termAttributes', {})
+                        
+                        # Check for matching term and purchase option
+                        if (term_attributes.get('LeaseContractLength') == term and
+                            term_attributes.get('PurchaseOption') == purchase_option):
+                            
+                            # Extract hourly rate
+                            price_dimensions = term_data.get('priceDimensions', {})
+                            for dimension in price_dimensions.values():
+                                price_per_unit = dimension.get('pricePerUnit', {})
+                                if 'USD' in price_per_unit:
+                                    return float(price_per_unit['USD'])
+            
+            raise Exception(f"{term} {purchase_option} pricing not found for {instance_type}")
+            
+        except Exception as e:
+            print(f"⚠ API pricing failed for {instance_type} ({term}): {e}")
+            raise
+    
+    @lru_cache(maxsize=500)
+    def get_rds_price_from_api(self, instance_type: str, engine: str, region: str, term: str = '3yr', purchase_option: str = 'No Upfront', deployment_type: str = 'Single-AZ') -> float:
+        """
+        Get RDS pricing from AWS Price List API
+        
+        Args:
+            instance_type: RDS instance type (e.g., 'db.m6i.xlarge')
+            engine: Database engine ('MySQL', 'PostgreSQL', 'Oracle', 'SQL Server', 'MariaDB')
+            region: AWS region code
+            term: '1yr' or '3yr' for Reserved Instances, 'on_demand' for On-Demand
+            purchase_option: 'No Upfront', 'Partial Upfront', or 'All Upfront'
+            deployment_type: 'Single-AZ' or 'Multi-AZ'
+        
+        Returns:
+            Hourly rate
+        
+        Note: Oracle RDS does not support 'No Upfront' for 3-year RIs. 
+              Will automatically use 'Partial Upfront' for Oracle.
+        """
+        if not self.pricing_client:
+            raise Exception("Pricing API not available")
+        
+        location = self.REGION_LOCATIONS.get(region, 'US East (N. Virginia)')
+        
+        # Map engine names to AWS API format
+        engine_map = {
+            'mysql': 'MySQL',
+            'postgresql': 'PostgreSQL',
+            'postgres': 'PostgreSQL',
+            'oracle': 'Oracle',
+            'sqlserver': 'SQL Server',
+            'sql server': 'SQL Server',
+            'mariadb': 'MariaDB'
+        }
+        aws_engine = engine_map.get(engine.lower(), engine)
+        
+        # RDS special handling: No Upfront not available for 3-year RIs (all engines)
+        original_purchase_option = purchase_option
+        if term == '3yr' and purchase_option == 'No Upfront':
+            purchase_option = 'Partial Upfront'
+            print(f"ℹ️  {aws_engine} RDS: Using 'Partial Upfront' (No Upfront not available for 3-year RIs)")
+        
+        try:
+            filters = [
+                {'Type': 'TERM_MATCH', 'Field': 'instanceType', 'Value': instance_type},
+                {'Type': 'TERM_MATCH', 'Field': 'databaseEngine', 'Value': aws_engine},
+                {'Type': 'TERM_MATCH', 'Field': 'deploymentOption', 'Value': deployment_type},
+                {'Type': 'TERM_MATCH', 'Field': 'location', 'Value': location},
+            ]
+            
+            response = self.pricing_client.get_products(
+                ServiceCode='AmazonRDS',
+                Filters=filters,
+                MaxResults=100
+            )
+            
+            if not response.get('PriceList'):
+                raise Exception(f"No pricing found for {instance_type} {engine} in {region}")
+            
+            # Parse pricing data
+            for price_item in response['PriceList']:
+                price_data = json.loads(price_item)
+                
+                if term == 'on_demand':
+                    # Look in On-Demand terms
+                    terms = price_data.get('terms', {}).get('OnDemand', {})
+                    for term_key, term_data in terms.items():
+                        price_dimensions = term_data.get('priceDimensions', {})
+                        for dimension in price_dimensions.values():
+                            price_per_unit = dimension.get('pricePerUnit', {})
+                            if 'USD' in price_per_unit:
+                                return float(price_per_unit['USD'])
+                else:
+                    # Look in Reserved Instance terms
+                    terms = price_data.get('terms', {}).get('Reserved', {})
+                    for term_key, term_data in terms.items():
+                        term_attributes = term_data.get('termAttributes', {})
+                        
+                        # Check for matching term and purchase option
+                        if (term_attributes.get('LeaseContractLength') == term and
+                            term_attributes.get('PurchaseOption') == purchase_option):
+                            
+                            # Extract hourly rate AND upfront fee (for Partial/All Upfront)
+                            price_dimensions = term_data.get('priceDimensions', {})
+                            hourly_rate = None
+                            upfront_fee = 0.0
+                            
+                            for dimension in price_dimensions.values():
+                                unit = dimension.get('unit', '')
+                                price_per_unit = dimension.get('pricePerUnit', {})
+                                
+                                if 'USD' in price_per_unit:
+                                    price = float(price_per_unit['USD'])
+                                    
+                                    if unit == 'Hrs':
+                                        hourly_rate = price
+                                    elif unit == 'Quantity':
+                                        upfront_fee = price
+                            
+                            if hourly_rate is not None:
+                                # Store upfront fee in instance variable for later retrieval
+                                self._last_upfront_fee = upfront_fee
+                                return hourly_rate
+            
+            raise Exception(f"{term} {purchase_option} pricing not found for {instance_type} {engine}")
+            
+        except Exception as e:
+            print(f"⚠ API pricing failed for {instance_type} {engine} ({term}): {e}")
+            raise
+    
+    @lru_cache(maxsize=500)
+    def get_savings_plan_price(self, instance_type: str, os_type: str, region: str, term: str = '3yr', plan_type: str = 'EC2_INSTANCE_SP') -> float:
+        """
+        Get Savings Plan pricing from AWS Savings Plans API
+        
+        Args:
+            instance_type: EC2 instance type (e.g., 'm5.xlarge')
+            os_type: 'Linux' or 'Windows'
+            region: AWS region code
+            term: '1yr' or '3yr'
+            plan_type: 'COMPUTE_SP' for Compute Savings Plan or 'EC2_INSTANCE_SP' for EC2 Instance Savings Plan
+        
+        Returns:
+            Hourly rate for Savings Plan
+        """
+        try:
+            sp_client = boto3.client('savingsplans', region_name='us-east-1')  # API is in us-east-1
+            
+            # Map term to duration
+            duration_seconds = 94608000 if term == '3yr' else 31536000  # 3 years or 1 year in seconds
+            
+            # Map OS type
+            os_map = {'Linux': 'Linux/UNIX', 'Windows': 'Windows'}
+            platform = os_map.get(os_type, 'Linux/UNIX')
+            
+            # Build filters based on plan type
+            filters = [
+                {'name': 'region', 'values': [region]},
+                {'name': 'productDescription', 'values': [platform]},
+                {'name': 'tenancy', 'values': ['shared']}
+            ]
+            
+            # For EC2 Instance Savings Plan, we need to filter by instance type
+            # For Compute Savings Plan, instance type filter is not applicable (it's more flexible)
+            if plan_type == 'EC2_INSTANCE_SP':
+                filters.append({'name': 'instanceType', 'values': [instance_type]})
+            
+            # Map plan_type to AWS API enum values
+            api_plan_type = 'EC2Instance' if plan_type == 'EC2_INSTANCE_SP' else 'Compute'
+            
+            # Get Savings Plan offering rates (with pagination support for Compute SP)
+            next_token = None
+            max_pages = 5  # Limit pagination to prevent infinite loops
+            page = 0
+            
+            while page < max_pages:
+                page += 1
+                
+                params = {
+                    'savingsPlanOfferingIds': [],
+                    'savingsPlanPaymentOptions': ['No Upfront'],
+                    'savingsPlanTypes': [api_plan_type],
+                    'products': ['EC2'],
+                    'serviceCodes': ['AmazonEC2'],
+                    'filters': filters,
+                    'maxResults': 1000
+                }
+                
+                if next_token:
+                    params['nextToken'] = next_token
+                
+                response = sp_client.describe_savings_plans_offering_rates(**params)
+                
+                # Find matching rate
+                for offering in response.get('searchResults', []):
+                    if offering.get('savingsPlanOffering', {}).get('durationSeconds') == duration_seconds:
+                        # For Compute SP, we need to match instance type from properties
+                        if plan_type == 'COMPUTE_SP':
+                            properties = offering.get('properties', [])
+                            instance_match = False
+                            for prop in properties:
+                                if prop.get('name') == 'instanceType' and prop.get('value') == instance_type:
+                                    instance_match = True
+                                    break
+                            if not instance_match:
+                                continue
+                        
+                        # Get the rate
+                        rate = float(offering.get('rate', 0))
+                        if rate > 0:
+                            return rate
+                
+                # Check if there are more pages
+                next_token = response.get('nextToken')
+                if not next_token:
+                    break
+            
+            raise Exception(f"No {plan_type} rate found for {instance_type} {os_type} in {region}")
+            
+        except Exception as e:
+            print(f"⚠️  Savings Plan API error ({plan_type}): {e}")
+            raise
+    
     def _get_regional_multiplier(self, region: str) -> float:
         """Get pricing multiplier for different regions (relative to us-east-1)"""
         multipliers = {
@@ -890,8 +1220,14 @@ class AWSPricingCalculator:
         if os_type == 'Other':
             os_type = 'Linux'
         
-        # 3. Get exact EC2 pricing
-        hourly_rate = self.get_ec2_price(instance_type, os_type)
+        # 3. Get exact EC2 pricing using configured pricing model
+        pricing_model = PRICING_CONFIG.get('pricing_model', '3yr_no_upfront')
+        if pricing_model == '3yr_ec2_sp':
+            # Use Savings Plan pricing
+            hourly_rate = self.get_ec2_price_by_term(instance_type, os_type, self.target_region, term='3yr_ec2_sp')
+        else:
+            # Use default RI pricing
+            hourly_rate = self.get_ec2_price(instance_type, os_type)
         
         # 4. Calculate compute cost (730 hours/month average)
         monthly_compute = hourly_rate * 730

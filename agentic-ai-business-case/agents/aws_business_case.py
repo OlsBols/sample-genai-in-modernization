@@ -6,7 +6,7 @@ from strands.multiagent.graph import GraphState
 from strands.multiagent.base import Status
 
 from config import model_id_claude3_7, model_temperature, output_folder_dir_path, ENABLE_MULTI_STAGE, MAX_TOKENS_BUSINESS_CASE
-from inventory_analysis import it_analysis
+from inventory_analysis import it_analysis, calculate_it_inventory_arr, extract_atx_arr_tool
 from rv_tool_analysis import rv_tool_analysis
 from atx_analysis import read_excel_file, read_pdf_file, read_pptx_file
 from mra_analysis import read_docx_file, read_markdown_file, read_pdf_file
@@ -65,7 +65,7 @@ agent_atx_analysis = Agent(model=bedrock_model,system_prompt= system_message_atx
 agent_mra_analysis = Agent(model=bedrock_model,system_prompt= system_message_mra_analysis,tools=[read_docx_file, read_markdown_file, read_pdf_file])
 agent_migration_strategy = Agent(model=bedrock_model,system_prompt= system_message_migration_strategy,tools=[read_migration_strategy_framework, read_portfolio_assessment])
 agent_migration_plan = Agent(model=bedrock_model,system_prompt= system_message_migration_plan,tools=[read_migration_plan_framework])
-agent_aws_cost_arr = Agent(model=bedrock_model_cost,system_prompt= system_message_aws_arr_cost,tools=[it_analysis,rv_tool_analysis,calculate_exact_aws_arr,compare_pricing_models,get_vm_cost_breakdown])  # Use lower temperature for deterministic costs with pricing tools
+agent_aws_cost_arr = Agent(model=bedrock_model_cost,system_prompt= system_message_aws_arr_cost,tools=[it_analysis,rv_tool_analysis,calculate_exact_aws_arr,compare_pricing_models,get_vm_cost_breakdown,calculate_it_inventory_arr,extract_atx_arr_tool])  # Use lower temperature for deterministic costs with pricing tools and comparison
 current_state_analysis = Agent(model=bedrock_model,system_prompt= system_message_current_state_analysis,tools=[it_analysis,rv_tool_analysis])
 aws_business_case = Agent(model=bedrock_model_business_case,system_prompt= system_message_aws_business_case)  # Use higher token limit
 
@@ -80,14 +80,126 @@ def all_dependencies_complete(required_nodes: list[str]):
         )
     return check_all_complete
 
+# Get project context early to determine input files
+project_context = get_project_context()
+project_info = get_project_info_dict()
+
+# Get uploaded filenames from project_info if available, otherwise use patterns
+uploaded_files = project_info.get('uploadedFiles', {})
+case_id = project_info.get('caseId', '')
+
+# Use case-specific paths if case ID exists
+if case_id:
+    input_base = f"input/{case_id}/"
+    logger.info(f"Using case-specific input directory: {input_base}")
+else:
+    input_base = "input/"
+    logger.info("Using base input directory (no case ID)")
+
+input_files1 = f"{input_base}{uploaded_files.get('itInventory', 'it-infrastructure-inventory.xlsx')}" if 'itInventory' in uploaded_files else f"{input_base}it-infrastructure-inventory.xlsx"
+input_files2 = f"{input_base}{uploaded_files['rvTool'][0]}" if 'rvTool' in uploaded_files and uploaded_files['rvTool'] else f"{input_base}rvtool*.xlsx"
+input_files3_excel = f"{input_base}{uploaded_files.get('atxExcel', 'atx_analysis.xlsx')}" if 'atxExcel' in uploaded_files else f"{input_base}atx_analysis.xlsx"
+input_files3_pdf = f"{input_base}atx_report.pdf"
+input_files3_pptx = f"{input_base}atx_business_case.pptx"
+
+# SMART AGENT SELECTION - Only add agents for files that exist
+logger.info("="*80)
+logger.info("SMART AGENT SELECTION - Detecting available input files")
+logger.info("="*80)
+
+import glob
+
+# Detect which input files are available
+# For RVTools, check the actual uploaded file (not glob pattern)
+# Need to build absolute path since code runs from agents/ directory
+script_dir = os.path.dirname(os.path.abspath(__file__))  # agents/
+project_root = os.path.dirname(script_dir)  # project root
+rvtools_file_path = os.path.join(project_root, input_base, uploaded_files['rvTool'][0]) if 'rvTool' in uploaded_files and uploaded_files['rvTool'] else None
+
+
+
+# Build absolute paths for all files
+abs_input_files1 = os.path.join(project_root, input_files1)
+abs_input_files3_excel = os.path.join(project_root, input_files3_excel)
+abs_input_files3_pdf = os.path.join(project_root, input_files3_pdf)
+abs_input_files3_pptx = os.path.join(project_root, input_files3_pptx)
+
+has_it_inventory = os.path.exists(abs_input_files1)
+has_rvtools = rvtools_file_path is not None and os.path.exists(rvtools_file_path)
+has_atx_excel = os.path.exists(abs_input_files3_excel)
+has_atx_pdf = os.path.exists(abs_input_files3_pdf)
+has_atx_pptx = os.path.exists(abs_input_files3_pptx)
+has_atx = has_atx_excel or has_atx_pdf or has_atx_pptx
+
+
+
+# Pre-read MRA file if it exists
+mra_content = None
+mra_status = "Not Available"
+try:
+    from mra_analysis import find_mra_file, read_pdf_file as read_mra_pdf, read_docx_file, read_markdown_file
+    
+    mra_file = find_mra_file()
+    if mra_file:
+        logger.info(f"MRA file found: {mra_file}")
+        
+        # Read the file based on extension
+        if mra_file.endswith('.pdf'):
+            mra_content = read_mra_pdf(mra_file)
+        elif mra_file.endswith('.docx') or mra_file.endswith('.doc'):
+            mra_content = read_docx_file(mra_file)
+        elif mra_file.endswith('.md'):
+            mra_content = read_markdown_file(mra_file)
+        
+        if mra_content and len(mra_content) > 1000:
+            mra_status = "Available"
+            logger.info(f"MRA content loaded: {len(mra_content)} characters")
+        else:
+            logger.warning(f"MRA file found but content is minimal: {len(mra_content) if mra_content else 0} characters")
+    else:
+        logger.info("No MRA file found in input directory")
+except Exception as e:
+    logger.error(f"Error reading MRA file: {e}")
+    import traceback
+    logger.error(traceback.format_exc())
+
+has_mra = mra_content is not None and len(mra_content) > 1000
+
+logger.info(f"IT Inventory: {'✓ FOUND' if has_it_inventory else '✗ Not found'} - {input_files1}")
+logger.info(f"RVTools: {'✓ FOUND' if has_rvtools else '✗ Not found'} - {input_files2}")
+logger.info(f"ATX Excel: {'✓ FOUND' if has_atx_excel else '✗ Not found'} - {input_files3_excel}")
+logger.info(f"ATX PDF: {'✓ FOUND' if has_atx_pdf else '✗ Not found'} - {input_files3_pdf}")
+logger.info(f"ATX PowerPoint: {'✓ FOUND' if has_atx_pptx else '✗ Not found'} - {input_files3_pptx}")
+logger.info(f"MRA: {'✓ FOUND' if has_mra else '✗ Not found'}")
+
+# Track which analysis agents will be added
+active_analysis_agents = []
+
 # Build the graph
 builder = GraphBuilder()
 
-# Add all nodes
-builder.add_node(agent_it_analysis, "agent_it_analysis")
-builder.add_node(agent_rv_tool_analysis, "agent_rv_tool_analysis")
-builder.add_node(agent_atx_analysis, "agent_atx_analysis")
-builder.add_node(agent_mra_analysis, "agent_mra_analysis")
+# Add analysis agents ONLY if their input files exist
+if has_it_inventory:
+    builder.add_node(agent_it_analysis, "agent_it_analysis")
+    active_analysis_agents.append("agent_it_analysis")
+    logger.info("→ Adding agent_it_analysis to graph")
+
+if has_rvtools:
+    builder.add_node(agent_rv_tool_analysis, "agent_rv_tool_analysis")
+    active_analysis_agents.append("agent_rv_tool_analysis")
+    logger.info("→ Adding agent_rv_tool_analysis to graph")
+
+if has_atx:
+    builder.add_node(agent_atx_analysis, "agent_atx_analysis")
+    active_analysis_agents.append("agent_atx_analysis")
+    logger.info("→ Adding agent_atx_analysis to graph")
+
+if has_mra:
+    builder.add_node(agent_mra_analysis, "agent_mra_analysis")
+    active_analysis_agents.append("agent_mra_analysis")
+    logger.info("→ Adding agent_mra_analysis to graph")
+
+# Always add synthesis and planning agents
 builder.add_node(current_state_analysis, "current_state_analysis")
 builder.add_node(agent_aws_cost_arr, "agent_aws_cost_arr")
 builder.add_node(agent_migration_strategy, "agent_migration_strategy")
@@ -97,26 +209,27 @@ builder.add_node(agent_migration_plan, "agent_migration_plan")
 if not ENABLE_MULTI_STAGE:
     builder.add_node(aws_business_case, "aws_business_case")
 
-# (1) current_state_analysis executes ONLY when ALL four analysis agents complete
-condition_for_current_state = all_dependencies_complete(["agent_it_analysis", "agent_rv_tool_analysis", "agent_atx_analysis", "agent_mra_analysis"])
-builder.add_edge("agent_it_analysis", "current_state_analysis", condition=condition_for_current_state)
-builder.add_edge("agent_rv_tool_analysis", "current_state_analysis", condition=condition_for_current_state)
-builder.add_edge("agent_atx_analysis", "current_state_analysis", condition=condition_for_current_state)
-builder.add_edge("agent_mra_analysis", "current_state_analysis", condition=condition_for_current_state)
+logger.info(f"Active analysis agents: {active_analysis_agents}")
+logger.info("="*80)
 
-# (2) agent_aws_cost_arr executes ONLY when ALL four analysis agents complete
-condition_for_cost_arr = all_dependencies_complete(["agent_it_analysis", "agent_rv_tool_analysis", "agent_atx_analysis", "agent_mra_analysis"])
-builder.add_edge("agent_it_analysis", "agent_aws_cost_arr", condition=condition_for_cost_arr)
-builder.add_edge("agent_rv_tool_analysis", "agent_aws_cost_arr", condition=condition_for_cost_arr)
-builder.add_edge("agent_atx_analysis", "agent_aws_cost_arr", condition=condition_for_cost_arr)
-builder.add_edge("agent_mra_analysis", "agent_aws_cost_arr", condition=condition_for_cost_arr)
+# Build edges dynamically based on active agents
+# (1) current_state_analysis executes ONLY when ALL active analysis agents complete
+if active_analysis_agents:
+    condition_for_current_state = all_dependencies_complete(active_analysis_agents)
+    for agent_id in active_analysis_agents:
+        builder.add_edge(agent_id, "current_state_analysis", condition=condition_for_current_state)
 
-# (3) agent_migration_strategy executes ONLY when ALL four analysis agents complete
-condition_for_migration_strategy = all_dependencies_complete(["agent_it_analysis", "agent_rv_tool_analysis", "agent_atx_analysis", "agent_mra_analysis"])
-builder.add_edge("agent_it_analysis", "agent_migration_strategy", condition=condition_for_migration_strategy)
-builder.add_edge("agent_rv_tool_analysis", "agent_migration_strategy", condition=condition_for_migration_strategy)
-builder.add_edge("agent_atx_analysis", "agent_migration_strategy", condition=condition_for_migration_strategy)
-builder.add_edge("agent_mra_analysis", "agent_migration_strategy", condition=condition_for_migration_strategy)
+# (2) agent_aws_cost_arr executes ONLY when ALL active analysis agents complete
+if active_analysis_agents:
+    condition_for_cost_arr = all_dependencies_complete(active_analysis_agents)
+    for agent_id in active_analysis_agents:
+        builder.add_edge(agent_id, "agent_aws_cost_arr", condition=condition_for_cost_arr)
+
+# (3) agent_migration_strategy executes ONLY when ALL active analysis agents complete
+if active_analysis_agents:
+    condition_for_migration_strategy = all_dependencies_complete(active_analysis_agents)
+    for agent_id in active_analysis_agents:
+        builder.add_edge(agent_id, "agent_migration_strategy", condition=condition_for_migration_strategy)
 
 # (4) agent_migration_plan executes ONLY when ALL three intermediate agents complete
 condition_for_migration_plan = all_dependencies_complete(["current_state_analysis", "agent_aws_cost_arr", "agent_migration_strategy"])
@@ -135,10 +248,10 @@ if not ENABLE_MULTI_STAGE:
 
 
 # Set entry points (the nodes that start first - they run in parallel)
-builder.set_entry_point("agent_it_analysis")
-builder.set_entry_point("agent_rv_tool_analysis")
-builder.set_entry_point("agent_atx_analysis")
-builder.set_entry_point("agent_mra_analysis")
+# Only set entry points for active analysis agents
+for agent_id in active_analysis_agents:
+    builder.set_entry_point(agent_id)
+    logger.info(f"Set entry point: {agent_id}")
 
 logger.info(f"Multi-stage generation: {'ENABLED' if ENABLE_MULTI_STAGE else 'DISABLED'}")
 if ENABLE_MULTI_STAGE:
@@ -212,6 +325,7 @@ import time
 import uuid
 import random
 import pandas as pd
+import glob
 generation_id = int(time.time())
 cache_buster = str(uuid.uuid4())[:8]  # Short unique ID
 session_id = str(uuid.uuid4())  # Full UUID for session uniqueness
@@ -264,26 +378,174 @@ def get_rvtools_summary_precomputed(rvtools_path):
         logger.error(traceback.format_exc())
         return None
 
-# Get pre-computed RVTools summary
-# Use the actual RVTools file path from uploaded files or pattern
-if 'rvTool' in uploaded_files and uploaded_files['rvTool']:
-    rvtools_filename = uploaded_files['rvTool'][0]
-else:
-    rvtools_filename = "RVTools_Export.xlsx"
+# PRE-COMPUTE IT INVENTORY SUMMARY IN PYTHON
+def get_it_inventory_summary_precomputed(it_inventory_path):
+    """Pre-compute IT Inventory summary to avoid LLM extraction issues"""
+    try:
+        abs_path = os.path.abspath(it_inventory_path)
+        logger.info(f"Pre-computing IT Inventory summary from: {abs_path}")
+        
+        if not os.path.exists(abs_path):
+            logger.error(f"File does not exist: {abs_path}")
+            return None
+        
+        # Read Servers sheet
+        df_servers = pd.read_excel(abs_path, sheet_name='Servers')
+        logger.info(f"✓ Loaded {len(df_servers)} servers from IT Inventory")
+        
+        # Read Databases sheet
+        df_databases = pd.read_excel(abs_path, sheet_name='Databases')
+        total_databases = len(df_databases)
+        logger.info(f"✓ Loaded {total_databases} databases from IT Inventory")
+        
+        # Calculate server totals
+        total_servers = len(df_servers)
+        server_vcpus = int(df_servers['numCpus'].sum()) if 'numCpus' in df_servers.columns else 0
+        server_memory_gb = float(df_servers['totalRAM (GB)'].sum()) if 'totalRAM (GB)' in df_servers.columns else 0.0
+        
+        # Calculate database totals
+        db_vcpus = int(df_databases['CPU Cores'].sum()) if 'CPU Cores' in df_databases.columns else 0
+        db_memory_gb = float(df_databases['RAM (GB)'].sum()) if 'RAM (GB)' in df_databases.columns else 0.0
+        db_storage_gb = float(df_databases['Total Size (GB)'].sum()) if 'Total Size (GB)' in df_databases.columns else 0.0
+        
+        # Combined totals
+        total_vcpus = server_vcpus + db_vcpus
+        total_memory_gb = server_memory_gb + db_memory_gb
+        
+        # Handle server storage - convert to numeric first
+        server_storage_gb = 0.0
+        if 'Storage-Total Disk Size (GB)' in df_servers.columns:
+            try:
+                server_storage_gb = pd.to_numeric(df_servers['Storage-Total Disk Size (GB)'], errors='coerce').sum()
+            except Exception as e:
+                logger.warning(f"Could not calculate server storage: {e}")
+        
+        total_storage_tb = float((server_storage_gb + db_storage_gb) / 1024)
+        
+        # Count OS distribution (servers only)
+        windows_vms = 0
+        linux_vms = 0
+        if 'osName' in df_servers.columns:
+            for os_name in df_servers['osName']:
+                if pd.notna(os_name):
+                    os_lower = str(os_name).lower()
+                    if 'windows' in os_lower:
+                        windows_vms += 1
+                    else:
+                        linux_vms += 1
+        
+        summary = {
+            'total_vms': total_servers,
+            'total_databases': total_databases,
+            'total_vcpus': int(total_vcpus),
+            'total_memory_gb': float(total_memory_gb),
+            'total_storage_tb': float(total_storage_tb),
+            'windows_vms': windows_vms,
+            'linux_vms': linux_vms
+        }
+        
+        logger.info(f"✓✓✓ IT INVENTORY PRE-COMPUTED SUMMARY SUCCESS ✓✓✓")
+        logger.info(f"    Total Servers: {summary['total_vms']}")
+        logger.info(f"    Total Databases: {summary['total_databases']}")
+        logger.info(f"    Total vCPUs (Servers + DBs): {summary['total_vcpus']}")
+        logger.info(f"    Total RAM (GB) (Servers + DBs): {summary['total_memory_gb']:.1f}")
+        logger.info(f"    Total Storage (TB) (Servers + DBs): {summary['total_storage_tb']:.1f}")
+        logger.info(f"    Windows Servers: {summary['windows_vms']}")
+        logger.info(f"    Linux Servers: {summary['linux_vms']}")
+        return summary
+    except Exception as e:
+        logger.error(f"✗ Error pre-computing IT Inventory summary: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return None
 
-# Build absolute path - need to go up one level from agents/ directory
+# PRE-COMPUTE ATX SUMMARY IN PYTHON
+def get_atx_summary_precomputed(atx_excel_path):
+    """Pre-compute ATX summary to avoid LLM extraction issues"""
+    try:
+        abs_path = os.path.abspath(atx_excel_path)
+        logger.info(f"Pre-computing ATX summary from: {abs_path}")
+        
+        if not os.path.exists(abs_path):
+            logger.error(f"File does not exist: {abs_path}")
+            return None
+        
+        # Use the existing ATX extractor
+        from atx_pricing_extractor import extract_atx_arr
+        atx_data = extract_atx_arr(abs_path)
+        
+        if not atx_data.get('success'):
+            logger.error(f"ATX extraction failed: {atx_data.get('error')}")
+            return None
+        
+        # Convert to summary format
+        summary = {
+            'total_vms': atx_data['vm_count'],
+            'total_vcpus': 0,  # ATX doesn't provide vCPU details
+            'total_memory_gb': 0.0,  # ATX doesn't provide RAM details
+            'total_storage_tb': 0.0,  # ATX doesn't provide storage details
+            'windows_vms': atx_data.get('os_distribution', {}).get('Windows', 0),
+            'linux_vms': atx_data.get('os_distribution', {}).get('Linux', 0),
+            'total_arr': atx_data['total_arr'],
+            'total_monthly': atx_data['total_monthly']
+        }
+        
+        logger.info(f"✓✓✓ ATX PRE-COMPUTED SUMMARY SUCCESS ✓✓✓")
+        logger.info(f"    Total VMs: {summary['total_vms']}")
+        logger.info(f"    Windows VMs: {summary['windows_vms']}")
+        logger.info(f"    Linux VMs: {summary['linux_vms']}")
+        logger.info(f"    Total ARR: ${summary['total_arr']:,.2f}")
+        logger.info(f"    Total Monthly: ${summary['total_monthly']:,.2f}")
+        return summary
+    except Exception as e:
+        logger.error(f"✗ Error pre-computing ATX summary: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return None
+
+# Get pre-computed summaries based on which files exist (priority: RVTools > IT Inventory > ATX)
 script_dir = os.path.dirname(os.path.abspath(__file__))  # agents/
 project_root = os.path.dirname(script_dir)  # project root
-rvtools_path = os.path.join(project_root, input_base, rvtools_filename)
-logger.info(f"RVTools absolute path: {rvtools_path}")
-logger.info(f"Current working directory: {os.getcwd()}")
-logger.info(f"Script directory: {script_dir}")
-logger.info(f"Project root: {project_root}")
 
-rvtools_summary = get_rvtools_summary_precomputed(rvtools_path)
+# Try RVTools first (highest priority)
+rvtools_summary = None
+if has_rvtools:
+    if 'rvTool' in uploaded_files and uploaded_files['rvTool']:
+        rvtools_filename = uploaded_files['rvTool'][0]
+    else:
+        rvtools_filename = "RVTools_Export.xlsx"
+    
+    rvtools_path = os.path.join(project_root, input_base, rvtools_filename)
+    logger.info(f"RVTools absolute path: {rvtools_path}")
+    rvtools_summary = get_rvtools_summary_precomputed(rvtools_path)
 
+# Try IT Inventory if RVTools not available
+it_inventory_summary = None
+if has_it_inventory and not rvtools_summary:
+    if 'itInventory' in uploaded_files:
+        it_inventory_filename = uploaded_files['itInventory']
+    else:
+        it_inventory_filename = "it-infrastructure-inventory.xlsx"
+    
+    it_inventory_path = os.path.join(project_root, input_base, it_inventory_filename)
+    logger.info(f"IT Inventory absolute path: {it_inventory_path}")
+    it_inventory_summary = get_it_inventory_summary_precomputed(it_inventory_path)
+
+# Try ATX if neither RVTools nor IT Inventory available
+atx_summary = None
+if has_atx and not rvtools_summary and not it_inventory_summary:
+    if 'atxExcel' in uploaded_files:
+        atx_filename = uploaded_files['atxExcel']
+    else:
+        atx_filename = "atx_analysis.xlsx"
+    
+    atx_path = os.path.join(project_root, input_base, atx_filename)
+    logger.info(f"ATX absolute path: {atx_path}")
+    atx_summary = get_atx_summary_precomputed(atx_path)
+
+# Build data section based on what's available (priority: RVTools > IT Inventory > ATX)
 if rvtools_summary:
-    rvtools_data_section = f"""
+    infrastructure_data_section = f"""
 **═══════════════════════════════════════════════════════════════**
 **PRE-COMPUTED RVTOOLS SUMMARY** (MANDATORY - Use these exact numbers)
 **═══════════════════════════════════════════════════════════════**
@@ -315,11 +577,79 @@ USE ONLY THESE PRE-COMPUTED VALUES:
 **═══════════════════════════════════════════════════════════════**
 """
     logger.info("✓ RVTools pre-computed summary added to task")
-else:
-    rvtools_data_section = """
-**RVTools Summary**: Not available - file could not be read
+elif it_inventory_summary:
+    infrastructure_data_section = f"""
+**═══════════════════════════════════════════════════════════════**
+**PRE-COMPUTED IT INVENTORY SUMMARY** (MANDATORY - Use these exact numbers)
+**═══════════════════════════════════════════════════════════════**
+
+These numbers were calculated directly from the IT Inventory file in Python.
+DO NOT call it_analysis tool. DO NOT extract numbers from anywhere else.
+USE ONLY THESE PRE-COMPUTED VALUES:
+
+- **Total Servers for Migration**: {it_inventory_summary['total_vms']}
+- **Total Databases (RDS)**: {it_inventory_summary['total_databases']}
+- **Total vCPUs (Servers + Databases)**: {it_inventory_summary['total_vcpus']}
+- **Total Memory GB (Servers + Databases)**: {it_inventory_summary['total_memory_gb']:.1f}
+- **Total Storage TB (Servers + Databases)**: {it_inventory_summary['total_storage_tb']:.1f}
+- **Windows Servers**: {it_inventory_summary['windows_vms']}
+- **Linux Servers**: {it_inventory_summary['linux_vms']}
+
+**CRITICAL INSTRUCTIONS FOR ALL AGENTS**:
+1. Use ONLY the numbers above in your analysis
+2. Do NOT call it_analysis tool
+3. Do NOT extract numbers from tool outputs
+4. Do NOT use cached or remembered numbers
+5. Copy these exact numbers into your response
+6. **FOR ALL SECTIONS**: When reporting infrastructure, ALWAYS include:
+   - Total Servers: {it_inventory_summary['total_vms']}
+   - Total Databases: {it_inventory_summary['total_databases']}
+   - Total vCPUs, Memory, Storage (combined servers + databases)
+7. **FOR ALL SECTIONS**: When reporting OS distribution, use EXACTLY these counts:
+   - Windows Servers: {it_inventory_summary['windows_vms']}
+   - Linux Servers: {it_inventory_summary['linux_vms']}
+   - These counts MUST be consistent across ALL sections (Current State, Cost Analysis, etc.)
+
+**═══════════════════════════════════════════════════════════════**
 """
-    logger.warning("⚠ RVTools summary could not be pre-computed")
+    logger.info("✓ IT Inventory pre-computed summary added to task")
+elif atx_summary:
+    infrastructure_data_section = f"""
+**═══════════════════════════════════════════════════════════════**
+**PRE-COMPUTED ATX SUMMARY** (MANDATORY - Use these exact numbers)
+**═══════════════════════════════════════════════════════════════**
+
+These numbers were calculated directly from the ATX (AWS Transform for VMware) file in Python.
+DO NOT call read_excel_file tool. DO NOT extract numbers from anywhere else.
+USE ONLY THESE PRE-COMPUTED VALUES:
+
+- **Total VMs for Migration**: {atx_summary['total_vms']}
+- **Windows VMs**: {atx_summary['windows_vms']}
+- **Linux VMs**: {atx_summary['linux_vms']}
+- **Total Monthly AWS Cost**: ${atx_summary['total_monthly']:,.2f}
+- **Total Annual AWS Cost (ARR)**: ${atx_summary['total_arr']:,.2f}
+
+**NOTE**: ATX provides pre-calculated AWS costs based on 1-Year No Upfront Reserved Instances.
+
+**CRITICAL INSTRUCTIONS FOR ALL AGENTS**:
+1. Use ONLY the numbers above in your analysis
+2. Do NOT call read_excel_file or other extraction tools
+3. Do NOT extract numbers from tool outputs
+4. Do NOT use cached or remembered numbers
+5. Copy these exact numbers into your response
+6. **FOR ALL SECTIONS**: When reporting OS distribution, use EXACTLY these counts:
+   - Windows VMs: {atx_summary['windows_vms']}
+   - Linux VMs: {atx_summary['linux_vms']}
+   - These counts MUST be consistent across ALL sections (Current State, Cost Analysis, etc.)
+
+**═══════════════════════════════════════════════════════════════**
+"""
+    logger.info("✓ ATX pre-computed summary added to task")
+else:
+    infrastructure_data_section = """
+**Infrastructure Summary**: Not available - file could not be read
+"""
+    logger.warning("⚠ Infrastructure summary could not be pre-computed")
 
 # Build agent task with MRA content if available
 # Truncate MRA to 10000 chars to prevent token overflow
@@ -362,7 +692,7 @@ agent_task = f"""{cache_breaking_prefix}Create a comprehensive business case to 
 {project_context}
 {timeline_note}
 
-    {rvtools_data_section}
+    {infrastructure_data_section}
     
     **Input Data Sources:**
         1. IT Infrastructure Inventory: {input_files1}

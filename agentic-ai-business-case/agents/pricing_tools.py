@@ -264,3 +264,239 @@ if __name__ == "__main__":
         print(f"✗ Test failed: {e}")
     
     print("\n✓ All pricing tools tests complete")
+
+
+# Helper functions for IT Inventory pricing
+
+def get_ec2_pricing(instance_type, os_type, region='us-east-1', pricing_model='3yr_compute_sp'):
+    """
+    Get EC2 pricing for a specific instance type and OS using AWS Price List API
+    
+    Args:
+        instance_type: EC2 instance type (e.g., 'm7i.xlarge')
+        os_type: 'Windows' or 'Linux'
+        region: AWS region
+        pricing_model: '3yr_compute_sp', '3yr_ec2_sp', '3yr_no_upfront', '1yr_no_upfront', or 'on_demand'
+                      '3yr_compute_sp' = 3-Year Compute Savings Plan (most flexible, typically cheapest)
+                      '3yr_ec2_sp' = 3-Year EC2 Instance Savings Plan (less flexible, typically more expensive than Compute SP)
+                      '3yr_no_upfront' = 3-Year Reserved Instance (least flexible)
+    
+    Returns:
+        dict with monthly_cost and hourly_cost
+    """
+    
+    # Use pricing calculator with AWS Price List API
+    calculator = AWSPricingCalculator(region=region)
+    
+    try:
+        # Check pricing model and get appropriate pricing
+        if pricing_model == '3yr_compute_sp':
+            # Use Compute Savings Plan (most flexible, best discount)
+            hourly_cost = calculator.get_ec2_price_by_term(instance_type, os_type, region, term='3yr_compute_sp')
+        elif pricing_model == '3yr_ec2_sp':
+            # Use EC2 Instance Savings Plan (less flexible than Compute SP)
+            hourly_cost = calculator.get_ec2_price_by_term(instance_type, os_type, region, term='3yr_ec2_sp')
+        elif pricing_model == '3yr_no_upfront':
+            hourly_cost = calculator.get_ec2_price_by_term(instance_type, os_type, region, term='3yr', purchase_option='No Upfront')
+        elif pricing_model == '1yr_no_upfront':
+            hourly_cost = calculator.get_ec2_price_by_term(instance_type, os_type, region, term='1yr', purchase_option='No Upfront')
+        elif pricing_model == 'on_demand':
+            hourly_cost = calculator.get_ec2_price_by_term(instance_type, os_type, region, term='on_demand')
+        else:
+            # Default to Compute Savings Plan
+            hourly_cost = calculator.get_ec2_price_by_term(instance_type, os_type, region, term='3yr_compute_sp')
+    except Exception as e:
+        # Fallback to 3-year RI
+        print(f"⚠️  API pricing failed for {instance_type}, using 3-year RI fallback: {e}")
+        hourly_cost = calculator.get_ec2_price_by_term(instance_type, os_type, region, term='3yr', purchase_option='No Upfront')
+    
+    monthly_cost = hourly_cost * 730  # 730 hours per month average
+    
+    return {
+        'hourly_cost': hourly_cost,
+        'monthly_cost': monthly_cost,
+        'instance_type': instance_type,
+        'os_type': os_type,
+        'region': region,
+        'pricing_model': pricing_model,
+        'source': 'AWS Price List API'
+    }
+
+
+def get_rds_pricing(instance_type, engine, region='us-east-1', pricing_model='3yr_partial_upfront', deployment_type='Single-AZ'):
+    """
+    Get RDS pricing for a specific instance type and database engine using AWS Price List API
+    
+    Args:
+        instance_type: RDS instance type (e.g., 'db.m6i.xlarge')
+        engine: Database engine ('mysql', 'postgresql', 'oracle', 'sqlserver', 'mariadb')
+        region: AWS region
+        pricing_model: '3yr_partial_upfront' (Option 1 - cheaper), '1yr_no_upfront' (Option 2 - more expensive over 3 years), 
+                      '3yr_no_upfront' (legacy - falls back to Partial Upfront), or 'on_demand'
+        deployment_type: 'Single-AZ' or 'Multi-AZ' (Multi-AZ is ~2x cost of Single-AZ)
+    
+    Returns:
+        dict with monthly_cost, hourly_cost, upfront_fee, and actual_purchase_option
+    """
+    
+    # Use pricing calculator with AWS Price List API
+    calculator = AWSPricingCalculator(region=region)
+    
+    # Map pricing model to API parameters
+    if pricing_model == '3yr_partial_upfront':
+        term = '3yr'
+        purchase_option = 'Partial Upfront'
+    elif pricing_model == '3yr_no_upfront':
+        # Legacy model - No Upfront not available for 3yr, use Partial Upfront
+        term = '3yr'
+        purchase_option = 'Partial Upfront'
+    elif pricing_model == '1yr_no_upfront':
+        term = '1yr'
+        purchase_option = 'No Upfront'
+    elif pricing_model == 'on_demand':
+        term = 'on_demand'
+        purchase_option = None
+    else:
+        # Default to 3-year Partial Upfront
+        term = '3yr'
+        purchase_option = 'Partial Upfront'
+    
+    # Hardcoded fallback pricing (used if API fails)
+    rds_fallback_pricing = {
+        'db.m6i.large': {
+            'mysql': 0.096, 'postgresql': 0.096, 'mariadb': 0.096,
+            'oracle': 0.384, 'sqlserver': 0.288
+        },
+        'db.m6i.xlarge': {
+            'mysql': 0.192, 'postgresql': 0.192, 'mariadb': 0.192,
+            'oracle': 0.768, 'sqlserver': 0.576
+        },
+        'db.m6i.2xlarge': {
+            'mysql': 0.384, 'postgresql': 0.384, 'mariadb': 0.384,
+            'oracle': 1.536, 'sqlserver': 1.152
+        },
+        'db.m6i.4xlarge': {
+            'mysql': 0.768, 'postgresql': 0.768, 'mariadb': 0.768,
+            'oracle': 3.072, 'sqlserver': 2.304
+        },
+        'db.m6i.8xlarge': {
+            'mysql': 1.536, 'postgresql': 1.536, 'mariadb': 1.536,
+            'oracle': 6.144, 'sqlserver': 4.608
+        }
+    }
+    
+    # Track if we had to adjust the purchase option (e.g., for Oracle)
+    actual_purchase_option = purchase_option
+    pricing_note = None
+    upfront_fee = 0.0
+    
+    try:
+        # Use AWS Price List API for RDS pricing
+        if term == 'on_demand':
+            hourly_cost = calculator.get_rds_price_from_api(instance_type, engine, region, term='on_demand', deployment_type=deployment_type)
+        else:
+            # Use the specified purchase option (already mapped correctly above)
+            hourly_cost = calculator.get_rds_price_from_api(instance_type, engine, region, term=term, purchase_option=actual_purchase_option, deployment_type=deployment_type)
+            
+            # Get upfront fee if applicable (Partial/All Upfront)
+            if actual_purchase_option in ['Partial Upfront', 'All Upfront']:
+                upfront_fee = calculator._last_upfront_fee
+        
+        source = 'AWS Price List API'
+    except Exception as e:
+        # Fallback to hardcoded pricing
+        print(f"⚠️  RDS API pricing failed for {instance_type} {engine}, using fallback")
+        if instance_type in rds_fallback_pricing and engine.lower() in rds_fallback_pricing[instance_type]:
+            hourly_cost = rds_fallback_pricing[instance_type][engine.lower()]
+            # Apply Multi-AZ multiplier if needed (Multi-AZ is ~2x Single-AZ)
+            if deployment_type == 'Multi-AZ':
+                hourly_cost *= 2.0
+        else:
+            hourly_cost = 0.192  # Default fallback
+            if deployment_type == 'Multi-AZ':
+                hourly_cost *= 2.0
+            print(f"   Using default fallback pricing")
+        source = 'Hardcoded fallback'
+        pricing_note = f'Fallback pricing used (API failed: {str(e)[:50]})'
+    
+    monthly_cost = hourly_cost * 730  # 730 hours per month average
+    
+    result = {
+        'hourly_cost': hourly_cost,
+        'monthly_cost': monthly_cost,
+        'instance_type': instance_type,
+        'engine': engine,
+        'region': region,
+        'pricing_model': pricing_model,
+        'actual_purchase_option': actual_purchase_option,
+        'upfront_fee': upfront_fee,
+        'source': source
+    }
+    
+    if pricing_note:
+        result['pricing_note'] = pricing_note
+    
+    return result
+
+
+@tool(
+    name="compare_pricing_models",
+    description="Compare AWS pricing between 3-Year Compute Savings Plan and 3-Year Reserved Instances. Shows cost difference and savings. Use this to provide customers with pricing options."
+)
+def compare_pricing_models(rvtools_filename: str, target_region: str = None):
+    """
+    Compare pricing between Compute Savings Plan and Reserved Instances
+    
+    Calculates costs using both models and shows the difference.
+    Helps customers understand pricing options.
+    
+    Args:
+        rvtools_filename: RVTools file path
+        target_region: AWS region (default: from config)
+    
+    Returns:
+        JSON with both pricing models and comparison
+    """
+    if not USE_DETERMINISTIC_PRICING:
+        return json.dumps({'error': 'Deterministic pricing disabled'})
+    
+    region = target_region or PRICING_CONFIG.get('default_region', 'us-east-1')
+    
+    # Calculate with Compute Savings Plan (9% discount vs RI)
+    calculator_sp = AWSPricingCalculator(region=region)
+    result_sp = calculator_sp.calculate_arr_from_rvtools(rvtools_filename, pricing_model='3yr_compute_sp')
+    
+    # Calculate with Reserved Instances
+    calculator_ri = AWSPricingCalculator(region=region)
+    result_ri = calculator_ri.calculate_arr_from_rvtools(rvtools_filename, pricing_model='3yr_no_upfront')
+    
+    # Calculate savings
+    monthly_savings = result_ri['total_monthly_cost'] - result_sp['total_monthly_cost']
+    annual_savings = monthly_savings * 12
+    savings_percentage = (monthly_savings / result_ri['total_monthly_cost']) * 100
+    
+    comparison = {
+        'compute_savings_plan': {
+            'monthly_cost': result_sp['total_monthly_cost'],
+            'annual_cost': result_sp['total_monthly_cost'] * 12,
+            'three_year_cost': result_sp['total_monthly_cost'] * 36,
+            'model': '3-Year Compute Savings Plan',
+            'recommended': True
+        },
+        'reserved_instances': {
+            'monthly_cost': result_ri['total_monthly_cost'],
+            'annual_cost': result_ri['total_monthly_cost'] * 12,
+            'three_year_cost': result_ri['total_monthly_cost'] * 36,
+            'model': '3-Year Reserved Instance (No Upfront)',
+            'recommended': False
+        },
+        'savings': {
+            'monthly_savings': monthly_savings,
+            'annual_savings': annual_savings,
+            'three_year_savings': annual_savings * 3,
+            'savings_percentage': savings_percentage
+        },
+        'recommendation': f"Compute Savings Plan saves ${monthly_savings:,.2f}/month ({savings_percentage:.1f}%) vs Reserved Instances"
+    }
+    
+    return json.dumps(comparison, indent=2)

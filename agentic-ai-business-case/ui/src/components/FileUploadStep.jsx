@@ -12,6 +12,23 @@ import {
 } from '@cloudscape-design/components';
 
 const FileUploadStep = ({ uploadedFiles, setUploadedFiles }) => {
+  // Define input type groups - only ONE can be selected
+  const inputTypeGroups = {
+    itInventory: ['itInventory'],
+    rvTool: ['rvTool'],
+    atx: ['atxExcel', 'atxPdf', 'atxPptx']
+  };
+
+  // Determine which input type is currently selected
+  const getSelectedInputType = () => {
+    if (uploadedFiles['itInventory']) return 'itInventory';
+    if (uploadedFiles['rvTool'] && (Array.isArray(uploadedFiles['rvTool']) ? uploadedFiles['rvTool'].length > 0 : true)) return 'rvTool';
+    if (uploadedFiles['atxExcel'] || uploadedFiles['atxPdf'] || uploadedFiles['atxPptx']) return 'atx';
+    return null;
+  };
+
+  const selectedInputType = getSelectedInputType();
+
   const fileConfigs = [
     {
       key: 'itInventory',
@@ -19,6 +36,7 @@ const FileUploadStep = ({ uploadedFiles, setUploadedFiles }) => {
       description: 'Excel file containing general IT asset inventory',
       acceptedFormats: '.xlsx, .xls',
       required: false,
+      inputType: 'itInventory',
       details: 'Should include servers, storage, databases, applications, and network components with details like CPU, memory, storage capacity, OS versions, and utilization metrics.',
       example: 'it-infrastructure-inventory.xlsx'
     },
@@ -29,6 +47,7 @@ const FileUploadStep = ({ uploadedFiles, setUploadedFiles }) => {
       acceptedFormats: '.csv, .xlsx, .xls',
       required: false,
       multiple: true,
+      inputType: 'rvTool',
       details: 'VMware environment data exported from RVTool. For best performance with large datasets, upload the vInfo tab/file which contains comprehensive VM information (names, CPUs, memory, storage, OS, power state). You can upload multiple files, but vInfo will be prioritized for analysis to prevent timeouts.',
       example: 'rvtool-vInfo.csv or rvtools-tabvInfo.xlsx'
     },
@@ -38,6 +57,7 @@ const FileUploadStep = ({ uploadedFiles, setUploadedFiles }) => {
       description: 'AWS Transform for VMware - Environment data spreadsheet',
       acceptedFormats: '.xlsx, .xls',
       required: false,
+      inputType: 'atx',
       details: 'VMware environment data and cost analysis from AWS Transform for VMware assessment tool.',
       example: 'atx_analysis.xlsx'
     },
@@ -47,6 +67,7 @@ const FileUploadStep = ({ uploadedFiles, setUploadedFiles }) => {
       description: 'AWS Transform for VMware - Detailed technical assessment report',
       acceptedFormats: '.pdf',
       required: false,
+      inputType: 'atx',
       details: 'Comprehensive technical assessment report with infrastructure analysis, workload categorization, and migration recommendations.',
       example: 'atx_report.pdf'
     },
@@ -56,6 +77,7 @@ const FileUploadStep = ({ uploadedFiles, setUploadedFiles }) => {
       description: 'AWS Transform for VMware - Executive presentation',
       acceptedFormats: '.pptx, .ppt',
       required: false,
+      inputType: 'atx',
       details: 'Executive-level business case presentation with high-level findings and recommendations.',
       example: 'atx_business_case.pptx'
     },
@@ -65,6 +87,7 @@ const FileUploadStep = ({ uploadedFiles, setUploadedFiles }) => {
       description: 'Organizational readiness evaluation document',
       acceptedFormats: '.md, .docx, .doc, .pdf',
       required: true,
+      inputType: null, // Not part of input type restriction
       details: 'Migration Readiness Assessment evaluating organizational readiness across business, people, process, technology, security, operations, and financial dimensions. Supports Markdown, Word, and PDF formats.',
       example: 'aws-customer-migration-readiness-assessment.md or mra-report.pdf'
     },
@@ -74,24 +97,42 @@ const FileUploadStep = ({ uploadedFiles, setUploadedFiles }) => {
       description: 'Detailed application portfolio assessment',
       acceptedFormats: '.csv, .xlsx, .xls',
       required: false,
+      inputType: null, // Not part of input type restriction
       details: 'Optional: Detailed application portfolio with characteristics, dependencies, and business criticality. If not provided, industry-standard assumptions will be used.',
       example: 'application-portfolio.csv'
     }
   ];
 
-  const handleFileChange = (key, files, isMultiple) => {
-    if (isMultiple) {
-      // For multiple files, store the array
-      setUploadedFiles({
-        ...uploadedFiles,
-        [key]: files.length > 0 ? files : null
+  const handleFileChange = (key, files, isMultiple, inputType) => {
+    // If this is an infrastructure input type and a different type is already selected, clear the old type
+    if (inputType && selectedInputType && selectedInputType !== inputType) {
+      // Clear all files from the previously selected input type
+      const filesToClear = inputTypeGroups[selectedInputType];
+      const clearedFiles = { ...uploadedFiles };
+      filesToClear.forEach(fileKey => {
+        clearedFiles[fileKey] = null;
       });
+      
+      // Set the new file
+      if (isMultiple) {
+        clearedFiles[key] = files.length > 0 ? files : null;
+      } else {
+        clearedFiles[key] = files[0] || null;
+      }
+      setUploadedFiles(clearedFiles);
     } else {
-      // For single files, store just the first file
-      setUploadedFiles({
-        ...uploadedFiles,
-        [key]: files[0] || null
-      });
+      // Normal file change handling
+      if (isMultiple) {
+        setUploadedFiles({
+          ...uploadedFiles,
+          [key]: files.length > 0 ? files : null
+        });
+      } else {
+        setUploadedFiles({
+          ...uploadedFiles,
+          [key]: files[0] || null
+        });
+      }
     }
   };
 
@@ -133,6 +174,24 @@ const FileUploadStep = ({ uploadedFiles, setUploadedFiles }) => {
       }
     >
       <SpaceBetween size="l">
+        <Alert type="info">
+          <strong>Important:</strong> You must select ONE infrastructure input type:
+          <ul style={{ marginTop: '8px', marginBottom: '0' }}>
+            <li><strong>IT Infrastructure Inventory</strong> - General IT asset inventory (servers + databases)</li>
+            <li><strong>RVTools</strong> - VMware environment assessment data</li>
+            <li><strong>ATX</strong> - AWS Transform for VMware assessment (Excel/PDF/PowerPoint)</li>
+          </ul>
+          {selectedInputType && (
+            <Box variant="p" margin={{ top: 's' }}>
+              Currently selected: <strong>
+                {selectedInputType === 'itInventory' && 'IT Infrastructure Inventory'}
+                {selectedInputType === 'rvTool' && 'RVTools'}
+                {selectedInputType === 'atx' && 'ATX (AWS Transform for VMware)'}
+              </strong>
+            </Box>
+          )}
+        </Alert>
+
         {!status.hasInfrastructureFile ? (
           <Alert type="warning">
             Please upload at least one infrastructure file (IT Infrastructure Inventory, RVTools, or ATX files) and the MRA document to proceed.
