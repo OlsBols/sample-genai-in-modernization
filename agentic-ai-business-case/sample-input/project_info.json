@@ -1,0 +1,6 @@
+{
+  "projectName": "Enterprise Cloud Migration 2026",
+  "projectDescription": "Acme Corp-2's AWS migration project aims to exit their on-premises data center within 18 months, optimizing license costs as a critical requirement. The migration plan spans 3 years, with a focus on modernization as much as possible in the initial 18-month period. The target AWS region is us-east-1. Key aspects include re-hosting workloads, refactoring applications where feasible, and adopting managed AWS services to reduce operational overhead. The migration will leverage AWS tools and services such as AWS Application Migration Service, AWS Database Migration Service, and AWS CloudEndure for seamless server and database migrations. The goal is to achieve a cloud-native",
+  "customerName": "Acme Corp-2",
+  "awsRegion": "us-east-1"
+}
