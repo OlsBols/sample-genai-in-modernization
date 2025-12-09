@@ -672,21 +672,22 @@ Enhanced description:"""
         }), 500
 
 if __name__ == '__main__':
-    print(f"Starting Flask API server...")
-    print(f"Agents directory: {AGENTS_DIR}")
-    print(f"Input directory: {INPUT_DIR}")
-    print(f"Output directory: {OUTPUT_DIR}")
+    # This application requires Gunicorn to run
+    # Do not use Flask's built-in server
     
-    # Security: Get debug mode from environment variable (default to False for production)
-    # B105: Hardcoded password - False positive, this is debug flag not a password
-    debug_mode = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
-    
-    # Security: Only bind to 0.0.0.0 in development mode
-    # In production, use a proper WSGI server (gunicorn, uwsgi) instead of app.run()
-    host = '127.0.0.1' if not debug_mode else '0.0.0.0'
-    
-    if debug_mode:
-        print("⚠️  WARNING: Running in DEBUG mode - DO NOT use in production!")
-        print("   Set FLASK_DEBUG=false for production deployment")
-    
-    app.run(debug=debug_mode, host=host, port=5000)
+    print("=" * 60)
+    print("ERROR: This application must be run with Gunicorn")
+    print("=" * 60)
+    print("")
+    print("Usage:")
+    print("  ./start-all.sh                    # Start everything")
+    print("  cd ui/backend && ./start-gunicorn.sh  # Backend only")
+    print("")
+    print("Direct Gunicorn command:")
+    print("  cd ui/backend")
+    print("  source venv/bin/activate")
+    print("  gunicorn -c gunicorn.conf.py app:app")
+    print("")
+    print("=" * 60)
+    import sys
+    sys.exit(1)

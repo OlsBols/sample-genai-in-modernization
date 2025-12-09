@@ -204,3 +204,7 @@ agentic-ai-business-case/SECURITY_FIX_SUMMARY.md
 agentic-ai-business-case/SECURITY_SCAN_REPORT_CLEAN.md
 agentic-ai-business-case/SECURITY_SCAN_REPORT.md
 agentic-ai-business-case/V1_RELEASE_CHECKLIST.md
+agentic-ai-business-case/DEPLOYMENT.md
+agentic-ai-business-case/GUNICORN_MIGRATION_COMPLETE.md
+agentic-ai-business-case/GUNICORN_UPGRADE_SUMMARY.md
+agentic-ai-business-case/ui/backend/README-GUNICORN.md

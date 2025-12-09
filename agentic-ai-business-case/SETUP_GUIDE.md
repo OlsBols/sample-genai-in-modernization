@@ -70,11 +70,17 @@ export S3_BUCKET_NAME=your-bucket-name
 After setup completes:
 
 ```bash
-# Start everything
+# Start everything (uses Gunicorn by default)
 ./start-all.sh
 
 # Access at: http://localhost:3000
 ```
+
+The backend automatically runs with **Gunicorn**, a production-grade WSGI server that provides:
+- ✅ Multi-process workers for better performance
+- ✅ Graceful restarts with zero downtime
+- ✅ Production-ready security and reliability
+- ✅ Better resource management
 
 ### Stopping the Application
 
@@ -82,6 +88,10 @@ After setup completes:
 # Stop everything
 ./stop-all.sh
 ```
+
+### Advanced Deployment Options
+
+For systemd service or Nginx reverse proxy setup, see `ui/backend/README-GUNICORN.md`.
 
 ## What Gets Created
 

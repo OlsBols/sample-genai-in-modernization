@@ -17,11 +17,11 @@ if [ -f .pids/backend.pid ]; then
     fi
 fi
 
-# Start backend in background
-echo "Starting backend server..."
+# Start backend in background with Gunicorn
+echo "Starting backend server with Gunicorn..."
 cd ui/backend
 source venv/bin/activate
-python3 app.py > ../../.pids/backend.log 2>&1 &
+gunicorn -c gunicorn.conf.py app:app > ../../.pids/backend.log 2>&1 &
 BACKEND_PID=$!
 echo $BACKEND_PID > ../../.pids/backend.pid
 cd ../..
