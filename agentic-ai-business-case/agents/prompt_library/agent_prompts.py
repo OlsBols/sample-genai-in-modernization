@@ -83,10 +83,20 @@ if USE_DETERMINISTIC_PRICING:
     
     **IF ATX INPUT** (file pattern: atx_analysis.xlsx):
     Call extract_atx_arr_tool(atx_filename="[filename from task]", target_region="[region from task]")
-    - This is MANDATORY for ATX input
+    - This is MANDATORY for ATX Excel input
     - Extracts pre-calculated costs from ATX analysis
     - Example: extract_atx_arr_tool(atx_filename="atx_analysis.xlsx", target_region="us-east-1")
-    - **USE THIS only if ATX is available and neither RVTools nor IT Inventory are available**
+    - **USE THIS only if ATX Excel is available and neither RVTools nor IT Inventory are available**
+    
+    **IF ATX POWERPOINT ONLY** (check for "ATX PPT PRE-COMPUTED SUMMARY" in context):
+    DO NOT call any pricing tool - use the Financial Overview data directly from the ATX PPT summary
+    - Check the "ATX PPT PRE-COMPUTED SUMMARY" section in your context
+    - Extract the Monthly AWS Cost, Annual AWS Cost, and 3-Year Total Cost
+    - Check the "Total Databases" count in Assessment Scope
+    - IF Total Databases = 0: This is VM-ONLY, NO RDS costs
+    - IF Total Databases > 0: Include both EC2 and RDS costs
+    - Use the Financial Overview content AS-IS in your analysis
+    - DO NOT recalculate or estimate costs
     
     **IF MULTIPLE FILES AVAILABLE**:
     - Check agent outputs: rv_tool_analysis, it_analysis, atx_analysis
@@ -137,11 +147,19 @@ if USE_DETERMINISTIC_PRICING:
         - OS breakdown (Windows/Linux)
         - Cost components (EC2 Compute/RDS Database) (MUST be actual $ amounts)
         
-        **FOR ATX**: Use extract_atx_arr_tool output
+        **FOR ATX EXCEL**: Use extract_atx_arr_tool output
         - Total VMs, Monthly cost, Annual ARR (MUST be actual $ amounts)
         - OS breakdown (Windows/Linux)
         - Cost breakdown (Compute/Licensing)
         - Note: ATX uses 1-Year NURI pricing model
+        
+        **FOR ATX POWERPOINT ONLY**: Use Financial Overview from ATX PPT PRE-COMPUTED SUMMARY
+        - Total VMs (from Assessment Scope)
+        - Monthly AWS Cost, Annual AWS Cost, 3-Year Total Cost (from Financial Overview)
+        - OS breakdown (Windows/Linux from Assessment Scope)
+        - Database count (from Assessment Scope) - IF 0, this is VM-ONLY (no RDS)
+        - Present the Financial Overview content AS-IS
+        - DO NOT add RDS costs if database count is 0
         
         **CRITICAL**: 
         - Use ONLY tool output numbers - NO placeholders like $XXX,XXX
@@ -634,62 +652,61 @@ system_message_atx_analysis = """
     
     **CRITICAL: Review the PROJECT CONTEXT provided in the task. All analysis and recommendations must align with the project description and target AWS region specified in the project context.**
     
-    Use the available tools to analyze ATX assessment outputs:
-    - read_excel_file: Read analysis.xlsx containing VMware environment data and cost analysis
-    - read_pdf_file: Read report.pdf containing detailed technical assessment report
-    - read_pptx_file: Read business_case.pptx containing executive business case presentation
+    **IMPORTANT - ATX PowerPoint Pre-Extracted Data**:
+    The task will include PRE-EXTRACTED data from the ATX PowerPoint presentation with these key sections:
+    - **Assessment Scope**: VM counts, storage, OS distribution (Windows/Linux servers)
+    - **Executive Summary**: High-level findings and recommendations from ATX
+    - **Financial Overview**: AWS cost projections (monthly, annual, 3-year)
+    
+    **YOUR TASK**:
+    1. **Use the PRE-EXTRACTED data provided in the task** - DO NOT try to read files
+    2. **Extract ONLY factual information** from the ATX data - NO hallucination
+    3. **Summarize the key findings** from Assessment Scope and Executive Summary
+    4. **DO NOT add information** not present in the ATX outputs
+    5. **DO NOT make assumptions** about workloads, applications, or technical details
     
     **About ATX**: AWS Transform for VMware is an assessment tool that analyzes VMware environments and generates 
     detailed reports to help plan and execute migrations from VMware to AWS.
     
-    Perform comprehensive analysis focusing on:
+    Perform analysis focusing on ONLY what's in the ATX data:
     
     ## (1) VMware Environment Overview
-    - Extract VMware infrastructure inventory (vCPUs, memory, storage, VMs count)
-    - Identify VMware versions, clusters, and datacenter configuration
-    - Document current VMware licensing and support costs
-    - Assess overall environment complexity and scale
+    - Use the Assessment Scope data provided (VM counts, storage, OS distribution)
+    - Report ONLY the numbers provided - do not estimate or add details
+    - If vCPU, RAM, or other details are missing, state "Not provided in ATX assessment"
     
-    ## (2) Workload Analysis & Categorization
-    - Identify workload types and their characteristics
-    - Categorize VMs by migration readiness (easy, moderate, complex)
-    - Document application dependencies and groupings
-    - Assess workload performance requirements and patterns
+    ## (2) Executive Summary Findings
+    - Extract key findings from the Executive Summary content provided
+    - Report the region, scope, and any optimization notes mentioned
+    - Include any savings percentages or recommendations stated in ATX
     
-    ## (3) AWS Target Architecture & Mapping
-    - Extract recommended AWS services for VMware workloads (EC2, Amazon Elastic VMware Service (EVS), etc.)
-    - **CRITICAL**: Verify all recommended services are NOT deprecated (check https://aws.amazon.com/products/lifecycle/)
-    - Document instance type recommendations and rightsizing opportunities
-    - Identify modernization opportunities (containers, serverless, managed services)
-    - Review network architecture and connectivity requirements
+    ## (3) AWS Target Architecture
+    - **CRITICAL**: Only mention services explicitly stated in the ATX data
+    - **CRITICAL**: Verify all services are NOT deprecated (check https://aws.amazon.com/products/lifecycle/)
+    - If ATX doesn't specify services, state "Service recommendations not detailed in ATX summary"
     - Replace any deprecated services with current AWS-recommended alternatives
     
-    ## (4) Cost Analysis & TCO Comparison
-    - Extract current VMware infrastructure costs (hardware, licensing, maintenance, facilities)
-    - Document projected AWS costs (compute, storage, data transfer, support)
-    - Analyze cost optimization opportunities and savings
-    - Review TCO comparison over 3-5 year period
+    ## (4) Cost Summary
+    - Report the Financial Overview numbers provided (monthly, annual, 3-year costs)
+    - Include any savings percentages mentioned in Executive Summary
+    - DO NOT add TCO comparisons unless explicitly in the ATX data
     
-    ## (5) Migration Strategy & Approach
-    - Extract recommended migration patterns (rehost, replatform, refactor)
-    - Document migration waves and prioritization
-    - Identify pilot candidates and quick wins
-    - Review migration timeline and phases
+    ## (5) Migration Approach
+    - Extract any migration recommendations from the Executive Summary
+    - Report wave planning or phasing if mentioned
+    - If not detailed, state "Migration phases not detailed in ATX summary"
     
-    ## (6) Risk Assessment & Readiness
-    - Identify technical risks and blockers
-    - Document application compatibility issues
-    - Assess organizational readiness and skill gaps
-    - Review compliance and security considerations
+    ## (6) Key Recommendations
+    - Extract recommendations from the Executive Summary (e.g., "Engage a specialist", "Perform wave planning")
+    - Report ONLY what ATX explicitly recommends
+    - DO NOT add your own recommendations
     
-    ## (7) Business Case & ROI
-    - Extract financial benefits and cost savings
-    - Document operational benefits (agility, scalability, reliability)
-    - Review ROI projections and payback period
-    - Identify strategic business value and innovation opportunities
-    
-    **IMPORTANT**: Base your analysis strictly on the ATX assessment data found in the provided documents. 
-    Do not make assumptions or add information not present in the ATX outputs.
+    **CRITICAL RULES**:
+    - Base analysis STRICTLY on the pre-extracted ATX data provided in the task
+    - DO NOT hallucinate workload types, application details, or technical specifics
+    - If information is not in the ATX data, explicitly state it's not available
+    - Keep response concise and factual
+    - Use ONLY the numbers and text extracted from the ATX PowerPoint
     
     Format your response in markdown with clear headings, bullet points, and tables where appropriate.
 """

@@ -15,10 +15,14 @@ import json
 )
 def calculate_exact_aws_arr(rvtools_filename: str, target_region: str = None):
     """
-    Calculate exact AWS ARR from RVTools data
+    Calculate exact AWS ARR from RVTools data with DUAL PRICING OPTIONS
     
     This tool provides DETERMINISTIC pricing - same input always produces same output.
     Uses AWS Price List API when available, falls back to accurate hardcoded pricing.
+    
+    Calculates TWO pricing options:
+    - Option 1: 3-Year EC2 Instance Savings Plan (less flexible, typically more expensive)
+    - Option 2: 3-Year Compute Savings Plan (more flexible, typically cheaper)
     
     Behavior controlled by config.py:
     - USE_DETERMINISTIC_PRICING: Enable/disable this feature
@@ -30,7 +34,7 @@ def calculate_exact_aws_arr(rvtools_filename: str, target_region: str = None):
     
     Returns:
         JSON string with detailed cost breakdown including:
-        - Total monthly cost and ARR
+        - Total monthly cost and ARR for both options
         - Breakdown by instance type
         - Breakdown by OS (Windows vs Linux)
         - Cost components (compute, storage, data transfer)
@@ -52,11 +56,12 @@ def calculate_exact_aws_arr(rvtools_filename: str, target_region: str = None):
         target_region = PRICING_CONFIG.get('default_region', 'us-east-1')
     
     print(f"\n{'='*80}")
-    print(f"EXACT AWS ARR CALCULATION")
+    print(f"EXACT AWS ARR CALCULATION - DUAL PRICING")
     print(f"{'='*80}")
     print(f"Input: {rvtools_filename}")
     print(f"Region: {target_region}")
     print(f"Mode: Deterministic (config-controlled)")
+    print(f"Calculating BOTH pricing options...")
     print(f"{'='*80}\n")
     
     # Step 1: Load RVTools data
@@ -64,20 +69,24 @@ def calculate_exact_aws_arr(rvtools_filename: str, target_region: str = None):
     df = rv_tool_analysis(rvtools_filename)
     print(f"✓ Loaded {len(df)} VMs\n")
     
-    # Step 2: Initialize pricing calculator (uses config settings)
-    print("Step 2: Initializing AWS Pricing Calculator...")
-    calculator = AWSPricingCalculator(region=target_region)
-    print(f"✓ Calculator ready\n")
+    # Step 2: Calculate Option 1 (EC2 Instance Savings Plan)
+    print("Step 2: Calculating Option 1 (3-Year EC2 Instance Savings Plan)...")
+    use_api = PRICING_CONFIG.get('use_aws_pricing_api', False)
+    calculator_option1 = AWSPricingCalculator(region=target_region, use_api=use_api, pricing_model='3yr_ec2_sp')
+    results_option1 = calculator_option1.calculate_arr_from_dataframe(df, pricing_model='3yr_ec2_sp')
+    print(f"✓ Option 1 Monthly: ${results_option1['summary']['total_monthly_cost']:,.2f}\n")
     
-    # Step 3: Calculate ARR
-    print("Step 3: Calculating exact AWS costs...")
-    results = calculator.calculate_arr_from_dataframe(df)
+    # Step 3: Calculate Option 2 (Compute Savings Plan)
+    print("Step 3: Calculating Option 2 (3-Year Compute Savings Plan)...")
+    calculator_option2 = AWSPricingCalculator(region=target_region, use_api=use_api, pricing_model='3yr_compute_sp')
+    results_option2 = calculator_option2.calculate_arr_from_dataframe(df, pricing_model='3yr_compute_sp')
+    print(f"✓ Option 2 Monthly: ${results_option2['summary']['total_monthly_cost']:,.2f}\n")
     
-    # Step 3.5: Export to Excel
-    print("Step 3.5: Generating Excel export...")
+    # Step 4: Export to Excel with both options
+    print("Step 4: Generating Excel export with both pricing options...")
     try:
-        from excel_export import export_vm_to_ec2_mapping
-        excel_path = export_vm_to_ec2_mapping(results, 'vm_to_ec2_mapping.xlsx')
+        from excel_export import export_rvtools_dual_pricing
+        excel_path = export_rvtools_dual_pricing(results_option1, results_option2, 'vm_to_ec2_mapping.xlsx')
         if excel_path:
             print(f"✓ Excel export saved: {excel_path}")
         else:
@@ -87,39 +96,37 @@ def calculate_exact_aws_arr(rvtools_filename: str, target_region: str = None):
         print(f"✗ Excel export failed: {e}")
         print(f"Traceback: {traceback.format_exc()}")
     
-    # Step 4: Format results for agent consumption
-    summary = results['summary']
-    cost_breakdown = results['cost_breakdown']
-    instance_breakdown = results['instance_type_breakdown']
-    os_breakdown = results['os_breakdown']
+    # Step 5: Format results for agent consumption
+    monthly_savings = results_option2['summary']['total_monthly_cost'] - results_option1['summary']['total_monthly_cost']
+    annual_savings = monthly_savings * 12
+    three_year_savings = monthly_savings * 36
+    savings_pct = (monthly_savings / results_option2['summary']['total_monthly_cost'] * 100) if results_option2['summary']['total_monthly_cost'] > 0 else 0
     
-    # Create formatted output
     output = {
-        'summary': {
-            'total_vms': summary['total_vms'],
-            'total_monthly_cost_usd': summary['total_monthly_cost'],
-            'total_annual_cost_arr_usd': summary['total_arr'],
-            'region': summary['region'],
-            'pricing_model': summary['pricing_model']
+        'option1': {
+            'pricing_model': '3-Year EC2 Instance Savings Plan',
+            'total_vms': results_option1['summary']['total_vms'],
+            'total_monthly_cost_usd': results_option1['summary']['total_monthly_cost'],
+            'total_annual_cost_arr_usd': results_option1['summary']['total_arr'],
+            'region': results_option1['summary']['region']
         },
-        'monthly_cost_breakdown': {
-            'compute': cost_breakdown['monthly_compute'],
-            'storage': cost_breakdown['monthly_storage'],
-            'data_transfer': cost_breakdown['monthly_data_transfer'],
-            'total': cost_breakdown['monthly_total']
+        'option2': {
+            'pricing_model': '3-Year Compute Savings Plan',
+            'total_vms': results_option2['summary']['total_vms'],
+            'total_monthly_cost_usd': results_option2['summary']['total_monthly_cost'],
+            'total_annual_cost_arr_usd': results_option2['summary']['total_arr'],
+            'region': results_option2['summary']['region']
         },
-        'instance_type_distribution': instance_breakdown,
-        'os_distribution': os_breakdown,
+        'savings': {
+            'monthly_savings_usd': monthly_savings,
+            'annual_savings_usd': annual_savings,
+            'three_year_savings_usd': three_year_savings,
+            'savings_percentage': savings_pct,
+            'recommendation': f"Option 1 saves ${monthly_savings:,.2f}/month ({savings_pct:.1f}%)"
+        },
         'calculation_method': 'Deterministic - AWS Price List API with fallback pricing',
         'consistency_guarantee': 'Same input produces identical output every time'
     }
-    
-    # Add top 10 most expensive VMs for context
-    detailed_df = results['detailed_results']
-    top_vms = detailed_df.nlargest(10, 'monthly_total')[
-        ['vm_name', 'instance_type', 'vcpu', 'memory_gb', 'monthly_total']
-    ].to_dict('records')
-    output['top_10_most_expensive_vms'] = top_vms
     
     # Convert to JSON string for agent
     return json.dumps(output, indent=2)

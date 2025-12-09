@@ -557,17 +557,19 @@ class AWSPricingCalculator:
         'p4d.24xlarge': {'Linux': 23.040, 'Windows': 23.136},
     }
     
-    def __init__(self, region=None, use_api=None):
+    def __init__(self, region=None, use_api=None, pricing_model=None):
         """
         Initialize pricing calculator
         
         Args:
             region: Target AWS region for pricing (defaults to config)
             use_api: If True, use AWS Pricing API; if False, use fallback pricing (defaults to config)
+            pricing_model: Pricing model to use ('3yr_ec2_sp', '3yr_compute_sp', '3yr_no_upfront', '1yr_no_upfront', 'on_demand')
         """
         # Use config defaults if not specified
         self.target_region = region or PRICING_CONFIG.get('default_region', 'us-east-1')
         self.use_api = use_api if use_api is not None else PRICING_CONFIG.get('use_aws_pricing_api', False)
+        self.pricing_model = pricing_model or PRICING_CONFIG.get('pricing_model', '3yr_compute_sp')
         self.pricing_client = None
         self.verbose = PRICING_CONFIG.get('verbose_logging', True)
         self._last_upfront_fee = 0.0  # Track upfront fees for Partial/All Upfront RIs
@@ -800,35 +802,33 @@ class AWSPricingCalculator:
         """
         # Handle Compute Savings Plan by getting actual pricing from Savings Plans API
         if term == '3yr_compute_sp':
+            if not self.use_api:
+                # Use fallback pricing directly (Compute SP is ~10% more expensive than EC2 Instance SP)
+                fallback_price = self.get_ec2_price(instance_type, os_type)
+                ec2_sp_price = fallback_price * 0.95  # EC2 Instance SP discount
+                return ec2_sp_price * 1.10  # Compute SP is 10% more expensive
             try:
                 return self.get_savings_plan_price(instance_type, os_type, region, '3yr', plan_type='COMPUTE_SP')
             except Exception as e:
                 print(f"⚠️  Compute Savings Plan API failed, using fallback: {e}")
-                # Fallback: Compute SP is typically MORE EXPENSIVE than EC2 Instance SP
-                # Use EC2 Instance SP price and add ~10% markup
-                try:
-                    ec2_sp_price = self.get_ec2_price_by_term(instance_type, os_type, region, '3yr_ec2_sp')
-                    return ec2_sp_price * 1.10  # Compute SP is ~10% more expensive
-                except:
-                    # Double fallback: Use On-Demand with 66% discount
-                    on_demand_price = self.get_ec2_price_by_term(instance_type, os_type, region, 'on_demand')
-                    return on_demand_price * 0.34  # 66% discount from On-Demand
+                # Fallback: Use fallback pricing with markup
+                fallback_price = self.get_ec2_price(instance_type, os_type)
+                ec2_sp_price = fallback_price * 0.95
+                return ec2_sp_price * 1.10
         
         # Handle EC2 Instance Savings Plan
         if term == '3yr_ec2_sp':
+            if not self.use_api:
+                # Use fallback pricing directly (EC2 Instance SP is ~5% cheaper than 3yr RI)
+                fallback_price = self.get_ec2_price(instance_type, os_type)
+                return fallback_price * 0.95
             try:
                 return self.get_savings_plan_price(instance_type, os_type, region, '3yr', plan_type='EC2_INSTANCE_SP')
             except Exception as e:
                 print(f"⚠️  EC2 Instance Savings Plan API failed, using fallback: {e}")
-                # Fallback: EC2 Instance SP is CHEAPER than Compute SP
-                # Use 3-year RI price and apply small discount
-                try:
-                    ri_price = self.get_ec2_price_by_term(instance_type, os_type, region, '3yr', 'No Upfront')
-                    return ri_price * 0.95  # EC2 Instance SP is ~5% cheaper than RI
-                except:
-                    # Double fallback: Use On-Demand with 62% discount
-                    on_demand_price = self.get_ec2_price_by_term(instance_type, os_type, region, 'on_demand')
-                    return on_demand_price * 0.38  # 62% discount from On-Demand
+                # Fallback: Use fallback pricing with 5% discount
+                fallback_price = self.get_ec2_price(instance_type, os_type)
+                return fallback_price * 0.95
         
         # Handle 1-Year Compute Savings Plan
         if term == '1yr_compute_sp':
@@ -1155,27 +1155,46 @@ class AWSPricingCalculator:
         
         # Right-size CPU
         if cpu_util is not None and cpu_util > 0:
-            headroom = RIGHT_SIZING_CONFIG.get('cpu_headroom_percentage', 20) / 100
+            # Use actual utilization data
+            headroom = RIGHT_SIZING_CONFIG.get('cpu_headroom_percentage', 0) / 100
             required_vcpu = (vcpu * cpu_util / 100) * (1 + headroom)
+            vcpu = max(int(required_vcpu), RIGHT_SIZING_CONFIG.get('min_vcpu', 2))
+        else:
+            # No utilization data - apply ATX assumption (25% peak utilization)
+            peak_util = RIGHT_SIZING_CONFIG.get('cpu_peak_utilization_percent', 25) / 100
+            headroom = RIGHT_SIZING_CONFIG.get('cpu_headroom_percentage', 0) / 100
+            required_vcpu = (vcpu * peak_util) * (1 + headroom)
             vcpu = max(int(required_vcpu), RIGHT_SIZING_CONFIG.get('min_vcpu', 2))
         
         # Right-size Memory
         if memory_util is not None and memory_util > 0:
-            headroom = RIGHT_SIZING_CONFIG.get('memory_headroom_percentage', 20) / 100
+            # Use actual utilization data
+            headroom = RIGHT_SIZING_CONFIG.get('memory_headroom_percentage', 0) / 100
             required_memory = (memory_gb * memory_util / 100) * (1 + headroom)
+            memory_gb = max(required_memory, RIGHT_SIZING_CONFIG.get('min_memory_gb', 4))
+        else:
+            # No utilization data - apply ATX assumption (60% peak utilization)
+            peak_util = RIGHT_SIZING_CONFIG.get('memory_peak_utilization_percent', 60) / 100
+            headroom = RIGHT_SIZING_CONFIG.get('memory_headroom_percentage', 0) / 100
+            required_memory = (memory_gb * peak_util) * (1 + headroom)
             memory_gb = max(required_memory, RIGHT_SIZING_CONFIG.get('min_memory_gb', 4))
         
         # Right-size Storage
         if storage_used_gb is not None and storage_used_gb > 0:
-            reduction = RIGHT_SIZING_CONFIG.get('storage_reduction_percentage', 50) / 100
-            headroom = RIGHT_SIZING_CONFIG.get('storage_headroom_percentage', 20) / 100
-            # Apply reduction (thin provisioning, compression) then add headroom
-            optimized_storage = storage_used_gb * (1 - reduction) * (1 + headroom)
+            # Use actual storage usage data
+            utilization = RIGHT_SIZING_CONFIG.get('storage_utilization_percent', 50) / 100
+            headroom = RIGHT_SIZING_CONFIG.get('storage_headroom_percentage', 0) / 100
+            # Calculate based on actual usage with headroom
+            optimized_storage = storage_used_gb * (1 + headroom)
             storage_gb = max(optimized_storage, 10)  # Minimum 10 GB
+        elif storage_gb is None or storage_gb == 0:
+            # No storage data at all - use default
+            storage_gb = RIGHT_SIZING_CONFIG.get('default_provisioned_storage_gib', 500)
         elif RIGHT_SIZING_CONFIG.get('storage_sizing_method') == 'used':
-            # If no usage data but method is 'used', apply default reduction
-            reduction = RIGHT_SIZING_CONFIG.get('storage_reduction_percentage', 50) / 100
-            storage_gb = storage_gb * (1 - reduction)
+            # Have provisioned storage but no usage data - apply utilization assumption
+            utilization = RIGHT_SIZING_CONFIG.get('storage_utilization_percent', 50) / 100
+            headroom = RIGHT_SIZING_CONFIG.get('storage_headroom_percentage', 0) / 100
+            storage_gb = storage_gb * utilization * (1 + headroom)
         
         return vcpu, memory_gb, storage_gb
     
@@ -1183,7 +1202,8 @@ class AWSPricingCalculator:
                          os: str, vm_name: str = '',
                          cpu_util: Optional[float] = None,
                          memory_util: Optional[float] = None,
-                         storage_used_gb: Optional[float] = None) -> Dict:
+                         storage_used_gb: Optional[float] = None,
+                         pricing_model: str = None) -> Dict:
         """
         Calculate exact monthly cost for a single VM
         
@@ -1196,6 +1216,7 @@ class AWSPricingCalculator:
             cpu_util: CPU utilization % (optional, for right-sizing)
             memory_util: Memory utilization % (optional, for right-sizing)
             storage_used_gb: Actually used storage GB (optional, for right-sizing)
+            pricing_model: Pricing model to use (overrides instance default)
         
         Returns:
             Dictionary with detailed cost breakdown
@@ -1220,11 +1241,14 @@ class AWSPricingCalculator:
         if os_type == 'Other':
             os_type = 'Linux'
         
-        # 3. Get exact EC2 pricing using configured pricing model
-        pricing_model = PRICING_CONFIG.get('pricing_model', '3yr_no_upfront')
+        # 3. Get exact EC2 pricing using specified or configured pricing model
+        pricing_model = pricing_model or self.pricing_model or PRICING_CONFIG.get('pricing_model', '3yr_no_upfront')
         if pricing_model == '3yr_ec2_sp':
-            # Use Savings Plan pricing
+            # Use EC2 Instance Savings Plan pricing
             hourly_rate = self.get_ec2_price_by_term(instance_type, os_type, self.target_region, term='3yr_ec2_sp')
+        elif pricing_model == '3yr_compute_sp':
+            # Use Compute Savings Plan pricing
+            hourly_rate = self.get_ec2_price_by_term(instance_type, os_type, self.target_region, term='3yr_compute_sp')
         else:
             # Use default RI pricing
             hourly_rate = self.get_ec2_price(instance_type, os_type)
@@ -1271,23 +1295,27 @@ class AWSPricingCalculator:
         
         return result
     
-    def calculate_arr_from_dataframe(self, df: pd.DataFrame) -> Dict:
+    def calculate_arr_from_dataframe(self, df: pd.DataFrame, pricing_model: str = None) -> Dict:
         """
         Calculate total ARR from RVTools DataFrame
         
         Args:
             df: DataFrame with columns: CPUs, Memory (MB), Provisioned MiB, OS, VM (name)
+            pricing_model: Pricing model to use (overrides instance default)
         
         Returns:
             Dictionary with aggregated results and breakdown
         """
+        # Use provided pricing_model or fall back to instance default
+        pricing_model = pricing_model or self.pricing_model
+        
         results = []
         
         print(f"\n{'='*80}")
         print(f"CALCULATING AWS ARR - DETERMINISTIC PRICING")
         print(f"{'='*80}")
         print(f"Region: {self.target_region}")
-        print(f"Pricing Model: 3-Year No Upfront Reserved Instances")
+        print(f"Pricing Model: {pricing_model}")
         print(f"VMs to analyze: {len(df)}")
         print(f"{'='*80}\n")
         
@@ -1323,8 +1351,8 @@ class AWSPricingCalculator:
             
             vm_name = str(row.get('VM', f'VM-{idx}'))
             
-            # Calculate cost
-            cost = self.calculate_vm_cost(vcpu, memory_gb, storage_gb, os, vm_name)
+            # Calculate cost with specified pricing model
+            cost = self.calculate_vm_cost(vcpu, memory_gb, storage_gb, os, vm_name, pricing_model=pricing_model)
             results.append(cost)
             
             # Progress indicator
@@ -1373,7 +1401,7 @@ class AWSPricingCalculator:
                 'total_monthly_cost': round(total_monthly, 2),
                 'total_arr': round(total_arr, 2),
                 'region': self.target_region,
-                'pricing_model': '3-Year No Upfront Reserved Instances'
+                'pricing_model': pricing_model
             },
             'cost_breakdown': {
                 'monthly_compute': round(total_compute, 2),

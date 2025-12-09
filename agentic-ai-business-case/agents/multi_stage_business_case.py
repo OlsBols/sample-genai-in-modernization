@@ -20,70 +20,84 @@ from appendix_content import get_appendix
 def extract_exact_costs_from_excel():
     """
     Extract exact cost numbers from the Excel file to prevent LLM hallucination
+    Handles both IT Inventory and RVTools Excel files
     Returns formatted string with exact costs to inject into context
     """
     try:
-        # Find the most recent IT inventory pricing Excel file
+        # Try IT Inventory first
         excel_files = glob.glob(os.path.join(output_folder_dir_path, 'it_inventory_aws_pricing_*.xlsx'))
+        
+        # If no IT Inventory, try RVTools
+        if not excel_files:
+            excel_files = glob.glob(os.path.join(output_folder_dir_path, 'vm_to_ec2_mapping.xlsx'))
+        
         if not excel_files:
             return None
         
         latest_excel = max(excel_files, key=os.path.getmtime)
         
+        # Determine file type
+        is_it_inventory = 'it_inventory' in os.path.basename(latest_excel)
+        
         # Read the Pricing_Comparison sheet
-        df = pd.read_excel(latest_excel, sheet_name='Pricing_Comparison')
+        df = pd.read_excel(latest_excel, sheet_name='Pricing_Comparison' if is_it_inventory else 'Pricing Comparison')
         
         # Extract values (they're in the 'Value' column)
         values = df['Value'].tolist()
         
-        # Parse ALL the values from the Pricing_Comparison sheet
-        # Row 0: Total Servers
-        # Row 1: Total Databases
-        # Row 4: Option 1 EC2 Monthly Cost
-        # Row 5: Option 1 RDS Monthly Cost
-        # Row 6: Option 1 Total Monthly Cost
-        # Row 7: Option 1 Total Annual Cost
-        # Row 8: Option 1 3-Year Total Cost
-        # Row 9: Option 1 RDS Upfront Fees
-        # Row 12: Option 2 EC2 Monthly Cost
-        # Row 13: Option 2 RDS Monthly Cost
-        # Row 14: Option 2 Total Monthly Cost
-        # Row 15: Option 2 Total Annual Cost
-        # Row 16: Option 2 3-Year Total Cost
-        # Row 17: Option 2 RDS Upfront Fees
-        # Row 20: EC2 Monthly Savings
-        # Row 21: RDS Monthly Savings
-        # Row 22: Total Monthly Savings
-        # Row 23: Annual Savings
-        # Row 24: 3-Year Savings
-        # Row 25: Savings Percentage
-        
-        total_servers = values[0] if len(values) > 0 else None
-        total_databases = values[1] if len(values) > 1 else None
-        
-        opt1_ec2_monthly = values[4] if len(values) > 4 else None
-        opt1_rds_monthly = values[5] if len(values) > 5 else None
-        opt1_total_monthly = values[6] if len(values) > 6 else None
-        opt1_annual = values[7] if len(values) > 7 else None
-        opt1_3year = values[8] if len(values) > 8 else None
-        opt1_rds_upfront = values[9] if len(values) > 9 else None
-        
-        opt2_ec2_monthly = values[12] if len(values) > 12 else None
-        opt2_rds_monthly = values[13] if len(values) > 13 else None
-        opt2_total_monthly = values[14] if len(values) > 14 else None
-        opt2_annual = values[15] if len(values) > 15 else None
-        opt2_3year = values[16] if len(values) > 16 else None
-        opt2_rds_upfront = values[17] if len(values) > 17 else None
-        
-        ec2_savings = values[20] if len(values) > 20 else None
-        rds_savings = values[21] if len(values) > 21 else None
-        total_savings = values[22] if len(values) > 22 else None
-        annual_savings = values[23] if len(values) > 23 else None
-        three_year_savings = values[24] if len(values) > 24 else None
-        savings_pct = values[25] if len(values) > 25 else None
-        
-        # Format the exact costs string with ALL details
-        exact_costs = f"""
+        if is_it_inventory:
+            # IT Inventory format (EC2 + RDS)
+            # Parse ALL the values from the Pricing_Comparison sheet
+            # Row 0: Total Servers
+            # Row 1: Total Databases
+            # Row 4: Option 1 EC2 Monthly Cost
+            # Row 5: Option 1 RDS Monthly Cost
+            # Row 6: Option 1 Total Monthly Cost
+            # Row 7: Option 1 Total Annual Cost
+            # Row 8: Option 1 3-Year Total Cost
+            # Row 9: Option 1 RDS Upfront Fees
+            # Row 12: Option 2 EC2 Monthly Cost
+            # Row 13: Option 2 RDS Monthly Cost
+            # Row 14: Option 2 Total Monthly Cost
+            # Row 15: Option 2 Total Annual Cost
+            # Row 16: Option 2 3-Year Total Cost
+            # Row 17: Option 2 RDS Upfront Fees
+            # Row 20: EC2 Monthly Savings
+            # Row 21: RDS Monthly Savings
+            # Row 22: Total Monthly Savings
+            # Row 23: Annual Savings
+            # Row 24: 3-Year Savings
+            # Row 25: Savings Percentage
+            
+            total_servers = values[0] if len(values) > 0 else None
+            total_databases = values[1] if len(values) > 1 else None
+            
+            opt1_ec2_monthly = values[4] if len(values) > 4 else None
+            opt1_rds_monthly = values[5] if len(values) > 5 else None
+            opt1_total_monthly = values[6] if len(values) > 6 else None
+            opt1_annual = values[7] if len(values) > 7 else None
+            opt1_3year = values[8] if len(values) > 8 else None
+            opt1_rds_upfront = values[9] if len(values) > 9 else None
+            opt1_3year_incl_upfront = values[10] if len(values) > 10 else None
+            
+            opt2_ec2_monthly = values[13] if len(values) > 13 else None
+            opt2_rds_monthly = values[14] if len(values) > 14 else None
+            opt2_total_monthly = values[15] if len(values) > 15 else None
+            opt2_annual = values[16] if len(values) > 16 else None
+            opt2_3year = values[17] if len(values) > 17 else None
+            opt2_rds_upfront = values[18] if len(values) > 18 else None
+            opt2_3year_incl_upfront = values[19] if len(values) > 19 else None
+            
+            ec2_savings = values[22] if len(values) > 22 else None
+            rds_savings = values[23] if len(values) > 23 else None
+            total_savings = values[24] if len(values) > 24 else None
+            annual_savings = values[25] if len(values) > 25 else None
+            three_year_savings = values[26] if len(values) > 26 else None
+            three_year_savings_incl_upfront = values[27] if len(values) > 27 else None
+            savings_pct = values[28] if len(values) > 28 else None
+            
+            # Format the exact costs string with ALL details
+            exact_costs = f"""
 ================================================================================
 EXACT COSTS FROM EXCEL FILE (DO NOT MODIFY THESE NUMBERS)
 ================================================================================
@@ -95,21 +109,81 @@ OPTION 1: EC2 Instance SP (3yr) + RDS Partial Upfront (3yr) - RECOMMENDED
   RDS Monthly Cost: {opt1_rds_monthly}
   Total Monthly Cost: {opt1_total_monthly}
   Total Annual Cost (ARR): {opt1_annual}
-  3-Year Total Cost: {opt1_3year}
+  3-Year Pricing (Monthly × 36): {opt1_3year}
   RDS Upfront Fees (One-time): {opt1_rds_upfront}
+  3-Year Total Cost (incl. upfront): {opt1_3year_incl_upfront}
 
 OPTION 2: Compute SP (3yr) + RDS No Upfront (1yr × 3)
   EC2 Monthly Cost: {opt2_ec2_monthly}
   RDS Monthly Cost: {opt2_rds_monthly}
   Total Monthly Cost: {opt2_total_monthly}
   Total Annual Cost (ARR): {opt2_annual}
-  3-Year Total Cost: {opt2_3year}
-  RDS Upfront Fees: {opt2_rds_upfront}
+  3-Year Pricing (Monthly × 36): {opt2_3year}
+  RDS Upfront Fees (One-time): {opt2_rds_upfront}
+  3-Year Total Cost (incl. upfront): {opt2_3year_incl_upfront}
 
 SAVINGS (Option 1 vs Option 2)
   EC2 Monthly Savings: {ec2_savings}
   RDS Monthly Savings: {rds_savings}
   Total Monthly Savings: {total_savings}
+  Annual Savings: {annual_savings}
+  3-Year Savings (monthly only): {three_year_savings}
+  3-Year Savings (incl. upfront): {three_year_savings_incl_upfront}
+  Savings Percentage: {savings_pct}
+================================================================================
+USE THESE EXACT NUMBERS IN THE COST ANALYSIS SECTION
+DO NOT ROUND, MODIFY, OR ESTIMATE - COPY THEM EXACTLY AS SHOWN ABOVE
+DO NOT MAKE UP ANY NUMBERS - ALL VALUES ARE PROVIDED ABOVE
+================================================================================
+"""
+        else:
+            # RVTools format (EC2-only, no RDS)
+            # Row 0: Total VMs
+            # Row 3: Option 1 Total Monthly Cost
+            # Row 4: Option 1 Total Annual Cost
+            # Row 5: Option 1 3-Year Pricing
+            # Row 8: Option 2 Total Monthly Cost
+            # Row 9: Option 2 Total Annual Cost
+            # Row 10: Option 2 3-Year Pricing
+            # Row 13: Monthly Savings
+            # Row 14: Annual Savings
+            # Row 15: 3-Year Savings
+            # Row 16: Savings Percentage
+            
+            total_vms = values[0] if len(values) > 0 else None
+            
+            opt1_total_monthly = values[3] if len(values) > 3 else None
+            opt1_annual = values[4] if len(values) > 4 else None
+            opt1_3year = values[5] if len(values) > 5 else None
+            
+            opt2_total_monthly = values[8] if len(values) > 8 else None
+            opt2_annual = values[9] if len(values) > 9 else None
+            opt2_3year = values[10] if len(values) > 10 else None
+            
+            total_savings = values[13] if len(values) > 13 else None
+            annual_savings = values[14] if len(values) > 14 else None
+            three_year_savings = values[15] if len(values) > 15 else None
+            savings_pct = values[16] if len(values) > 16 else None
+            
+            # Format the exact costs string for RVTools (EC2-only)
+            exact_costs = f"""
+================================================================================
+EXACT COSTS FROM EXCEL FILE (DO NOT MODIFY THESE NUMBERS)
+================================================================================
+Total VMs: {total_vms}
+
+OPTION 1: 3-Year EC2 Instance Savings Plan - RECOMMENDED
+  Total Monthly Cost: {opt1_total_monthly}
+  Total Annual Cost (ARR): {opt1_annual}
+  3-Year Pricing: {opt1_3year}
+
+OPTION 2: 3-Year Compute Savings Plan
+  Total Monthly Cost: {opt2_total_monthly}
+  Total Annual Cost (ARR): {opt2_annual}
+  3-Year Pricing: {opt2_3year}
+
+SAVINGS (Option 1 vs Option 2)
+  Monthly Savings: {total_savings}
   Annual Savings: {annual_savings}
   3-Year Savings: {three_year_savings}
   Savings Percentage: {savings_pct}
@@ -119,6 +193,7 @@ DO NOT ROUND, MODIFY, OR ESTIMATE - COPY THEM EXACTLY AS SHOWN ABOVE
 DO NOT MAKE UP ANY NUMBERS - ALL VALUES ARE PROVIDED ABOVE
 ================================================================================
 """
+        
         return exact_costs
         
     except Exception as e:
@@ -142,6 +217,13 @@ Generate a comprehensive Executive Summary for the AWS migration business case.
 
 **Input**: You will receive analysis from multiple agents covering current state, costs, strategy, and migration plan.
 
+**CRITICAL - ATX INPUT HANDLING**:
+- IF ATX data is present, check for "ATX PPT PRE-COMPUTED SUMMARY" in the context
+- IF found, use the Executive Summary content from ATX PowerPoint DIRECTLY
+- Extract key points from the ATX Executive Summary and present them
+- Use the EXACT numbers from ATX (VM counts, costs, savings percentages)
+- DO NOT add information not in the ATX Executive Summary
+
 **CRITICAL - TCO PRESENTATION RULE**:
 - ONLY show cost savings metrics if AWS demonstrates lower TCO than on-premises
 - If AWS costs are EQUAL or HIGHER, focus on business value and strategic benefits instead
@@ -149,40 +231,65 @@ Generate a comprehensive Executive Summary for the AWS migration business case.
 
 **CRITICAL - AVOID REPETITION**:
 - Keep this section HIGH-LEVEL only - detailed numbers will be in later sections
-- Do NOT repeat detailed wave structures, timelines, or cost breakdowns
+- DO NOT repeat detailed wave structures, timelines, or cost breakdowns
 - Focus on KEY takeaways and strategic overview only
 
 **Generate**:
 1. Project Overview (use EXACT customer name and project details from PROJECT CONTEXT)
 2. Current State Highlights - Use EXACT VM counts from analysis (e.g., "51 virtual machines" not "approximately 50")
+   - FOR ATX: Use Assessment Scope numbers (Total VMs, Windows VMs, Linux VMs, Storage)
 3. Recommended Approach - STRATEGIC OVERVIEW (e.g., "phased approach over 18 months" without wave details)
+   - FOR ATX: Extract approach from ATX Executive Summary if mentioned
 4. Key Financial Metrics - SUMMARY ONLY:
-   **CRITICAL - EXTRACT FROM COST ANALYSIS**:
-   - Search the "Cost Analysis" section for BOTH pricing models
-   - Show PRIMARY pricing (3-Year EC2 Instance Savings Plan):
+   **FOR ATX INPUT**:
+   - Use Financial Overview from ATX PPT (Monthly Cost, Annual Cost, 3-Year Cost)
+   - Include savings percentage if mentioned in ATX Executive Summary
+   - Add note: "Pricing based on [pricing model from ATX]"
+   
+   **FOR RVTOOLS/IT INVENTORY INPUT**:
+   - You will receive EXACT COSTS FROM EXCEL FILE in the context
+   - FIRST: Check if it says "Total VMs" (RVTools) or "Total Servers and Total Databases" (IT Inventory)
+   
+   **IF "Total VMs" (RVTools - EC2 only)**:
+   - Use the EXACT values provided for Option 1:
      * Total Monthly AWS Cost
      * Total Annual AWS Cost (ARR)
      * 3-Year Pricing
+   - ❌ DO NOT include "RDS Upfront Fees" line
+   - ❌ DO NOT include "3-Year Total Cost (incl. upfront)" line
    - Add note: "Pricing based on 3-Year EC2 Instance Savings Plan (Option 1 - Recommended). Alternative 3-Year Compute Savings Plan pricing (Option 2) available in Cost Analysis section."
-   - DO NOT use any other numbers - ONLY extract from the Cost Analysis section provided
-   - If you see multiple cost numbers, use the EC2 Instance Savings Plan numbers as primary
+   
+   **IF "Total Servers" AND "Total Databases" (IT Inventory - EC2 + RDS)**:
+   - Use the EXACT values provided for Option 1:
+     * Total Monthly AWS Cost
+     * Total Annual AWS Cost (ARR)
+     * 3-Year Pricing
+     * RDS Upfront Fees (One-time)
+     * 3-Year Total Cost (incl. upfront)
+   - Add note: "Pricing based on 3-Year EC2 Instance Savings Plan for EC2 and 3-Year Partial Upfront RI for RDS (Option 1 - Recommended). Alternative pricing (Option 2) available in Cost Analysis section."
+   
+   - DO NOT use ranges or estimates - use the EXACT numbers provided
+   
    **CRITICAL**: Check TCO_ENABLED flag in context:
    - IF TCO_ENABLED=True AND AWS < On-Prem: Include "Break-even: Month X"
    - IF TCO_ENABLED=False OR AWS >= On-Prem: DO NOT include break-even, show business value instead
 5. Expected Benefits - TOP 3-4 ONLY (detailed list will be in Benefits section)
+   - FOR ATX: Extract benefits from ATX Executive Summary if mentioned
 6. Critical Success Factors - TOP 3 ONLY
+   - FOR ATX: Extract from ATX Executive Summary if mentioned
 7. Timeline Overview - HIGH-LEVEL:
    **CRITICAL - USE ACTUAL PROJECT TIMELINE**:
    - Extract timeline from PROJECT CONTEXT (e.g., "9 months", "18 months", "24 months")
    - Use EXACT timeline in overview (e.g., "9-month phased approach" NOT "18-month")
-   - Do NOT use hardcoded timelines - ALWAYS use the actual project timeline
+   - DO NOT use hardcoded timelines - ALWAYS use the actual project timeline
    - Example: If project is 9 months, say "9-month phased approach" NOT "18-month"
 
 **Format**: Markdown, 400-500 words MAX, include key metrics table
 **Tone**: Executive-level, strategic, business-focused
 **CRITICAL**: 
 - Use ACTUAL NUMBERS from analysis - NO placeholders or approximations
-- Financial metrics MUST match Cost Analysis exactly (e.g., if Cost Analysis shows $5,941.43/month, use that exact number)
+- FOR ATX: Use EXACT content from ATX Executive Summary slide
+- Financial metrics MUST match source data exactly
 - VM counts must be exact (e.g., "51 VMs" not "approximately 50")
 - NO meta-commentary - write only the content itself
 """
@@ -192,21 +299,58 @@ Generate a concise Current State Analysis section.
 
 **Input**: Analysis from current_state_analysis, IT inventory, RVTools, ATX, and MRA agents.
 
+**CRITICAL - ATX INPUT HANDLING**:
+- IF ATX data is present, check for "ATX PPT PRE-COMPUTED SUMMARY" and "Assessment Scope" content
+- Use ONLY the numbers from Assessment Scope (Total VMs, Windows VMs, Linux VMs, Storage)
+- DO NOT add vCPU or RAM details if not in ATX Assessment Scope
+- If data is missing, simply OMIT that field from the table - do not mention it's missing
+- DO NOT hallucinate workload types, application details, or technical specifics
+
 **Generate** (very concise):
-1. IT Infrastructure Overview with ACTUAL NUMBERS from the analysis (Total VMs, vCPUs, RAM, Storage)
+1. IT Infrastructure Overview with ACTUAL NUMBERS from the analysis:
+   - FOR ATX: Use Assessment Scope numbers (Total VMs, Windows/Linux breakdown, Storage)
+   - FOR ATX: If vCPUs/RAM not in Assessment Scope, OMIT those rows from the table
+   - FOR RVTOOLS/IT INVENTORY: Use complete infrastructure metrics
 2. Key Challenges (from ACTUAL analysis findings)
+   - FOR ATX: Extract from ATX Executive Summary if mentioned, otherwise OMIT this section
+   - DO NOT add challenges not mentioned in source data
 3. Technical Debt (from ACTUAL assessment data)
+   - FOR ATX: Only include if mentioned in ATX data, otherwise OMIT this section
+   - FOR MRA: Use MRA findings
 4. Organizational Readiness (from ACTUAL MRA findings)
 
 **Format**: Markdown, 400-500 words MAX, include 1 summary table
 **Tone**: Technical but accessible, data-driven
-**CRITICAL**: Use ACTUAL numbers from analysis - NO placeholders, examples, or cached data. NO meta-commentary.
+**CRITICAL**: 
+- Use ACTUAL numbers from analysis - NO placeholders, examples, or cached data
+- FOR ATX: DO NOT hallucinate details not in the PowerPoint
+- NO meta-commentary
 """
 
 MIGRATION_STRATEGY_PROMPT = """
+🚨🚨🚨 STOP! READ THIS FIRST! 🚨🚨🚨
+
+LOOK FOR "PRE-COMPUTED RVTOOLS SUMMARY" OR "EXACT COSTS FROM EXCEL FILE" IN YOUR CONTEXT.
+
+DOES IT SAY "Total VMs" OR "Total Servers and Total Databases"?
+
+IF "Total VMs" → THIS IS RVTOOLS = EC2 ONLY, NO DATABASES EXIST
+  ❌ FORBIDDEN: RDS, Aurora, DynamoDB, database migration, Oracle, SQL Server, MySQL
+  ❌ DO NOT write about migrating databases
+  ✅ ALLOWED: Lambda, ECS, EKS, Fargate, EC2, Auto Scaling, S3, CloudFront
+
+IF "Total Servers" AND "Total Databases" → THIS IS IT INVENTORY = EC2 + DATABASES
+  ✅ ALLOWED: Include database migration strategies
+
+🚨 IF YOU WRITE "RDS" WHEN INPUT SAYS "Total VMs", YOU FAILED 🚨
+
+================================================================================
+
 Generate a concise Migration Strategy section.
 
 **Input**: Analysis from agent_migration_strategy covering 7Rs recommendations.
+  
+- IF you see "Total Servers" AND "Total Databases" (IT Inventory): Include both EC2 and database strategies
 
 **CRITICAL - TIMELINE REQUIREMENT**: 
 - Check PROJECT CONTEXT for migration timeline (e.g., "18 months", "24 months")
@@ -222,6 +366,16 @@ Generate a concise Migration Strategy section.
 2. 7Rs Distribution (well-formatted table with actual numbers or percentages - NO "TBD" values. If exact numbers unavailable, use reasonable estimates based on VM analysis)
 3. Wave Planning (brief, 2-3 sentences) - waves MUST fit within project timeline
 4. Quick Wins (bullet points, 3-5 items)
+   - FOR RVTOOLS (Total VMs): Focus on EC2/compute quick wins ONLY (Lambda, Fargate, ECS, EKS, Auto Scaling)
+   - ❌ DO NOT mention: RDS, Aurora, DynamoDB, database migration, database consolidation
+   - FOR IT INVENTORY (Total Servers + Databases): Include both compute and database quick wins
+
+**❌ DO NOT INCLUDE**:
+- Cost Analysis (this will be in a separate dedicated section)
+- Cost estimates or ranges
+- TCO comparisons
+- Financial metrics
+- Migration cost estimates
 
 **Format**: Markdown, 400-500 words MAX, proper tables and bullets
 **Tone**: Strategic, practical, actionable
@@ -234,9 +388,34 @@ def get_cost_analysis_prompt():
     
     if tco_enabled:
         return """
+🚨🚨🚨 MANDATORY FIRST STEP - READ THIS BEFORE ANYTHING ELSE 🚨🚨🚨
+
+LOOK AT THE "EXACT COSTS FROM EXCEL FILE" SECTION IN YOUR CONTEXT.
+
+QUESTION: Does it say "Total VMs" OR does it say "Total Servers" and "Total Databases"?
+
+IF "Total VMs" → RVTools input = EC2 ONLY, NO RDS, NO DATABASES
+  ❌ FORBIDDEN: Never write "RDS", "database" (in cost context), "upfront", "+ RDS"
+  ✅ ALLOWED: Only write "EC2", "EBS", "Storage", "Compute"
+
+IF "Total Servers" AND "Total Databases" → IT Inventory = EC2 + RDS
+  ✅ ALLOWED: You can mention RDS and databases
+
+🚨 IF YOU WRITE "RDS" WHEN INPUT SAYS "Total VMs", YOU COMPLETELY FAILED 🚨
+
+================================================================================
+
 Generate a concise Cost Analysis and TCO section.
 
 **Input**: Analysis from agent_aws_cost_arr covering AWS costs and TCO.
+
+**CRITICAL - ATX INPUT HANDLING**:
+- IF ATX data is present, check for "ATX PPT PRE-COMPUTED SUMMARY" and "Financial Overview" content
+- IF found, use the Financial Overview content from ATX PowerPoint AS-IS
+- Present the ATX financial data exactly as provided in the PowerPoint
+- Include any cost breakdowns, savings percentages, or comparisons mentioned in ATX
+- DO NOT add TCO calculations unless explicitly in the ATX Financial Overview
+- DO NOT modify or reformat the ATX financial content
 
 **CRITICAL - DEPRECATED SERVICES**: Do NOT include any deprecated or end-of-life AWS services in cost analysis. Only include current, actively supported services. Reference: https://aws.amazon.com/products/lifecycle/
 
@@ -251,46 +430,108 @@ Before generating this section, the system will extract exact costs from the Exc
 You MUST use these exact numbers - DO NOT modify, round, or estimate them.
 
 **Generate** (very concise):
+
+**FOR ATX INPUT**:
+1. Financial Overview (from ATX PowerPoint) - Present AS-IS:
+   - Include the complete Financial Overview content from ATX
+   - Use EXACT numbers from ATX (monthly, annual, 3-year costs)
+   - Include any savings percentages or comparisons mentioned
+   - Add any assumptions or notes from ATX Financial Overview slide
+   - DO NOT add TCO comparison unless in ATX data
+   - DO NOT modify the ATX financial content
+
+**FOR RVTOOLS/IT INVENTORY INPUT**:
+
+**🚨 CRITICAL FIRST STEP - DETECT INPUT TYPE 🚨**:
+BEFORE writing anything, CHECK the exact costs section you received:
+- Does it say "Total Servers" and "Total Databases"? → IT Inventory (has EC2 + RDS)
+- Does it say "Total VMs" ONLY? → RVTools (EC2 ONLY, NO RDS EXISTS)
+
+IF RVTOOLS (Total VMs only):
+- ❌ DO NOT mention RDS anywhere
+- ❌ DO NOT mention databases in cost context
+- ❌ DO NOT mention upfront fees
+- ❌ DO NOT add "+ RDS" to option titles
+- ❌ DO NOT make up RDS cost breakdowns
+- ✅ ONLY mention EC2, EBS, Storage, Compute
+
 1. AWS Cost Summary - Show BOTH pricing options:
    
    **CRITICAL - YOU WILL RECEIVE EXACT COST NUMBERS**:
    The system will provide you with ALL exact cost numbers from the Excel file.
    You MUST use these EXACT numbers - DO NOT modify, round, estimate, or make up ANY numbers.
    
+   **FOR IT INVENTORY (EC2 + RDS) - Use this format if "Total Databases" is in exact costs**:
+   
    **Option 1: EC2 Instance SP (3yr) + RDS Partial Upfront (3yr) - RECOMMENDED**
-   - EC2 Monthly Cost: Use EXACT value from "Option 1 EC2 Monthly Cost"
-   - RDS Monthly Cost: Use EXACT value from "Option 1 RDS Monthly Cost"
-   - Total Monthly Cost: Use EXACT value from "Option 1 Total Monthly Cost"
-   - Total Annual Cost (ARR): Use EXACT value from "Option 1 Total Annual Cost"
-   - 3-Year Total Cost: Use EXACT value from "Option 1 3-Year Total Cost"
-   - RDS Upfront Fees: Use EXACT value from "Option 1 RDS Upfront Fees"
+   - EC2 Monthly Cost: [from exact costs]
+   - RDS Monthly Cost: [from exact costs]
+   - Total Monthly AWS Cost: [from exact costs]
+   - Total Annual AWS Cost (ARR): [from exact costs]
+   - 3-Year Pricing: [from exact costs]
+   - RDS Upfront Fees (One-time): [from exact costs]
+   - 3-Year Total Cost (incl. upfront): [from exact costs]
    - Note: "Based on 3-Year EC2 Instance Savings Plan for EC2 and 3-Year Partial Upfront RI for RDS"
    
    **Option 2: Compute SP (3yr) + RDS No Upfront (1yr × 3)**
-   - EC2 Monthly Cost: Use EXACT value from "Option 2 EC2 Monthly Cost"
-   - RDS Monthly Cost: Use EXACT value from "Option 2 RDS Monthly Cost"
-   - Total Monthly Cost: Use EXACT value from "Option 2 Total Monthly Cost"
-   - Total Annual Cost (ARR): Use EXACT value from "Option 2 Total Annual Cost"
-   - 3-Year Total Cost: Use EXACT value from "Option 2 3-Year Total Cost"
-   - RDS Upfront Fees: Use EXACT value from "Option 2 RDS Upfront Fees"
+   - EC2 Monthly Cost: [from exact costs]
+   - RDS Monthly Cost: [from exact costs]
+   - Total Monthly AWS Cost: [from exact costs]
+   - Total Annual AWS Cost (ARR): [from exact costs]
+   - 3-Year Pricing: [from exact costs]
+   - RDS Upfront Fees (One-time): [from exact costs]
+   - 3-Year Total Cost (incl. upfront): [from exact costs]
    - Note: "Based on 3-Year Compute Savings Plan for EC2 and 1-Year No Upfront RI (renewed 3 times) for RDS"
    
-   **SAVINGS (Option 1 vs Option 2)**
-   - EC2 Monthly Savings: Use EXACT value from "EC2 Monthly Savings"
-   - RDS Monthly Savings: Use EXACT value from "RDS Monthly Savings"
-   - Total Monthly Savings: Use EXACT value from "Total Monthly Savings"
-   - Annual Savings: Use EXACT value from "Annual Savings"
-   - 3-Year Savings: Use EXACT value from "3-Year Savings"
-   - Savings Percentage: Use EXACT value from "Savings Percentage"
-   - Recommendation: "Option 1 saves $[Total Monthly Savings]/month ([Savings Percentage]%) vs Option 2"
-   - Breakdown: "EC2 savings: $[EC2 Monthly Savings]/month, RDS savings: $[RDS Monthly Savings]/month"
+   **Cost difference vs Option 1**: 
+   - Monthly Savings: [from exact costs]
+   - Annual Savings: [from exact costs]
+   - 3-Year Savings: [from exact costs]
+   - Savings Percentage: [from exact costs]
    
-2. **IF AWS < On-Prem**: Include On-Premises TCO Calculation Methodology and comparison table (use Option 1/EC2 Instance Savings Plan pricing)
-3. **IF AWS >= On-Prem**: Skip TCO comparison, focus on business value and strategic benefits
-4. Migration Cost Ramp (table showing gradual AWS cost increase as workloads migrate - use project timeline from PROJECT CONTEXT)
-5. Cost Optimization opportunities (bullet points)
-6. **IF AWS < On-Prem**: Break-Even Analysis (1 paragraph)
-7. **IF AWS >= On-Prem**: Business Value Justification (agility, innovation, time-to-market, reduced operational complexity)
+   **FOR RVTOOLS (EC2 ONLY) - Use this EXACT format if "Total VMs" is in exact costs**:
+   
+   🚨 REMINDER: If you see "Total VMs", DO NOT write "RDS", "database", "upfront", "+ RDS" 🚨
+   
+   **Option 1: 3-Year EC2 Instance Savings Plan - RECOMMENDED**
+   - Total Monthly AWS Cost: [copy exact value]
+   - Total Annual AWS Cost (ARR): [copy exact value]
+   - 3-Year Pricing: [copy exact value]
+   - Note: Based on 3-Year EC2 Instance Savings Plan
+   
+   **Option 2: 3-Year Compute Savings Plan** 
+   - Total Monthly AWS Cost: [copy exact value]
+   - Total Annual AWS Cost (ARR): [copy exact value]
+   - 3-Year Pricing: [copy exact value]
+   - Note: Based on 3-Year Compute Savings Plan
+   - Cost difference vs Option 1: 
+     - Monthly Savings: [copy exact value]
+     - Annual Savings: [copy exact value]
+     - 3-Year Savings: [copy exact value]
+     - Savings Percentage: [copy exact value]
+   
+   **Cost Breakdown (Option 1 Pricing)**:
+   - Compute (EC2): [calculate from monthly cost if needed]
+   - Storage (EBS): [calculate from monthly cost if needed]
+   - Cost per VM average: [calculate from monthly cost / VM count]
+   
+   ❌ DO NOT include:
+   - RDS or database costs
+   - Upfront fees
+   - Any cost components not in exact costs
+   
+2. **Assumptions** (brief section showing key assumptions used in cost modeling):
+   - Peak CPU Utilization: 25%
+   - Peak Memory Utilization: 60%
+   - Storage Utilization (if missing data): 50%
+   - Default Provisioned Storage (if missing data): 500 GiB
+   
+3. **IF AWS < On-Prem**: Include On-Premises TCO Calculation Methodology and comparison table (use Option 1/EC2 Instance Savings Plan pricing)
+4. **IF AWS >= On-Prem**: Skip TCO comparison, focus on business value and strategic benefits
+5. Migration Cost Ramp (table showing gradual AWS cost increase as workloads migrate - use project timeline from PROJECT CONTEXT)
+6. Cost Optimization opportunities (bullet points)
+7. **IF AWS < On-Prem**: Break-Even Analysis (1 paragraph)
+8. **IF AWS >= On-Prem**: Business Value Justification (agility, innovation, time-to-market, reduced operational complexity)
 
 **CRITICAL REQUIREMENTS FOR DETERMINISTIC CALCULATIONS**:
 - Show BOTH pricing options: 
@@ -327,9 +568,34 @@ You MUST use these exact numbers - DO NOT modify, round, or estimate them.
 """
     else:
         return """
+🚨🚨🚨 MANDATORY FIRST STEP - READ THIS BEFORE ANYTHING ELSE 🚨🚨🚨
+
+LOOK AT THE "EXACT COSTS FROM EXCEL FILE" SECTION IN YOUR CONTEXT.
+
+QUESTION: Does it say "Total VMs" OR does it say "Total Servers" and "Total Databases"?
+
+IF "Total VMs" → RVTools input = EC2 ONLY, NO RDS, NO DATABASES
+  ❌ FORBIDDEN: Never write "RDS", "database" (in cost context), "upfront", "+ RDS"
+  ✅ ALLOWED: Only write "EC2", "EBS", "Storage", "Compute"
+
+IF "Total Servers" AND "Total Databases" → IT Inventory = EC2 + RDS
+  ✅ ALLOWED: You can mention RDS and databases
+
+🚨 IF YOU WRITE "RDS" WHEN INPUT SAYS "Total VMs", YOU COMPLETELY FAILED 🚨
+
+================================================================================
+
 Generate a concise Cost Analysis section (TCO COMPARISON DISABLED).
 
 **Input**: Analysis from agent_aws_cost_arr covering AWS costs.
+
+**CRITICAL - ATX INPUT HANDLING**:
+- IF ATX data is present, check for "ATX PPT PRE-COMPUTED SUMMARY" and "Financial Overview" content
+- IF found, use the Financial Overview content from ATX PowerPoint AS-IS
+- Present the ATX financial data exactly as provided in the PowerPoint
+- Include any cost breakdowns, savings percentages, or comparisons mentioned in ATX
+- DO NOT add information not in the ATX Financial Overview
+- DO NOT modify or reformat the ATX financial content
 
 **CRITICAL - TCO DISABLED**: 
 - DO NOT include on-premises cost calculations
@@ -342,24 +608,75 @@ Generate a concise Cost Analysis section (TCO COMPARISON DISABLED).
 **CRITICAL - DEPRECATED SERVICES**: Do NOT include any deprecated or end-of-life AWS services in cost analysis. Only include current, actively supported services.
 
 **Generate** (very concise):
+
+**FOR ATX INPUT**:
+1. Financial Overview (from ATX PowerPoint) - Present AS-IS:
+   - Include the complete Financial Overview content from ATX
+   - Use EXACT numbers from ATX (monthly, annual, 3-year costs)
+   - Include any savings percentages or comparisons mentioned
+   - Add any assumptions or notes from ATX Financial Overview slide
+   - DO NOT add TCO comparison
+   - DO NOT modify the ATX financial content
+
+**FOR RVTOOLS/IT INVENTORY INPUT**:
+
+**🚨 CRITICAL FIRST STEP - DETECT INPUT TYPE 🚨**:
+BEFORE writing anything, CHECK the exact costs section you received:
+- Does it say "Total Servers" and "Total Databases"? → IT Inventory (has EC2 + RDS)
+- Does it say "Total VMs" ONLY? → RVTools (EC2 ONLY, NO RDS EXISTS)
+
+IF RVTOOLS (Total VMs only):
+- ❌ DO NOT mention RDS anywhere
+- ❌ DO NOT mention databases in cost context
+- ❌ DO NOT mention upfront fees
+- ❌ DO NOT add "+ RDS" to option titles
+- ❌ DO NOT make up RDS cost breakdowns
+- ✅ ONLY mention EC2, EBS, Storage, Compute
+
 1. AWS Cost Summary - Show BOTH pricing options:
+   
+   **FOR IT INVENTORY (EC2 + RDS) - Use this format if "Total Databases" is in exact costs**:
    
    **Option 1: EC2 Instance SP (3yr) + RDS Partial Upfront (3yr) - RECOMMENDED**
    - Total Monthly AWS Cost
    - Total Annual AWS Cost (ARR)
    - 3-Year Pricing: Monthly × 36 months
-   - RDS Upfront Fees (if applicable)
+   - RDS Upfront Fees (One-time): Show if applicable
+   - 3-Year Total Cost (incl. upfront): 3-Year Pricing + RDS Upfront Fees
    - Note: "Based on 3-Year EC2 Instance Savings Plan for EC2 and 3-Year Partial Upfront RI for RDS"
    
    **Option 2: Compute SP (3yr) + RDS No Upfront (1yr × 3)**
    - Total Monthly AWS Cost
    - Total Annual AWS Cost (ARR)
    - 3-Year Pricing: Monthly × 36 months
+   - RDS Upfront Fees (One-time): Show if applicable (typically $0 for No Upfront)
+   - 3-Year Total Cost (incl. upfront): 3-Year Pricing + RDS Upfront Fees
    - Note: "Based on 3-Year Compute Savings Plan for EC2 and 1-Year No Upfront RI (renewed 3 times) for RDS"
    - Cost difference vs Option 1: Show savings amount and breakdown (EC2 + RDS)
    
+   **FOR RVTOOLS (EC2 ONLY) - Use this EXACT format if "Total VMs" is in exact costs**:
+   
+   🚨 REMINDER: If you see "Total VMs", DO NOT write "RDS", "database", "upfront", "+ RDS" 🚨
+   
+   **Option 1: 3-Year EC2 Instance Savings Plan - RECOMMENDED**
+   - Total Monthly AWS Cost: [copy exact value]
+   - Total Annual AWS Cost (ARR): [copy exact value]
+   - 3-Year Pricing: [copy exact value]
+   - Note: Based on 3-Year EC2 Instance Savings Plan
+   
+   **Option 2: 3-Year Compute Savings Plan** 
+   - Total Monthly AWS Cost: [copy exact value]
+   - Total Annual AWS Cost (ARR): [copy exact value]
+   - 3-Year Pricing: [copy exact value]
+   - Note: Based on 3-Year Compute Savings Plan
+   - Cost difference vs Option 1: 
+     - Monthly Savings: [copy exact value]
+     - Annual Savings: [copy exact value]
+     - 3-Year Savings: [copy exact value]
+     - Savings Percentage: [copy exact value]
+   
    **Cost Breakdown** (use Option 1/EC2 Instance Savings Plan pricing):
-   - Breakdown by service (Compute, Storage, Database, Networking)
+   - Breakdown by service (Compute, Storage) - ❌ NO "Database" or "RDS"
    - Breakdown by instance type (ONLY if provided in cost analysis - DO NOT make up instance counts)
    - Cost per VM average
    
@@ -375,21 +692,31 @@ Generate a concise Cost Analysis section (TCO COMPARISON DISABLED).
    - Windows + Linux counts MUST equal total migrating VMs from the summary
    - Example: If summary shows "Windows VMs: 781" and "Linux VMs: 1246", use EXACTLY those numbers
    - These counts are consistent with pricing calculator (Other VMs are treated as Linux)
-2. Migration Cost Ramp (table showing ONLY AWS costs ramping up as migration progresses)
+2. **Assumptions** (brief section showing key assumptions used in cost modeling):
+   - Peak CPU Utilization: 25%
+   - Peak Memory Utilization: 60%
+   - Storage Utilization (if missing data): 50%
+   - Default Provisioned Storage (if missing data): 500 GiB
+
+3. Migration Cost Ramp (table showing ONLY AWS costs ramping up as migration progresses)
    - **CRITICAL**: Use the ACTUAL project timeline from PROJECT CONTEXT (e.g., 3 months, 18 months, 24 months)
    - **CRITICAL**: Title MUST match timeline (e.g., "3-Month Migration Cost Ramp" for 3-month project)
+   - **CRITICAL CALCULATION**: Take the "Total Monthly AWS Cost" from Option 1 and multiply by percentage:
+     * Example: If monthly cost is $12,694.22, then 30% phase = $12,694.22 × 0.30 = $3,808.27
+     * DO NOT make up numbers - CALCULATE from the exact monthly cost provided
    - Divide timeline into 3 phases with appropriate percentages:
      * For 3 months: Month 1 (20%), Month 2 (50%), Month 3 (100%)
+     * For 8 months: Months 1-3 (30%), Months 4-6 (70%), Months 7-8 (100%)
      * For 18 months: Months 1-6 (30%), Months 7-12 (70%), Months 13-18 (100%)
      * For 24 months: Months 1-8 (30%), Months 9-16 (70%), Months 17-24 (100%)
    - DO NOT show on-premises cost reduction
    - DO NOT use hardcoded "18-month" if project timeline is different
-3. Cost Optimization Opportunities (bullet points, 5-7 items)
+4. Cost Optimization Opportunities (bullet points, 5-7 items)
    - Compute Savings Plans and EC2 Instance Savings Plans (already included in pricing)
    - Right-sizing recommendations
    - Storage optimization
    - Spot instances for suitable workloads
-4. Business Value Justification (focus on strategic benefits, NOT cost savings)
+5. Business Value Justification (focus on strategic benefits, NOT cost savings)
    - Agility and faster time-to-market
    - Innovation enablement (AI/ML, analytics, modern services)
    - Reduced technical debt and operational complexity
@@ -457,9 +784,29 @@ Generate a concise Benefits and Risks section.
 """
 
 RECOMMENDATIONS_PROMPT = """
+🚨🚨🚨 STOP! READ THIS FIRST! 🚨🚨🚨
+
+LOOK FOR "PRE-COMPUTED RVTOOLS SUMMARY" OR "EXACT COSTS FROM EXCEL FILE" IN YOUR CONTEXT.
+
+DOES IT SAY "Total VMs" OR "Total Servers and Total Databases"?
+
+IF "Total VMs" → THIS IS RVTOOLS = EC2 ONLY, NO DATABASES EXIST
+  ❌ FORBIDDEN: RDS, Aurora, DynamoDB, DMS, database migration
+  ❌ DO NOT recommend database services
+  ✅ ALLOWED: Lambda, ECS, EKS, Fargate, EC2, Auto Scaling, S3
+
+IF "Total Servers" AND "Total Databases" → THIS IS IT INVENTORY = EC2 + DATABASES
+  ✅ ALLOWED: Include database recommendations
+
+🚨 IF YOU WRITE "RDS" OR "DMS" WHEN INPUT SAYS "Total VMs", YOU FAILED 🚨
+
+================================================================================
+
 Generate a concise Recommendations and Next Steps section.
 
 **Input**: All previous analyses and recommendations.
+  
+- IF you see "Total Servers" AND "Total Databases" (IT Inventory): Include both compute and database recommendations
 
 **CRITICAL - AVOID REPETITION**:
 - Do NOT repeat cost savings numbers (already in Executive Summary and Cost Analysis)
@@ -523,14 +870,19 @@ def generate_multi_stage_business_case(agent_results, project_context):
     
     # Prepare context for all sections
     # Extract actual results from NodeResult objects
-    def get_result_text(node_id):
+    def get_result_text(node_id, max_chars=3000):
+        """
+        Extract result text with size limit to prevent context overflow.
+        Reduced from 8000 to 3000 chars to prevent max_tokens errors.
+        """
         if node_id in agent_results:
             result = agent_results[node_id].result
             if result:
                 result_text = str(result)
                 # Extract key metrics from the beginning (usually has summary)
-                # Take first 8000 chars to ensure we capture the important numbers
-                return result_text[:8000]
+                # Take first N chars to ensure we capture the important numbers
+                # while keeping context size manageable
+                return result_text[:max_chars]
         return 'N/A'
     
     # Determine which assessments were completed
@@ -596,18 +948,90 @@ def generate_multi_stage_business_case(agent_results, project_context):
         try:
             agent = create_section_agent(prompt)
             
-            # For Cost Analysis section, inject exact costs from Excel
-            if section_key == 'cost_analysis':
+            # Build section-specific context to reduce token usage
+            # Only include relevant agent results for each section
+            if section_key == 'executive_summary':
+                # Executive summary needs all results but condensed
+                section_context = f"""
+{project_context}
+{tco_note}
+
+**ANALYSIS SUMMARY (condensed for Executive Summary):**
+- Current State: {get_result_text('current_state_analysis', 2000)}
+- Costs: {get_result_text('agent_aws_cost_arr', 2000)}
+- Strategy: {get_result_text('agent_migration_strategy', 1500)}
+{assessments_note}
+"""
+            elif section_key == 'current_state':
+                # Current state only needs current state analysis
+                section_context = f"""
+{project_context}
+
+**CURRENT STATE ANALYSIS:**
+{get_result_text('current_state_analysis', 4000)}
+"""
+            elif section_key == 'migration_strategy':
+                # Migration strategy needs strategy and current state
+                section_context = f"""
+{project_context}
+
+**CURRENT STATE:**
+{get_result_text('current_state_analysis', 2000)}
+
+**MIGRATION STRATEGY:**
+{get_result_text('agent_migration_strategy', 4000)}
+"""
+            elif section_key == 'cost_analysis':
+                # Cost analysis needs cost data
+                section_context = f"""
+{project_context}
+{tco_note}
+
+**COST ANALYSIS:**
+{get_result_text('agent_aws_cost_arr', 4000)}
+"""
+            elif section_key == 'migration_roadmap':
+                # Migration roadmap needs plan and strategy
+                section_context = f"""
+{project_context}
+
+**MIGRATION STRATEGY:**
+{get_result_text('agent_migration_strategy', 2000)}
+
+**MIGRATION PLAN:**
+{get_result_text('agent_migration_plan', 4000)}
+{assessments_note}
+"""
+            elif section_key == 'benefits_risks':
+                # Benefits and risks needs all context
+                section_context = context
+            elif section_key == 'recommendations':
+                # Recommendations needs all context
+                section_context = f"""
+{project_context}
+{assessments_note}
+
+**KEY FINDINGS:**
+- Current State: {get_result_text('current_state_analysis', 1500)}
+- Costs: {get_result_text('agent_aws_cost_arr', 1500)}
+- Strategy: {get_result_text('agent_migration_strategy', 1500)}
+"""
+            else:
+                # Default: use full context
+                section_context = context
+            
+            # For Executive Summary and Cost Analysis sections, inject exact costs from Excel
+            if section_key in ['executive_summary', 'cost_analysis']:
                 exact_costs = extract_exact_costs_from_excel()
                 if exact_costs:
-                    print("✓ Injecting exact costs from Excel file to prevent LLM hallucination")
-                    task = f"{context}\n\n{exact_costs}\n\nGenerate the {section_name} section based on the available analysis."
+                    print(f"✓ Injecting exact costs from Excel file into {section_name}")
+                    task = f"{section_context}\n\n{exact_costs}\n\nGenerate the {section_name} section based on the available analysis."
                 else:
-                    print("⚠ Could not extract exact costs from Excel, using tool output only")
-                    task = f"{context}\n\nGenerate the {section_name} section based on the available analysis."
+                    print(f"⚠ Could not extract exact costs from Excel for {section_name}, using tool output only")
+                    task = f"{section_context}\n\nGenerate the {section_name} section based on the available analysis."
             else:
-                # Create task with context and agent results
-                task = f"{context}\n\nGenerate the {section_name} section based on the available analysis."
+                # Create task with section-specific context
+                task = f"{section_context}\n\nGenerate the {section_name} section based on the available analysis."
             
             result = agent(task)
             

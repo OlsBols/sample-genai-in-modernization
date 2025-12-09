@@ -81,3 +81,16 @@ ui/backend/*.pyc
 
 # Internal documentation
 docs/
+
+# v1.0 Release - Additional ignores
+*.pyc
+__pycache__/
+.DS_Store
+*.log
+output/logs/
+output/*.md
+output/*.xlsx
+input/case-*/
+.kiro/
+.pids/
+docs/archive/

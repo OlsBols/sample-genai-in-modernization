@@ -65,14 +65,51 @@ def calculate_ec2_costs(df_servers, region, pricing_model):
     
     def process_server(row):
         """Process a single server (for parallel execution)"""
+        from config import RIGHT_SIZING_CONFIG
+        
         vcpus = row['numCpus']
         ram_gb = row['totalRAM (GB)']
         os_name = row['osName']
         
+        # Get storage (handle string format like "500 GB")
+        storage_gb = row.get('Storage-Total Disk Size (GB)', 0)
+        if pd.isna(storage_gb) or storage_gb == 0 or storage_gb == '':
+            storage_gb = RIGHT_SIZING_CONFIG.get('default_provisioned_storage_gib', 500)
+        else:
+            # Parse storage - handle "500 GB" format
+            if isinstance(storage_gb, str):
+                storage_gb = storage_gb.replace('GB', '').replace('gb', '').strip()
+            storage_gb = float(storage_gb)
+        
+        # Store original specs
+        original_vcpus = vcpus
+        original_ram_gb = ram_gb
+        original_storage_gb = storage_gb
+        
+        # Apply right-sizing if enabled (no utilization data, will use ATX assumptions)
+        if RIGHT_SIZING_CONFIG.get('enable_right_sizing', False):
+            from aws_pricing_calculator import AWSPricingCalculator
+            calculator = AWSPricingCalculator(region=region)
+            vcpus, ram_gb, storage_gb = calculator.apply_right_sizing(
+                vcpus, ram_gb, storage_gb,
+                cpu_util=None,  # No utilization data
+                memory_util=None,
+                storage_used_gb=None
+            )
+            right_sizing_applied = True
+            vcpu_reduction = round((1 - vcpus/original_vcpus) * 100, 1) if original_vcpus > 0 else 0
+            memory_reduction = round((1 - ram_gb/original_ram_gb) * 100, 1) if original_ram_gb > 0 else 0
+            storage_reduction = round((1 - storage_gb/original_storage_gb) * 100, 1) if original_storage_gb > 0 else 0
+        else:
+            right_sizing_applied = False
+            vcpu_reduction = 0
+            memory_reduction = 0
+            storage_reduction = 0
+        
         # Detect OS type
         os_type = detect_os_type(os_name)
         
-        # Map to EC2 instance type
+        # Map to EC2 instance type (using optimized specs)
         instance_type = map_to_ec2_instance(vcpus, ram_gb)
         
         # Get pricing
@@ -83,8 +120,20 @@ def calculate_ec2_costs(df_servers, region, pricing_model):
         return {
             'server_id': row['Serverid'],
             'hostname': row['HOSTNAME'],
-            'vcpus': vcpus,
-            'ram_gb': ram_gb,
+            # Original specs
+            'vcpus': original_vcpus,
+            'ram_gb': original_ram_gb,
+            'storage_gb': original_storage_gb,
+            # Right-sizing info
+            'right_sizing_applied': right_sizing_applied,
+            'vcpu_reduction': vcpu_reduction,
+            'memory_reduction': memory_reduction,
+            'storage_reduction': storage_reduction,
+            # Optimized specs
+            'optimized_vcpu': vcpus,
+            'optimized_memory_gb': ram_gb,
+            'optimized_storage_gb': storage_gb,
+            # AWS recommendation
             'os_type': os_type,
             'instance_type': instance_type,
             'monthly_cost': monthly_cost,
@@ -457,13 +506,34 @@ def export_it_inventory_complete(results_option1, results_option2, output_file):
         # Tab 2: EC2 Details (Option 1 - EC2 Instance Savings Plan) with pricing parameters
         ec2_details_option1 = []
         for detail in results_option1['ec2']['details']:
+            # Get EC2 instance specs
+            from aws_pricing_calculator import AWSPricingCalculator
+            calculator = AWSPricingCalculator()
+            instance_specs = calculator.INSTANCE_SPECS.get(detail['instance_type'], (0, 0))
+            ec2_vcpu, ec2_memory = instance_specs
+            
             ec2_details_option1.append({
                 'Server ID': detail['server_id'],
                 'Hostname': detail['hostname'],
-                'vCPUs': detail['vcpus'],
-                'RAM (GB)': detail['ram_gb'],
+                # Input specs
+                'Input vCPUs': detail['vcpus'],
+                'Input RAM (GB)': detail['ram_gb'],
+                'Input Storage (GB)': detail.get('storage_gb', 'N/A'),
                 'OS Type': detail['os_type'],
+                # Right-sizing info (if available)
+                'Right-Sizing Applied': 'Yes' if detail.get('right_sizing_applied', False) else 'No',
+                'vCPU Reduction %': f"{detail.get('vcpu_reduction', 0):.1f}%" if detail.get('right_sizing_applied', False) else 'N/A',
+                'Memory Reduction %': f"{detail.get('memory_reduction', 0):.1f}%" if detail.get('right_sizing_applied', False) else 'N/A',
+                'Storage Reduction %': f"{detail.get('storage_reduction', 0):.1f}%" if detail.get('right_sizing_applied', False) else 'N/A',
+                # Optimized specs (after right-sizing)
+                'Optimized vCPUs': detail.get('optimized_vcpu', detail['vcpus']),
+                'Optimized RAM (GB)': detail.get('optimized_memory_gb', detail['ram_gb']),
+                'Optimized Storage (GB)': detail.get('optimized_storage_gb', detail.get('storage_gb', 'N/A')),
+                # AWS EC2 recommendation
                 'Instance Type': detail['instance_type'],
+                'EC2 vCPUs': ec2_vcpu,
+                'EC2 Memory (GB)': ec2_memory,
+                # Pricing
                 'Pricing Model': '3-Year EC2 Instance Savings Plan',
                 'Term': '3 Years',
                 'Purchase Option': 'No Upfront',
@@ -476,13 +546,34 @@ def export_it_inventory_complete(results_option1, results_option2, output_file):
         # Tab 3: EC2 Details (Option 2 - Compute Savings Plan) with pricing parameters
         ec2_details_option2 = []
         for detail in results_option2['ec2']['details']:
+            # Get EC2 instance specs
+            from aws_pricing_calculator import AWSPricingCalculator
+            calculator = AWSPricingCalculator()
+            instance_specs = calculator.INSTANCE_SPECS.get(detail['instance_type'], (0, 0))
+            ec2_vcpu, ec2_memory = instance_specs
+            
             ec2_details_option2.append({
                 'Server ID': detail['server_id'],
                 'Hostname': detail['hostname'],
-                'vCPUs': detail['vcpus'],
-                'RAM (GB)': detail['ram_gb'],
+                # Input specs
+                'Input vCPUs': detail['vcpus'],
+                'Input RAM (GB)': detail['ram_gb'],
+                'Input Storage (GB)': detail.get('storage_gb', 'N/A'),
                 'OS Type': detail['os_type'],
+                # Right-sizing info (if available)
+                'Right-Sizing Applied': 'Yes' if detail.get('right_sizing_applied', False) else 'No',
+                'vCPU Reduction %': f"{detail.get('vcpu_reduction', 0):.1f}%" if detail.get('right_sizing_applied', False) else 'N/A',
+                'Memory Reduction %': f"{detail.get('memory_reduction', 0):.1f}%" if detail.get('right_sizing_applied', False) else 'N/A',
+                'Storage Reduction %': f"{detail.get('storage_reduction', 0):.1f}%" if detail.get('right_sizing_applied', False) else 'N/A',
+                # Optimized specs (after right-sizing)
+                'Optimized vCPUs': detail.get('optimized_vcpu', detail['vcpus']),
+                'Optimized RAM (GB)': detail.get('optimized_memory_gb', detail['ram_gb']),
+                'Optimized Storage (GB)': detail.get('optimized_storage_gb', detail.get('storage_gb', 'N/A')),
+                # AWS EC2 recommendation
                 'Instance Type': detail['instance_type'],
+                'EC2 vCPUs': ec2_vcpu,
+                'EC2 Memory (GB)': ec2_memory,
+                # Pricing
                 'Pricing Model': '3-Year Compute Savings Plan',
                 'Term': '3 Years',
                 'Purchase Option': 'No Upfront',
@@ -495,6 +586,14 @@ def export_it_inventory_complete(results_option1, results_option2, output_file):
         # Tab 4: RDS Details (Option 1 - 3-Year Partial Upfront) with ALL pricing parameters
         rds_details_option1 = []
         for detail in results_option1['rds']['details']:
+            # Get RDS instance specs (RDS uses same specs as EC2, just with db. prefix)
+            from aws_pricing_calculator import AWSPricingCalculator
+            calculator = AWSPricingCalculator()
+            # Remove 'db.' prefix to look up specs
+            ec2_instance_type = detail['instance_type'].replace('db.', '')
+            instance_specs = calculator.INSTANCE_SPECS.get(ec2_instance_type, (0, 0))
+            rds_vcpu, rds_memory = instance_specs
+            
             # Determine license model based on engine
             license_model = 'BYOL (Bring Your Own License)' if detail['rds_engine'] == 'oracle' else 'License Included' if detail['rds_engine'] == 'sqlserver' else 'N/A'
             
@@ -504,11 +603,24 @@ def export_it_inventory_complete(results_option1, results_option2, output_file):
                 'Database ID': detail['database_id'],
                 'DB Name': detail['db_name'],
                 'Source Engine': detail['source_engine'],
+                # Input specs
+                'Input CPU Cores': detail['cpu_cores'],
+                'Input Size (GB)': detail['size_gb'],
+                # Right-sizing info (if available)
+                'Right-Sizing Applied': 'Yes' if detail.get('right_sizing_applied', False) else 'No',
+                'CPU Reduction %': f"{detail.get('cpu_reduction', 0):.1f}%" if detail.get('right_sizing_applied', False) else 'N/A',
+                'Memory Reduction %': f"{detail.get('memory_reduction', 0):.1f}%" if detail.get('right_sizing_applied', False) else 'N/A',
+                'Storage Reduction %': f"{detail.get('storage_reduction', 0):.1f}%" if detail.get('right_sizing_applied', False) else 'N/A',
+                # Optimized specs
+                'Optimized CPU Cores': detail.get('optimized_cpu_cores', detail['cpu_cores']),
+                'Optimized Size (GB)': detail.get('optimized_size_gb', detail['size_gb']),
+                # AWS RDS recommendation
                 'RDS Engine': detail['rds_engine'],
                 'Instance Type': detail['instance_type'],
-                'CPU Cores': detail['cpu_cores'],
-                'Size (GB)': detail['size_gb'],
+                'RDS vCPUs': rds_vcpu,
+                'RDS Memory (GB)': rds_memory,
                 'Deployment Option': detail.get('deployment_type', 'Single-AZ'),
+                # Pricing details
                 'Pricing Model': '3-Year Reserved Instance (RDS)',
                 'Term': '3 Years',
                 'Purchase Option': detail.get('actual_purchase_option', 'Partial Upfront'),
@@ -535,6 +647,14 @@ def export_it_inventory_complete(results_option1, results_option2, output_file):
         # Tab 5: RDS Details (Option 2 - 1-Year No Upfront) with ALL pricing parameters
         rds_details_option2 = []
         for detail in results_option2['rds']['details']:
+            # Get RDS instance specs (RDS uses same specs as EC2, just with db. prefix)
+            from aws_pricing_calculator import AWSPricingCalculator
+            calculator = AWSPricingCalculator()
+            # Remove 'db.' prefix to look up specs
+            ec2_instance_type = detail['instance_type'].replace('db.', '')
+            instance_specs = calculator.INSTANCE_SPECS.get(ec2_instance_type, (0, 0))
+            rds_vcpu, rds_memory = instance_specs
+            
             # Determine license model based on engine
             license_model = 'BYOL (Bring Your Own License)' if detail['rds_engine'] == 'oracle' else 'License Included' if detail['rds_engine'] == 'sqlserver' else 'N/A'
             
@@ -544,11 +664,24 @@ def export_it_inventory_complete(results_option1, results_option2, output_file):
                 'Database ID': detail['database_id'],
                 'DB Name': detail['db_name'],
                 'Source Engine': detail['source_engine'],
+                # Input specs
+                'Input CPU Cores': detail['cpu_cores'],
+                'Input Size (GB)': detail['size_gb'],
+                # Right-sizing info (if available)
+                'Right-Sizing Applied': 'Yes' if detail.get('right_sizing_applied', False) else 'No',
+                'CPU Reduction %': f"{detail.get('cpu_reduction', 0):.1f}%" if detail.get('right_sizing_applied', False) else 'N/A',
+                'Memory Reduction %': f"{detail.get('memory_reduction', 0):.1f}%" if detail.get('right_sizing_applied', False) else 'N/A',
+                'Storage Reduction %': f"{detail.get('storage_reduction', 0):.1f}%" if detail.get('right_sizing_applied', False) else 'N/A',
+                # Optimized specs
+                'Optimized CPU Cores': detail.get('optimized_cpu_cores', detail['cpu_cores']),
+                'Optimized Size (GB)': detail.get('optimized_size_gb', detail['size_gb']),
+                # AWS RDS recommendation
                 'RDS Engine': detail['rds_engine'],
                 'Instance Type': detail['instance_type'],
-                'CPU Cores': detail['cpu_cores'],
-                'Size (GB)': detail['size_gb'],
+                'RDS vCPUs': rds_vcpu,
+                'RDS Memory (GB)': rds_memory,
                 'Deployment Option': detail.get('deployment_type', 'Single-AZ'),
+                # Pricing details
                 'Pricing Model': '1-Year Reserved Instance (RDS)',
                 'Term': '1 Year (renewed 3 times)',
                 'Purchase Option': detail.get('actual_purchase_option', 'No Upfront'),

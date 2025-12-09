@@ -98,9 +98,7 @@ else:
 
 input_files1 = f"{input_base}{uploaded_files.get('itInventory', 'it-infrastructure-inventory.xlsx')}" if 'itInventory' in uploaded_files else f"{input_base}it-infrastructure-inventory.xlsx"
 input_files2 = f"{input_base}{uploaded_files['rvTool'][0]}" if 'rvTool' in uploaded_files and uploaded_files['rvTool'] else f"{input_base}rvtool*.xlsx"
-input_files3_excel = f"{input_base}{uploaded_files.get('atxExcel', 'atx_analysis.xlsx')}" if 'atxExcel' in uploaded_files else f"{input_base}atx_analysis.xlsx"
-input_files3_pdf = f"{input_base}atx_report.pdf"
-input_files3_pptx = f"{input_base}atx_business_case.pptx"
+input_files3_pptx = f"{input_base}{uploaded_files.get('atxPptx', 'atx_business_case.pptx')}" if 'atxPptx' in uploaded_files else f"{input_base}atx_business_case.pptx"
 
 # SMART AGENT SELECTION - Only add agents for files that exist
 logger.info("="*80)
@@ -120,16 +118,12 @@ rvtools_file_path = os.path.join(project_root, input_base, uploaded_files['rvToo
 
 # Build absolute paths for all files
 abs_input_files1 = os.path.join(project_root, input_files1)
-abs_input_files3_excel = os.path.join(project_root, input_files3_excel)
-abs_input_files3_pdf = os.path.join(project_root, input_files3_pdf)
 abs_input_files3_pptx = os.path.join(project_root, input_files3_pptx)
 
 has_it_inventory = os.path.exists(abs_input_files1)
 has_rvtools = rvtools_file_path is not None and os.path.exists(rvtools_file_path)
-has_atx_excel = os.path.exists(abs_input_files3_excel)
-has_atx_pdf = os.path.exists(abs_input_files3_pdf)
 has_atx_pptx = os.path.exists(abs_input_files3_pptx)
-has_atx = has_atx_excel or has_atx_pdf or has_atx_pptx
+has_atx = has_atx_pptx
 
 
 
@@ -167,8 +161,6 @@ has_mra = mra_content is not None and len(mra_content) > 1000
 
 logger.info(f"IT Inventory: {'✓ FOUND' if has_it_inventory else '✗ Not found'} - {input_files1}")
 logger.info(f"RVTools: {'✓ FOUND' if has_rvtools else '✗ Not found'} - {input_files2}")
-logger.info(f"ATX Excel: {'✓ FOUND' if has_atx_excel else '✗ Not found'} - {input_files3_excel}")
-logger.info(f"ATX PDF: {'✓ FOUND' if has_atx_pdf else '✗ Not found'} - {input_files3_pdf}")
 logger.info(f"ATX PowerPoint: {'✓ FOUND' if has_atx_pptx else '✗ Not found'} - {input_files3_pptx}")
 logger.info(f"MRA: {'✓ FOUND' if has_mra else '✗ Not found'}")
 
@@ -503,6 +495,61 @@ def get_atx_summary_precomputed(atx_excel_path):
         logger.error(traceback.format_exc())
         return None
 
+# PRE-COMPUTE ATX PPT SUMMARY IN PYTHON
+def get_atx_ppt_summary_precomputed(atx_ppt_path):
+    """Pre-compute ATX PowerPoint summary to extract key slides"""
+    try:
+        abs_path = os.path.abspath(atx_ppt_path)
+        logger.info(f"Pre-computing ATX PowerPoint summary from: {abs_path}")
+        
+        if not os.path.exists(abs_path):
+            logger.error(f"File does not exist: {abs_path}")
+            return None
+        
+        # Use the new ATX PowerPoint extractor
+        from atx_ppt_extractor import extract_atx_ppt_data
+        atx_ppt_data = extract_atx_ppt_data(abs_path)
+        
+        if not atx_ppt_data.get('success'):
+            logger.error(f"ATX PowerPoint extraction failed: {atx_ppt_data.get('error')}")
+            return None
+        
+        # Extract data from slides
+        scope = atx_ppt_data['assessment_scope']
+        financial = atx_ppt_data['financial_overview']
+        exec_summary = atx_ppt_data['executive_summary']
+        
+        # Convert to summary format
+        summary = {
+            'total_vms': scope.get('vm_count', 0),
+            'total_vcpus': scope.get('vcpu_count', 0),
+            'total_memory_gb': scope.get('ram_gb', 0),
+            'total_storage_tb': scope.get('storage_tb', 0),
+            'windows_vms': scope.get('windows_vms', 0),
+            'linux_vms': scope.get('linux_vms', 0),
+            'database_count': scope.get('database_count', 0),  # Extract database count
+            'total_arr': financial.get('annual_cost', 0),
+            'total_monthly': financial.get('monthly_cost', 0),
+            'three_year_cost': financial.get('three_year_cost', 0),
+            'executive_summary_content': exec_summary.get('content', ''),
+            'financial_overview_content': financial.get('content', ''),
+            'assessment_scope_content': scope.get('content', '')
+        }
+        
+        logger.info(f"✓✓✓ ATX PPT PRE-COMPUTED SUMMARY SUCCESS ✓✓✓")
+        logger.info(f"    Total VMs: {summary['total_vms']}")
+        logger.info(f"    Windows VMs: {summary['windows_vms']}")
+        logger.info(f"    Linux VMs: {summary['linux_vms']}")
+        logger.info(f"    Database Count: {summary['database_count']}")
+        logger.info(f"    Total ARR: ${summary['total_arr']:,.2f}")
+        logger.info(f"    Total Monthly: ${summary['total_monthly']:,.2f}")
+        return summary
+    except Exception as e:
+        logger.error(f"✗ Error pre-computing ATX PowerPoint summary: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return None
+
 # Get pre-computed summaries based on which files exist (priority: RVTools > IT Inventory > ATX)
 script_dir = os.path.dirname(os.path.abspath(__file__))  # agents/
 project_root = os.path.dirname(script_dir)  # project root
@@ -534,14 +581,14 @@ if has_it_inventory and not rvtools_summary:
 # Try ATX if neither RVTools nor IT Inventory available
 atx_summary = None
 if has_atx and not rvtools_summary and not it_inventory_summary:
-    if 'atxExcel' in uploaded_files:
-        atx_filename = uploaded_files['atxExcel']
+    if 'atxPptx' in uploaded_files:
+        atx_filename = uploaded_files['atxPptx']
     else:
-        atx_filename = "atx_analysis.xlsx"
+        atx_filename = "atx_business_case.pptx"
     
     atx_path = os.path.join(project_root, input_base, atx_filename)
     logger.info(f"ATX absolute path: {atx_path}")
-    atx_summary = get_atx_summary_precomputed(atx_path)
+    atx_summary = get_atx_ppt_summary_precomputed(atx_path)
 
 # Build data section based on what's available (priority: RVTools > IT Inventory > ATX)
 if rvtools_summary:
@@ -614,37 +661,64 @@ USE ONLY THESE PRE-COMPUTED VALUES:
 """
     logger.info("✓ IT Inventory pre-computed summary added to task")
 elif atx_summary:
+    # Build ATX section with all extracted content
+    assessment_scope_text = atx_summary.get('assessment_scope_content', 'Not available')
+    exec_summary_text = atx_summary.get('executive_summary_content', 'Not available')
+    financial_overview_text = atx_summary.get('financial_overview_content', 'Not available')
+    
     infrastructure_data_section = f"""
 **═══════════════════════════════════════════════════════════════**
-**PRE-COMPUTED ATX SUMMARY** (MANDATORY - Use these exact numbers)
+**ATX PPT PRE-COMPUTED SUMMARY** (MANDATORY - Use these exact numbers and content)
 **═══════════════════════════════════════════════════════════════**
 
-These numbers were calculated directly from the ATX (AWS Transform for VMware) file in Python.
-DO NOT call read_excel_file tool. DO NOT extract numbers from anywhere else.
-USE ONLY THESE PRE-COMPUTED VALUES:
+These numbers and content were extracted directly from the ATX PowerPoint presentation.
+DO NOT call read_pptx_file tool. DO NOT extract numbers from anywhere else.
+USE ONLY THESE PRE-EXTRACTED VALUES AND CONTENT:
 
+## ASSESSMENT SCOPE (from ATX PowerPoint)
 - **Total VMs for Migration**: {atx_summary['total_vms']}
 - **Windows VMs**: {atx_summary['windows_vms']}
 - **Linux VMs**: {atx_summary['linux_vms']}
-- **Total Monthly AWS Cost**: ${atx_summary['total_monthly']:,.2f}
-- **Total Annual AWS Cost (ARR)**: ${atx_summary['total_arr']:,.2f}
+- **Total Databases**: {atx_summary.get('database_count', 0)}
+- **Total Storage**: {atx_summary['total_storage_tb']:.2f} TB
+- **Total vCPUs**: {atx_summary.get('total_vcpus', 'Not specified in ATX')}
+- **Total RAM**: {atx_summary.get('total_memory_gb', 'Not specified in ATX')} GB
 
-**NOTE**: ATX provides pre-calculated AWS costs based on 1-Year No Upfront Reserved Instances.
+**🚨 CRITICAL - DATABASE COUNT**: {atx_summary.get('database_count', 0)} databases
+- IF database count is 0: This is VM-ONLY migration, NO RDS, NO database costs
+- IF database count > 0: Include both EC2 and RDS costs
+
+**Full Assessment Scope Content**:
+{assessment_scope_text}
+
+## EXECUTIVE SUMMARY (from ATX PowerPoint)
+**Use this content for Executive Summary section**:
+{exec_summary_text}
+
+## FINANCIAL OVERVIEW (from ATX PowerPoint)
+- **Monthly AWS Cost**: ${atx_summary['total_monthly']:,.2f}
+- **Annual AWS Cost (ARR)**: ${atx_summary['total_arr']:,.2f}
+- **3-Year Total Cost**: ${atx_summary.get('three_year_cost', atx_summary['total_arr'] * 3):,.2f}
+
+**Full Financial Overview Content (USE AS-IS in Cost Analysis section)**:
+{financial_overview_text}
 
 **CRITICAL INSTRUCTIONS FOR ALL AGENTS**:
-1. Use ONLY the numbers above in your analysis
-2. Do NOT call read_excel_file or other extraction tools
-3. Do NOT extract numbers from tool outputs
-4. Do NOT use cached or remembered numbers
-5. Copy these exact numbers into your response
-6. **FOR ALL SECTIONS**: When reporting OS distribution, use EXACTLY these counts:
+1. Use ONLY the numbers and content above in your analysis
+2. For Executive Summary: Extract key points from the ATX Executive Summary content
+3. For Cost Analysis: Include the Financial Overview content AS-IS
+4. For Current State: Use Assessment Scope numbers ONLY
+5. DO NOT add information not present in the ATX content
+6. DO NOT hallucinate workload types, applications, or technical details
+7. If information is missing, state "Not provided in ATX assessment"
+8. **FOR ALL SECTIONS**: When reporting OS distribution, use EXACTLY these counts:
    - Windows VMs: {atx_summary['windows_vms']}
    - Linux VMs: {atx_summary['linux_vms']}
-   - These counts MUST be consistent across ALL sections (Current State, Cost Analysis, etc.)
+   - These counts MUST be consistent across ALL sections
 
 **═══════════════════════════════════════════════════════════════**
 """
-    logger.info("✓ ATX pre-computed summary added to task")
+    logger.info("✓ ATX PPT pre-computed summary added to task")
 else:
     infrastructure_data_section = """
 **Infrastructure Summary**: Not available - file could not be read
@@ -681,6 +755,11 @@ def extract_timeline_months(description):
 
 timeline_months = extract_timeline_months(project_info.get('projectDescription', ''))
 timeline_note = f"\n**⚠️ MIGRATION TIMELINE REQUIREMENT: {timeline_months} MONTHS ⚠️**\n**ALL migration phases, waves, and timelines MUST fit within {timeline_months} months total.**\n**DO NOT exceed {timeline_months} months under any circumstances.**\n" if timeline_months else ""
+
+# Extract project details for ATX deterministic generation
+customer_name = project_info.get('customerName', 'Customer')
+project_name = project_info.get('projectName', 'AWS Migration')
+target_region = project_info.get('awsRegion', 'us-east-1')
 
 logger.info(f"Extracted timeline: {timeline_months} months" if timeline_months else "No timeline found in project description")
 
@@ -741,14 +820,80 @@ if ENABLE_MULTI_STAGE:
 **Example for {timeline_months} months: Phase 1 (Months 1-{timeline_months//3}) + Phase 2 (Months {timeline_months//3+1}-{timeline_months*2//3}) + Phase 3 (Months {timeline_months*2//3+1}-{timeline_months}) = {timeline_months} months**
 """
         
-        # Generate business case in multiple stages
-        final_result_text = generate_multi_stage_business_case(result.results, project_context_with_timeline)
-        logger.info(f"Multi-stage business case generated ({len(final_result_text)} characters)")
+        # Check if this is ATX PowerPoint-only (no Excel file)
+        # If so, use deterministic generation instead of LLM
+        if has_atx_pptx and not has_it_inventory and not has_rvtools:
+            logger.info("="*60)
+            logger.info("ATX PowerPoint-only detected - using deterministic generation")
+            logger.info("="*60)
+            
+            try:
+                from atx_business_case_generator import generate_atx_business_case
+                
+                # Get ATX PowerPoint path
+                if 'atxPpt' in uploaded_files:
+                    atx_ppt_filename = uploaded_files['atxPpt']
+                else:
+                    atx_ppt_filename = "atx_business_case.pptx"
+                
+                atx_ppt_path = os.path.join(project_root, input_base, atx_ppt_filename)
+                
+                # Extract project context dict
+                project_dict = {
+                    'customer_name': customer_name,
+                    'project_name': project_name,
+                    'target_region': target_region,
+                    'timeline_months': timeline_months
+                }
+                
+                # Generate deterministic business case
+                final_result_text = generate_atx_business_case(atx_ppt_path, project_dict)
+                logger.info(f"Deterministic ATX business case generated ({len(final_result_text)} characters)")
+                
+            except Exception as e:
+                logger.warning(f"Deterministic ATX generation failed: {e}")
+                logger.info("Falling back to multi-stage LLM generation")
+                final_result_text = generate_multi_stage_business_case(result.results, project_context_with_timeline)
+                logger.info(f"Multi-stage business case generated ({len(final_result_text)} characters)")
+        else:
+            # Generate business case in multiple stages using LLM
+            final_result_text = generate_multi_stage_business_case(result.results, project_context_with_timeline)
+            logger.info(f"Multi-stage business case generated ({len(final_result_text)} characters)")
         
         file_path = os.path.join(output_folder_dir_path, 'aws_business_case.md')
         with open(file_path, "w", encoding="utf-8") as file:
             file.write(final_result_text)
         logger.info(f"Business case saved to: {file_path}")
+        
+        # Validate and fix business case
+        logger.info("="*60)
+        logger.info("Running business case validation...")
+        logger.info("="*60)
+        try:
+            from business_case_validator import validate_business_case
+            
+            # Find Excel file if it exists
+            excel_path = None
+            if has_rvtools:
+                excel_path = os.path.join(output_folder_dir_path, 'vm_to_ec2_mapping.xlsx')
+            elif has_it_inventory:
+                excel_path = os.path.join(output_folder_dir_path, f'it_inventory_aws_pricing_{target_region}.xlsx')
+            
+            if excel_path and not os.path.exists(excel_path):
+                excel_path = None
+            
+            is_valid, issues, fixes = validate_business_case(file_path, excel_path)
+            
+            if not is_valid and fixes:
+                logger.info(f"✓ Business case validated and fixed ({len(fixes)} fixes applied)")
+            elif is_valid:
+                logger.info("✓ Business case validation passed")
+            else:
+                logger.warning(f"⚠ Business case has issues but no fixes applied")
+                
+        except Exception as e:
+            logger.warning(f"Business case validation failed: {e}")
+            logger.warning("Continuing without validation")
         
     except Exception as e:
         logger.error(f"Multi-stage generation failed: {str(e)}")
@@ -780,6 +925,36 @@ else:
             file.write("\n\n---\n\n")
             file.write(get_appendix())
         logger.info(f"Business case saved to: {file_path}")
+        
+        # Validate and fix business case
+        logger.info("="*60)
+        logger.info("Running business case validation...")
+        logger.info("="*60)
+        try:
+            from business_case_validator import validate_business_case
+            
+            # Find Excel file if it exists
+            excel_path = None
+            if has_rvtools:
+                excel_path = os.path.join(output_folder_dir_path, 'vm_to_ec2_mapping.xlsx')
+            elif has_it_inventory:
+                excel_path = os.path.join(output_folder_dir_path, f'it_inventory_aws_pricing_{target_region}.xlsx')
+            
+            if excel_path and not os.path.exists(excel_path):
+                excel_path = None
+            
+            is_valid, issues, fixes = validate_business_case(file_path, excel_path)
+            
+            if not is_valid and fixes:
+                logger.info(f"✓ Business case validated and fixed ({len(fixes)} fixes applied)")
+            elif is_valid:
+                logger.info("✓ Business case validation passed")
+            else:
+                logger.warning(f"⚠ Business case has issues but no fixes applied")
+                
+        except Exception as e:
+            logger.warning(f"Business case validation failed: {e}")
+            logger.warning("Continuing without validation")
     else:
         logger.error("Business case not found in results")
 

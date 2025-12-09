@@ -359,7 +359,7 @@ def _format_instance_summary(summary_list):
 
 
 @tool(
-    name="extract_atx_arr",
+    name="extract_atx_arr_tool",
     description="Extract AWS ARR from ATX (AWS Transform for VMware) Excel file. ATX pre-calculates costs, this tool extracts them. Returns ARR breakdown with VM counts and OS distribution."
 )
 def extract_atx_arr_tool(atx_filename: str, target_region: str = 'us-east-1'):

@@ -263,3 +263,241 @@ def export_vm_to_ec2_mapping(pricing_results, output_filename='vm_to_ec2_mapping
 if __name__ == "__main__":
     print("Excel Export Module - VM to EC2 Mapping")
     print("Use export_vm_to_ec2_mapping() to generate Excel reports")
+
+
+def export_rvtools_dual_pricing(results_option1, results_option2, output_filename='vm_to_ec2_mapping.xlsx'):
+    """
+    Export RVTools pricing with BOTH pricing options to Excel
+    
+    Similar to IT Inventory dual pricing, but EC2-only (no RDS)
+    - Option 1: 3-Year EC2 Instance Savings Plan
+    - Option 2: 3-Year Compute Savings Plan
+    
+    Args:
+        results_option1: Results from Option 1 (EC2 Instance SP)
+        results_option2: Results from Option 2 (Compute SP)
+        output_filename: Output Excel filename
+    
+    Returns:
+        Path to generated Excel file
+    """
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    import pandas as pd
+    from datetime import datetime
+    
+    output_path = os.path.join(output_folder_dir_path, output_filename)
+    
+    wb = Workbook()
+    wb.remove(wb.active)  # Remove default sheet
+    
+    # Tab 1: Pricing Comparison Summary
+    monthly_savings = results_option2['summary']['total_monthly_cost'] - results_option1['summary']['total_monthly_cost']
+    annual_savings = monthly_savings * 12
+    three_year_savings = monthly_savings * 36
+    savings_pct = (monthly_savings / results_option2['summary']['total_monthly_cost'] * 100) if results_option2['summary']['total_monthly_cost'] > 0 else 0
+    
+    comparison_data = {
+        'Metric': [
+            'Total VMs',
+            '',
+            'Option 1: 3-Year EC2 Instance Savings Plan',
+            'Total Monthly Cost',
+            'Total Annual Cost',
+            '3-Year Pricing',
+            '',
+            'Option 2: 3-Year Compute Savings Plan',
+            'Total Monthly Cost',
+            'Total Annual Cost',
+            '3-Year Pricing',
+            '',
+            'Savings (Option 1 vs Option 2)',
+            'Monthly Savings',
+            'Annual Savings',
+            '3-Year Savings',
+            'Savings Percentage',
+            '',
+            'Region',
+            'Recommendation'
+        ],
+        'Value': [
+            results_option1['summary']['total_vms'],
+            '',
+            '',
+            f"${results_option1['summary']['total_monthly_cost']:,.2f}",
+            f"${results_option1['summary']['total_arr']:,.2f}",
+            f"${results_option1['summary']['total_monthly_cost'] * 36:,.2f}",
+            '',
+            '',
+            f"${results_option2['summary']['total_monthly_cost']:,.2f}",
+            f"${results_option2['summary']['total_arr']:,.2f}",
+            f"${results_option2['summary']['total_monthly_cost'] * 36:,.2f}",
+            '',
+            '',
+            f"${monthly_savings:,.2f}",
+            f"${annual_savings:,.2f}",
+            f"${three_year_savings:,.2f}",
+            f"{savings_pct:.2f}%",
+            '',
+            results_option1['summary']['region'],
+            f"Option 1 saves ${monthly_savings:,.2f}/month ({savings_pct:.1f}%)"
+        ]
+    }
+    
+    df_comparison = pd.DataFrame(comparison_data)
+    ws_comparison = wb.create_sheet('Pricing Comparison')
+    
+    # Write header row
+    ws_comparison.cell(1, 1, 'Metric')
+    ws_comparison.cell(1, 2, 'Value')
+    ws_comparison['A1'].font = Font(bold=True, color='FFFFFF')
+    ws_comparison['A1'].fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
+    ws_comparison['B1'].font = Font(bold=True, color='FFFFFF')
+    ws_comparison['B1'].fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
+    
+    # Write data rows (starting from row 2)
+    for r_idx, row in enumerate(df_comparison.itertuples(index=False), 2):
+        for c_idx, value in enumerate(row, 1):
+            cell = ws_comparison.cell(r_idx, c_idx, value)
+            
+            # Format section headers (adjusted for header row)
+            # Data indices: 2='Option 1', 7='Option 2', 12='Savings'
+            # With header row: 2+2=4, 7+2=9, 12+2=14
+            if r_idx in [4, 9, 14]:  # Section header rows
+                cell.font = Font(bold=True, size=11, color='FFFFFF')
+                cell.fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
+            elif c_idx == 1 and r_idx > 1:  # Don't bold the header row again
+                cell.font = Font(bold=True)
+    
+    ws_comparison.column_dimensions['A'].width = 40
+    ws_comparison.column_dimensions['B'].width = 25
+    
+    # Tab 2: EC2 Details (Option 1 - EC2 Instance SP)
+    ec2_details_option1 = []
+    detailed_df_option1 = results_option1['detailed_results']
+    
+    for idx, row in detailed_df_option1.iterrows():
+        from aws_pricing_calculator import AWSPricingCalculator
+        calculator = AWSPricingCalculator()
+        instance_specs = calculator.INSTANCE_SPECS.get(row['instance_type'], (0, 0))
+        
+        ec2_details_option1.append({
+            'VM Name': row['vm_name'],
+            'VM vCPU': row.get('original_vcpu', row['vcpu']),
+            'VM Memory GB': row.get('original_memory_gb', row['memory_gb']),
+            'VM Storage GB': row.get('original_storage_gb', row['storage_gb']),
+            'VM OS': row['os'],
+            'Right-Sizing Applied': 'Yes' if row.get('right_sizing_applied', False) else 'No',
+            'Optimized vCPU': row['vcpu'],
+            'Optimized Memory GB': row['memory_gb'],
+            'Optimized Storage GB': row['storage_gb'],
+            'AWS Instance Type': row['instance_type'],
+            'EC2 vCPU': instance_specs[0],
+            'EC2 Memory GB': instance_specs[1],
+            'EC2 OS Type': row['os_type'],
+            'Pricing Model': '3-Year EC2 Instance SP',
+            'EC2 Hourly Rate ($)': row['hourly_rate'],
+            'EC2 Monthly Compute ($)': row['monthly_compute'],
+            'EBS Monthly Storage ($)': row['monthly_storage'],
+            'Data Transfer Monthly ($)': row['monthly_data_transfer'],
+            'Total Monthly Cost ($)': row['monthly_total'],
+            'Total Annual Cost ($)': row['monthly_total'] * 12
+        })
+    
+    df_ec2_option1 = pd.DataFrame(ec2_details_option1)
+    ws_ec2_option1 = wb.create_sheet('EC2 Details - Option 1')
+    
+    # Write headers first
+    for c_idx, col_name in enumerate(df_ec2_option1.columns, 1):
+        cell = ws_ec2_option1.cell(1, c_idx, col_name)
+        cell.font = Font(bold=True, color='FFFFFF')
+        cell.fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
+    
+    # Write data starting from row 2
+    for r_idx, row in enumerate(df_ec2_option1.itertuples(index=False), 2):
+        for c_idx, value in enumerate(row, 1):
+            ws_ec2_option1.cell(r_idx, c_idx, value)
+    
+    # Tab 3: EC2 Details (Option 2 - Compute SP)
+    ec2_details_option2 = []
+    detailed_df_option2 = results_option2['detailed_results']
+    
+    for idx, row in detailed_df_option2.iterrows():
+        from aws_pricing_calculator import AWSPricingCalculator
+        calculator = AWSPricingCalculator()
+        instance_specs = calculator.INSTANCE_SPECS.get(row['instance_type'], (0, 0))
+        
+        ec2_details_option2.append({
+            'VM Name': row['vm_name'],
+            'VM vCPU': row.get('original_vcpu', row['vcpu']),
+            'VM Memory GB': row.get('original_memory_gb', row['memory_gb']),
+            'VM Storage GB': row.get('original_storage_gb', row['storage_gb']),
+            'VM OS': row['os'],
+            'Right-Sizing Applied': 'Yes' if row.get('right_sizing_applied', False) else 'No',
+            'Optimized vCPU': row['vcpu'],
+            'Optimized Memory GB': row['memory_gb'],
+            'Optimized Storage GB': row['storage_gb'],
+            'AWS Instance Type': row['instance_type'],
+            'EC2 vCPU': instance_specs[0],
+            'EC2 Memory GB': instance_specs[1],
+            'EC2 OS Type': row['os_type'],
+            'Pricing Model': '3-Year Compute SP',
+            'EC2 Hourly Rate ($)': row['hourly_rate'],
+            'EC2 Monthly Compute ($)': row['monthly_compute'],
+            'EBS Monthly Storage ($)': row['monthly_storage'],
+            'Data Transfer Monthly ($)': row['monthly_data_transfer'],
+            'Total Monthly Cost ($)': row['monthly_total'],
+            'Total Annual Cost ($)': row['monthly_total'] * 12
+        })
+    
+    df_ec2_option2 = pd.DataFrame(ec2_details_option2)
+    ws_ec2_option2 = wb.create_sheet('EC2 Details - Option 2')
+    
+    # Write headers first
+    for c_idx, col_name in enumerate(df_ec2_option2.columns, 1):
+        cell = ws_ec2_option2.cell(1, c_idx, col_name)
+        cell.font = Font(bold=True, color='FFFFFF')
+        cell.fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
+    
+    # Write data starting from row 2
+    for r_idx, row in enumerate(df_ec2_option2.itertuples(index=False), 2):
+        for c_idx, value in enumerate(row, 1):
+            ws_ec2_option2.cell(r_idx, c_idx, value)
+    
+    # Tab 4: EC2 Comparison (Option 1 vs Option 2)
+    ec2_comparison = []
+    for idx, row_option1 in detailed_df_option1.iterrows():
+        row_option2 = detailed_df_option2.iloc[idx]
+        
+        savings = row_option2['monthly_total'] - row_option1['monthly_total']
+        savings_pct = (savings / row_option2['monthly_total'] * 100) if row_option2['monthly_total'] > 0 else 0
+        
+        ec2_comparison.append({
+            'VM Name': row_option1['vm_name'],
+            'Instance Type': row_option1['instance_type'],
+            'OS Type': row_option1['os_type'],
+            'Option 1 Monthly ($)': row_option1['monthly_total'],
+            'Option 2 Monthly ($)': row_option2['monthly_total'],
+            'Monthly Savings ($)': savings,
+            'Savings %': f"{savings_pct:.2f}%"
+        })
+    
+    df_ec2_comparison = pd.DataFrame(ec2_comparison)
+    ws_ec2_comparison = wb.create_sheet('EC2 Comparison')
+    
+    # Write headers first
+    for c_idx, col_name in enumerate(df_ec2_comparison.columns, 1):
+        cell = ws_ec2_comparison.cell(1, c_idx, col_name)
+        cell.font = Font(bold=True, color='FFFFFF')
+        cell.fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
+    
+    # Write data starting from row 2
+    for r_idx, row in enumerate(df_ec2_comparison.itertuples(index=False), 2):
+        for c_idx, value in enumerate(row, 1):
+            ws_ec2_comparison.cell(r_idx, c_idx, value)
+    
+    # Save workbook
+    wb.save(output_path)
+    print(f"✓ Excel export created: {output_path}")
+    
+    return output_path

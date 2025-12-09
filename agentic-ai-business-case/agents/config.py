@@ -18,7 +18,7 @@ output_folder_dir_path = os.path.join(_project_root, "output") + "/"
 
 # Option 2: Claude 3.5 Sonnet with Cross-Region Inference (8192 max tokens)
 # Requires model access enabled in Bedrock Console - see CLAUDE_35_SETUP.md
-# TEMPORARILY DISABLED: Switching to stable Claude 3 Sonnet due to service issues
+# TEMPORARILY DISABLED: Service unavailable errors
 # model_id_claude3_7="us.anthropic.claude-3-5-sonnet-20241022-v2:0"
 # max_tokens_default = 8192
 
@@ -92,24 +92,33 @@ PRICING_CONFIG = {
 # RIGHT-SIZING CONFIGURATION
 # ============================================================================
 # Apply right-sizing based on actual utilization (if available in RVTools)
+# These assumptions align with AWS Transform for VMware (ATX) methodology
 
 RIGHT_SIZING_CONFIG = {
     # Enable right-sizing based on utilization data
     'enable_right_sizing': True,  # Default: ON for cost optimization
     
-    # CPU right-sizing: Use peak or average utilization
-    # If RVTools has CPU utilization data, size based on actual usage
+    # CPU right-sizing: Use peak utilization
+    # ATX Assumption: 25% peak CPU utilization
     'cpu_sizing_method': 'peak',  # Options: 'peak', 'average', 'p95' (95th percentile)
-    'cpu_headroom_percentage': 20,  # Add 20% headroom above peak usage
+    'cpu_peak_utilization_percent': 25,  # ATX standard: 25% peak CPU utilization
+    'cpu_headroom_percentage': 0,  # No additional headroom (already in 25% assumption)
     
-    # Memory right-sizing: Use peak or average utilization
+    # Memory right-sizing: Use peak utilization
+    # ATX Assumption: 60% peak memory utilization
     'memory_sizing_method': 'peak',  # Options: 'peak', 'average', 'p95'
-    'memory_headroom_percentage': 20,  # Add 20% headroom above peak usage
+    'memory_peak_utilization_percent': 60,  # ATX standard: 60% peak memory utilization
+    'memory_headroom_percentage': 0,  # No additional headroom (already in 60% assumption)
     
     # Storage right-sizing: Use actual used storage vs provisioned
+    # ATX Assumption: 50% storage utilization if missing data
     'storage_sizing_method': 'used',  # Options: 'used', 'provisioned'
-    'storage_reduction_percentage': 50,  # Assume 50% reduction (thin provisioning, compression)
-    'storage_headroom_percentage': 20,  # Add 20% headroom for growth
+    'storage_utilization_percent': 50,  # ATX standard: 50% storage utilization
+    'storage_headroom_percentage': 0,  # No additional headroom (already in 50% assumption)
+    
+    # Default provisioned storage if missing data
+    # ATX Assumption: 500 GiB default provisioned storage
+    'default_provisioned_storage_gib': 500,  # Default storage per VM if data missing
     
     # Minimum instance sizes (prevent over-optimization)
     'min_vcpu': 2,  # Minimum 2 vCPUs

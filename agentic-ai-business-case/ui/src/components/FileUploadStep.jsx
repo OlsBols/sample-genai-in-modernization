@@ -23,7 +23,7 @@ const FileUploadStep = ({ uploadedFiles, setUploadedFiles }) => {
   const getSelectedInputType = () => {
     if (uploadedFiles['itInventory']) return 'itInventory';
     if (uploadedFiles['rvTool'] && (Array.isArray(uploadedFiles['rvTool']) ? uploadedFiles['rvTool'].length > 0 : true)) return 'rvTool';
-    if (uploadedFiles['atxExcel'] || uploadedFiles['atxPdf'] || uploadedFiles['atxPptx']) return 'atx';
+    if (uploadedFiles['atxPptx']) return 'atx';
     return null;
   };
 
@@ -52,33 +52,13 @@ const FileUploadStep = ({ uploadedFiles, setUploadedFiles }) => {
       example: 'rvtool-vInfo.csv or rvtools-tabvInfo.xlsx'
     },
     {
-      key: 'atxExcel',
-      label: 'ATX Analysis Data (Excel)',
-      description: 'AWS Transform for VMware - Environment data spreadsheet',
-      acceptedFormats: '.xlsx, .xls',
-      required: false,
-      inputType: 'atx',
-      details: 'VMware environment data and cost analysis from AWS Transform for VMware assessment tool.',
-      example: 'atx_analysis.xlsx'
-    },
-    {
-      key: 'atxPdf',
-      label: 'ATX Technical Report (PDF)',
-      description: 'AWS Transform for VMware - Detailed technical assessment report',
-      acceptedFormats: '.pdf',
-      required: false,
-      inputType: 'atx',
-      details: 'Comprehensive technical assessment report with infrastructure analysis, workload categorization, and migration recommendations.',
-      example: 'atx_report.pdf'
-    },
-    {
       key: 'atxPptx',
       label: 'ATX Business Case (PowerPoint)',
-      description: 'AWS Transform for VMware - Executive presentation',
+      description: 'AWS Transform for VMware - Executive presentation for x86 servers (VMware only)',
       acceptedFormats: '.pptx, .ppt',
       required: false,
       inputType: 'atx',
-      details: 'Executive-level business case presentation with high-level findings and recommendations.',
+      details: 'Use ATX output for x86 servers (VMware environments). For databases + VMs, use IT Infrastructure Inventory instead. If ATX is not available, use RVTools.',
       example: 'atx_business_case.pptx'
     },
     {

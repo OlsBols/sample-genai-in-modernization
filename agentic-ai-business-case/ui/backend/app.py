@@ -157,8 +157,6 @@ def generate_business_case():
         # Save uploaded files
         file_mapping = {
             'itInventory': 'it-infrastructure-inventory.xlsx',
-            'atxExcel': 'atx_analysis.xlsx',
-            'atxPdf': 'atx_report.pdf',
             'atxPptx': 'atx_business_case.pptx',
             'portfolio': 'application-portfolio.csv'
         }
@@ -486,8 +484,6 @@ def load_business_case(case_id):
         if is_s3_enabled() and 's3FileKeys' in case_data:
             file_mapping = {
                 'itInventory': 'it-infrastructure-inventory.xlsx',
-                'atxExcel': 'atx_analysis.xlsx',
-                'atxPdf': 'atx_report.pdf',
                 'atxPptx': 'atx_business_case.pptx',
                 'portfolio': 'application-portfolio.csv'
             }

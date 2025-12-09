@@ -38,7 +38,7 @@ function App() {
       // Phase 1: Data Analysis - based on uploaded files
       itInventory: !!uploadedFiles.itInventory,
       rvTool: !!(uploadedFiles.rvTool && (Array.isArray(uploadedFiles.rvTool) ? uploadedFiles.rvTool.length > 0 : true)),
-      atx: !!(uploadedFiles.atxExcel || uploadedFiles.atxPdf || uploadedFiles.atxPptx),
+      atx: !!uploadedFiles.atxPptx,
       mra: !!uploadedFiles.mra,
       // Phase 2, 3, 4: Always run
       currentState: true,
