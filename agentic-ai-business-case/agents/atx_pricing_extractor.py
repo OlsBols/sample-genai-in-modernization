@@ -157,7 +157,8 @@ def export_atx_summary_to_file(atx_data, output_file):
     
     summary = format_atx_summary(atx_data)
     
-    with open(output_file, 'w') as f:
+    # Security: Specify encoding explicitly to prevent encoding issues
+    with open(output_file, 'w', encoding='utf-8') as f:
         f.write(summary)
         f.write("\n\n")
         f.write("="*60)

@@ -384,7 +384,8 @@ if __name__ == "__main__":
         
         # Save to file
         output_path = 'output/atx_business_case_deterministic.md'
-        with open(output_path, 'w') as f:
+        # Security: Specify encoding explicitly to prevent encoding issues
+        with open(output_path, 'w', encoding='utf-8') as f:
             f.write(business_case)
         
         print(f"✓ Business case generated: {output_path}")

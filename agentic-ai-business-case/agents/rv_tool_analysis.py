@@ -38,7 +38,8 @@ def read_csv_from_current_dir(filename, max_rows=MAX_ROWS_RVTOOLS):
     # Log if data was truncated
     try:
         if filename.endswith('.csv'):
-            total_rows = sum(1 for _ in open(full_path)) - 1  # -1 for header
+            # Security: Specify encoding explicitly to prevent encoding issues
+            total_rows = sum(1 for _ in open(full_path, encoding='utf-8')) - 1  # -1 for header
         else:
             total_rows = len(pd.read_excel(full_path, usecols=[0]))
         
@@ -189,7 +190,8 @@ def rv_tool_analysis(filename_or_pattern):
             # Warn if file is larger
             try:
                 if vinfo_file.endswith('.csv'):
-                    total_rows = sum(1 for _ in open(vinfo_file)) - 1
+                    # Security: Specify encoding explicitly to prevent encoding issues
+                    total_rows = sum(1 for _ in open(vinfo_file, encoding='utf-8')) - 1
                 else:
                     # For Excel, try vInfo sheet first
                     try:

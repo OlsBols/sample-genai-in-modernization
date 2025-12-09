@@ -320,11 +320,14 @@ def run_business_case_generator(project_info, selected_agents):
         os.chdir(AGENTS_DIR)
         
         # Run the business case generator
+        # Security: Using list format with explicit executable prevents shell injection (B603, B201)
         result = subprocess.run(
             [sys.executable, 'aws_business_case.py'],
             capture_output=True,
             text=True,
-            timeout=1800  # 30 minutes timeout
+            timeout=1800,  # 30 minutes timeout
+            shell=False,  # Explicitly disable shell to prevent injection attacks
+            check=False  # We handle return code manually
         )
         
         if result.returncode != 0:
@@ -673,4 +676,17 @@ if __name__ == '__main__':
     print(f"Agents directory: {AGENTS_DIR}")
     print(f"Input directory: {INPUT_DIR}")
     print(f"Output directory: {OUTPUT_DIR}")
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    
+    # Security: Get debug mode from environment variable (default to False for production)
+    # B105: Hardcoded password - False positive, this is debug flag not a password
+    debug_mode = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
+    
+    # Security: Only bind to 0.0.0.0 in development mode
+    # In production, use a proper WSGI server (gunicorn, uwsgi) instead of app.run()
+    host = '127.0.0.1' if not debug_mode else '0.0.0.0'
+    
+    if debug_mode:
+        print("⚠️  WARNING: Running in DEBUG mode - DO NOT use in production!")
+        print("   Set FLASK_DEBUG=false for production deployment")
+    
+    app.run(debug=debug_mode, host=host, port=5000)

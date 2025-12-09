@@ -27,7 +27,8 @@ class BusinessCaseValidator:
         self.fixes_applied = []
         
         # Load business case content
-        with open(business_case_path, 'r') as f:
+        # Security: Specify encoding explicitly to prevent encoding issues
+        with open(business_case_path, 'r', encoding='utf-8') as f:
             self.content = f.read()
         
         # Load Excel data if available
@@ -103,7 +104,8 @@ class BusinessCaseValidator:
                     print(f"   - {fix}")
                 
                 # Save fixed content
-                with open(self.business_case_path, 'w') as f:
+                # Security: Specify encoding explicitly to prevent encoding issues
+                with open(self.business_case_path, 'w', encoding='utf-8') as f:
                     f.write(self.content)
                 print(f"\n✓ Updated business case saved: {self.business_case_path}")
             
