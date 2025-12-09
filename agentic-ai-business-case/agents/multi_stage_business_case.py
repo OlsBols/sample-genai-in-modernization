@@ -554,7 +554,13 @@ You MUST use these exact numbers - DO NOT modify, round, or estimate them.
 
 **Generate** (very concise):
 
-**FOR ATX INPUT**:
+**🚨 FIRST: CHECK INPUT TYPE 🚨**
+Look at the "EXACT COSTS FROM EXCEL FILE" section you received:
+- Does it mention "ATX PPT PRE-COMPUTED SUMMARY"? → ATX INPUT (use ATX section below)
+- Does it say "Total Servers" and "Total Databases"? → IT INVENTORY INPUT (use IT Inventory section below)
+- Does it say "Total VMs" ONLY? → RVTOOLS INPUT (use RVTools section below)
+
+**FOR ATX INPUT ONLY** (if "ATX PPT PRE-COMPUTED SUMMARY" is present):
 1. Financial Overview (from ATX PowerPoint) - Present AS-IS:
    - Include the complete Financial Overview content from ATX
    - Use EXACT numbers from ATX (monthly, annual, 3-year costs)
@@ -563,7 +569,7 @@ You MUST use these exact numbers - DO NOT modify, round, or estimate them.
    - DO NOT add TCO comparison unless in ATX data
    - DO NOT modify the ATX financial content
 
-**FOR RVTOOLS/IT INVENTORY INPUT**:
+**FOR RVTOOLS/IT INVENTORY INPUT** (if no ATX data):
 
 **🚨 CRITICAL FIRST STEP - DETECT INPUT TYPE 🚨**:
 BEFORE writing anything, CHECK the exact costs section you received:
@@ -734,7 +740,13 @@ Generate a concise Cost Analysis section (TCO COMPARISON DISABLED).
 
 **Generate** (very concise):
 
-**FOR ATX INPUT**:
+**🚨 FIRST: CHECK INPUT TYPE 🚨**
+Look at the "EXACT COSTS FROM EXCEL FILE" section you received:
+- Does it mention "ATX PPT PRE-COMPUTED SUMMARY"? → ATX INPUT (use ATX section below)
+- Does it say "Total Servers" and "Total Databases"? → IT INVENTORY INPUT (use IT Inventory section below)
+- Does it say "Total VMs" ONLY? → RVTOOLS INPUT (use RVTools section below)
+
+**FOR ATX INPUT ONLY** (if "ATX PPT PRE-COMPUTED SUMMARY" is present):
 1. Financial Overview (from ATX PowerPoint) - Present AS-IS:
    - Include the complete Financial Overview content from ATX
    - Use EXACT numbers from ATX (monthly, annual, 3-year costs)
@@ -743,7 +755,7 @@ Generate a concise Cost Analysis section (TCO COMPARISON DISABLED).
    - DO NOT add TCO comparison
    - DO NOT modify the ATX financial content
 
-**FOR RVTOOLS/IT INVENTORY INPUT**:
+**FOR RVTOOLS/IT INVENTORY INPUT** (if no ATX data):
 
 **🚨 CRITICAL FIRST STEP - DETECT INPUT TYPE 🚨**:
 BEFORE writing anything, CHECK the exact costs section you received:
