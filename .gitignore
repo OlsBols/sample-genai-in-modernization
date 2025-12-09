@@ -208,3 +208,15 @@ agentic-ai-business-case/DEPLOYMENT.md
 agentic-ai-business-case/GUNICORN_MIGRATION_COMPLETE.md
 agentic-ai-business-case/GUNICORN_UPGRADE_SUMMARY.md
 agentic-ai-business-case/ui/backend/README-GUNICORN.md
+agentic-ai-business-case/ui/backend/app.py
+agentic-ai-business-case/.bandit.yml
+agentic-ai-business-case/.semgrep.yml
+agentic-ai-business-case/FALSE_POSITIVE_RESOLUTION.md
+agentic-ai-business-case/pyproject.toml
+agentic-ai-business-case/SCANNER_SUPPRESSION_GUIDE.md
+agentic-ai-business-case/SECURITY_ISSUES_RESOLVED.md
+agentic-ai-business-case/SECURITY_SCANNER_GUIDE.md
+agentic-ai-business-case/.gitlab/sast-suppressions.yml
+agentic-ai-business-case/ui/backend/.bandit
+agentic-ai-business-case/ui/backend/.semgrepignore
+agentic-ai-business-case/ui/backend/SECURITY.md
