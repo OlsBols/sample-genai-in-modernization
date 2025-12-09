@@ -96,6 +96,27 @@ def extract_exact_costs_from_excel():
             three_year_savings_incl_upfront = values[27] if len(values) > 27 else None
             savings_pct = values[28] if len(values) > 28 else None
             
+            # Calculate migration ramp costs
+            from project_context import get_project_info_dict
+            project_info = get_project_info_dict()
+            
+            # Extract timeline from project description
+            timeline_months = None
+            if 'projectDescription' in project_info:
+                desc = project_info['projectDescription'].lower()
+                import re
+                # Look for patterns like "12 months", "18-month", "24 month"
+                timeline_match = re.search(r'(\d+)[\s-]?months?', desc)
+                if timeline_match:
+                    timeline_months = int(timeline_match.group(1))
+            
+            # Default to 12 months if not found
+            if not timeline_months:
+                timeline_months = 12
+            
+            # Calculate migration ramp
+            migration_ramp = calculate_migration_ramp(opt1_total_monthly, timeline_months)
+            
             # Format the exact costs string with ALL details
             exact_costs = f"""
 ================================================================================
@@ -130,10 +151,15 @@ SAVINGS (Option 1 vs Option 2)
   3-Year Savings (monthly only): {three_year_savings}
   3-Year Savings (incl. upfront): {three_year_savings_incl_upfront}
   Savings Percentage: {savings_pct}
+
+MIGRATION COST RAMP (PRE-CALCULATED - USE EXACTLY AS SHOWN)
+{migration_ramp}
+
 ================================================================================
 USE THESE EXACT NUMBERS IN THE COST ANALYSIS SECTION
 DO NOT ROUND, MODIFY, OR ESTIMATE - COPY THEM EXACTLY AS SHOWN ABOVE
 DO NOT MAKE UP ANY NUMBERS - ALL VALUES ARE PROVIDED ABOVE
+THE MIGRATION COST RAMP IS PRE-CALCULATED - COPY IT EXACTLY
 ================================================================================
 """
         else:
@@ -165,6 +191,27 @@ DO NOT MAKE UP ANY NUMBERS - ALL VALUES ARE PROVIDED ABOVE
             three_year_savings = values[15] if len(values) > 15 else None
             savings_pct = values[16] if len(values) > 16 else None
             
+            # Calculate migration ramp costs
+            from project_context import get_project_info_dict
+            project_info = get_project_info_dict()
+            
+            # Extract timeline from project description
+            timeline_months = None
+            if 'projectDescription' in project_info:
+                desc = project_info['projectDescription'].lower()
+                import re
+                # Look for patterns like "12 months", "18-month", "24 month"
+                timeline_match = re.search(r'(\d+)[\s-]?months?', desc)
+                if timeline_match:
+                    timeline_months = int(timeline_match.group(1))
+            
+            # Default to 12 months if not found
+            if not timeline_months:
+                timeline_months = 12
+            
+            # Calculate migration ramp
+            migration_ramp = calculate_migration_ramp(opt1_total_monthly, timeline_months)
+            
             # Format the exact costs string for RVTools (EC2-only)
             exact_costs = f"""
 ================================================================================
@@ -187,10 +234,15 @@ SAVINGS (Option 1 vs Option 2)
   Annual Savings: {annual_savings}
   3-Year Savings: {three_year_savings}
   Savings Percentage: {savings_pct}
+
+MIGRATION COST RAMP (PRE-CALCULATED - USE EXACTLY AS SHOWN)
+{migration_ramp}
+
 ================================================================================
 USE THESE EXACT NUMBERS IN THE COST ANALYSIS SECTION
 DO NOT ROUND, MODIFY, OR ESTIMATE - COPY THEM EXACTLY AS SHOWN ABOVE
 DO NOT MAKE UP ANY NUMBERS - ALL VALUES ARE PROVIDED ABOVE
+THE MIGRATION COST RAMP IS PRE-CALCULATED - COPY IT EXACTLY
 ================================================================================
 """
         
@@ -201,6 +253,77 @@ DO NOT MAKE UP ANY NUMBERS - ALL VALUES ARE PROVIDED ABOVE
         import traceback
         traceback.print_exc()
         return None
+
+def calculate_migration_ramp(monthly_cost: float, timeline_months: int) -> str:
+    """
+    Calculate migration cost ramp based on timeline.
+    Returns formatted string with exact costs for each phase.
+    
+    Args:
+        monthly_cost: Total monthly AWS cost (from Option 1)
+        timeline_months: Project timeline in months
+    
+    Returns:
+        Formatted string with migration ramp costs
+    """
+    if not monthly_cost or not timeline_months:
+        return ""
+    
+    # Ensure monthly_cost is a float
+    if isinstance(monthly_cost, str):
+        monthly_cost = float(monthly_cost.replace('$', '').replace(',', ''))
+    
+    # Define phase percentages and month ranges based on timeline
+    if timeline_months <= 3:
+        # 3-month timeline
+        phases = [
+            ("Month 1", 0.20, monthly_cost * 0.20),
+            ("Month 2", 0.50, monthly_cost * 0.50),
+            ("Month 3", 1.00, monthly_cost * 1.00)
+        ]
+        title = "3-Month Migration Cost Ramp"
+    elif timeline_months <= 8:
+        # 8-month timeline
+        phases = [
+            ("Months 1-3", 0.30, monthly_cost * 0.30),
+            ("Months 4-6", 0.70, monthly_cost * 0.70),
+            ("Months 7-8", 1.00, monthly_cost * 1.00)
+        ]
+        title = "8-Month Migration Cost Ramp"
+    elif timeline_months <= 12:
+        # 12-month timeline
+        phases = [
+            ("Months 1-4", 0.30, monthly_cost * 0.30),
+            ("Months 5-8", 0.70, monthly_cost * 0.70),
+            ("Months 9-12", 1.00, monthly_cost * 1.00)
+        ]
+        title = "12-Month Migration Cost Ramp"
+    elif timeline_months <= 18:
+        # 18-month timeline
+        phases = [
+            ("Months 1-6", 0.30, monthly_cost * 0.30),
+            ("Months 7-12", 0.70, monthly_cost * 0.70),
+            ("Months 13-18", 1.00, monthly_cost * 1.00)
+        ]
+        title = "18-Month Migration Cost Ramp"
+    else:
+        # 24-month timeline
+        phases = [
+            ("Months 1-8", 0.30, monthly_cost * 0.30),
+            ("Months 9-16", 0.70, monthly_cost * 0.70),
+            ("Months 17-24", 1.00, monthly_cost * 1.00)
+        ]
+        title = "24-Month Migration Cost Ramp"
+    
+    # Format the migration ramp section
+    ramp_text = f"""
+**{title}**:
+"""
+    for period, percentage, cost in phases:
+        ramp_text += f"- {period}: ${cost:,.2f} ({int(percentage * 100)}% of monthly cost)\n"
+    
+    return ramp_text.strip()
+
 
 def create_section_agent(section_prompt):
     """Create an agent for generating a specific section"""
@@ -542,11 +665,13 @@ IF RVTOOLS (Total VMs only):
 - If cost analysis shows "Year 1 AWS: $X", use that EXACT figure - don't round or estimate
 - On-premises costs should be HIGHER than AWS costs
 - Explain RDS pricing difference: 3-year Partial Upfront (lower monthly, requires upfront payment) vs 1-year No Upfront (higher monthly, no upfront payment)
-- **MIGRATION COST RAMP**: Use the ACTUAL project timeline from PROJECT CONTEXT (e.g., 3 months, 18 months, 24 months)
+- **MIGRATION COST RAMP**: Use the ACTUAL project timeline from PROJECT CONTEXT (e.g., 3 months, 12 months, 18 months, 24 months)
   * For 3 months: Month 1 (20%), Month 2 (50%), Month 3 (100%)
+  * For 12 months: Months 1-4 (30%), Months 5-8 (70%), Months 9-12 (100%)
   * For 18 months: Months 1-6 (30%), Months 7-12 (70%), Months 13-18 (100%)
   * For 24 months: Months 1-8 (30%), Months 9-16 (70%), Months 17-24 (100%)
-  * Title should match timeline: "3-Month Migration Cost Ramp" or "18-Month Migration Cost Ramp"
+  * Title should match timeline: "3-Month Migration Cost Ramp" or "12-Month Migration Cost Ramp" or "18-Month Migration Cost Ramp"
+  * **CALCULATION**: Monthly cost × percentage (e.g., $2,676.60 × 0.30 = $803.00, NOT $2,676.60 × 4 months)
 - Use actual VM counts and specs from the analysis
 - Include cost breakdown by service (Compute, Storage, Database, Networking)
 - Show calculation basis with actual numbers from the analysis
@@ -698,19 +823,17 @@ IF RVTOOLS (Total VMs only):
    - Storage Utilization (if missing data): 50%
    - Default Provisioned Storage (if missing data): 500 GiB
 
-3. Migration Cost Ramp (table showing ONLY AWS costs ramping up as migration progresses)
-   - **CRITICAL**: Use the ACTUAL project timeline from PROJECT CONTEXT (e.g., 3 months, 18 months, 24 months)
-   - **CRITICAL**: Title MUST match timeline (e.g., "3-Month Migration Cost Ramp" for 3-month project)
-   - **CRITICAL CALCULATION**: Take the "Total Monthly AWS Cost" from Option 1 and multiply by percentage:
-     * Example: If monthly cost is $12,694.22, then 30% phase = $12,694.22 × 0.30 = $3,808.27
-     * DO NOT make up numbers - CALCULATE from the exact monthly cost provided
-   - Divide timeline into 3 phases with appropriate percentages:
-     * For 3 months: Month 1 (20%), Month 2 (50%), Month 3 (100%)
-     * For 8 months: Months 1-3 (30%), Months 4-6 (70%), Months 7-8 (100%)
-     * For 18 months: Months 1-6 (30%), Months 7-12 (70%), Months 13-18 (100%)
-     * For 24 months: Months 1-8 (30%), Months 9-16 (70%), Months 17-24 (100%)
+3. Migration Cost Ramp
+   - **🚨 CRITICAL: MIGRATION RAMP IS PRE-CALCULATED 🚨**
+   - The "EXACT COSTS FROM EXCEL FILE" section above includes a "MIGRATION COST RAMP" subsection
+   - **COPY IT EXACTLY AS PROVIDED** - Do not calculate, modify, or change any numbers
+   - The migration ramp is already calculated with:
+     * Correct timeline (matches project timeline)
+     * Correct percentages (30%, 70%, 100%)
+     * Correct costs (monthly cost × percentage)
+   - **DO NOT RECALCULATE** - Just copy the pre-calculated migration ramp from the exact costs section
+   - Format: Copy the title and all bullet points exactly as shown
    - DO NOT show on-premises cost reduction
-   - DO NOT use hardcoded "18-month" if project timeline is different
 4. Cost Optimization Opportunities (bullet points, 5-7 items)
    - Compute Savings Plans and EC2 Instance Savings Plans (already included in pricing)
    - Right-sizing recommendations
