@@ -220,3 +220,6 @@ agentic-ai-business-case/.gitlab/sast-suppressions.yml
 agentic-ai-business-case/ui/backend/.bandit
 agentic-ai-business-case/ui/backend/.semgrepignore
 agentic-ai-business-case/ui/backend/SECURITY.md
+agentic-ai-business-case/restart-with-fresh-credentials.sh
+agentic-ai-business-case/stop-all.sh
+agentic-ai-business-case/VENV_FIX.md

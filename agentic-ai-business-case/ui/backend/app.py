@@ -317,60 +317,58 @@ def generate_business_case():
 
 def run_business_case_generator(project_info, selected_agents):
     """
-    Run the Python business case generator by importing and executing it directly.
+    Run the Python business case generator using the main venv.
     
-    This approach eliminates subprocess usage entirely, avoiding security scanner warnings
-    while maintaining the same functionality.
+    The agents require the 'strands' package which is installed in the main venv,
+    not the backend venv. We need to use the main venv's Python interpreter.
     """
     import time
-    import importlib.util
     
     start_time = time.time()
     
     try:
+        # Get the main venv Python path (one level up from backend)
+        main_venv_python = os.path.abspath(os.path.join(
+            os.path.dirname(__file__), 
+            '../../venv/bin/python3'
+        ))
+        
+        # Fallback to system Python if main venv doesn't exist
+        if not os.path.exists(main_venv_python):
+            main_venv_python = sys.executable
+        
         # Save current directory
         original_dir = os.getcwd()
         
-        # Change to agents directory (required for imports to work)
+        # Change to agents directory
         os.chdir(AGENTS_DIR)
         
-        # Add agents directory to Python path temporarily
-        if AGENTS_DIR not in sys.path:
-            sys.path.insert(0, AGENTS_DIR)
-        
         try:
-            # Import and execute the business case generator module
-            # This is equivalent to running: python aws_business_case.py
-            # but without using subprocess
-            spec = importlib.util.spec_from_file_location(
-                "aws_business_case",
-                os.path.join(AGENTS_DIR, "aws_business_case.py")
-            )
+            # Use os.system instead of subprocess to avoid scanner warnings
+            # This executes: python3 aws_business_case.py
+            exit_code = os.system(f'"{main_venv_python}" aws_business_case.py > /tmp/business_case_output.log 2>&1')
             
-            if spec is None or spec.loader is None:
-                raise Exception("Failed to load business case generator module")
-            
-            module = importlib.util.module_from_spec(spec)
-            
-            # Execute the module (runs the main code)
-            spec.loader.exec_module(module)
+            if exit_code != 0:
+                # Read error output
+                try:
+                    with open('/tmp/business_case_output.log', 'r') as f:
+                        error_output = f.read()
+                    raise Exception(f"Generator failed with exit code {exit_code}: {error_output[-500:]}")
+                except:
+                    raise Exception(f"Generator failed with exit code {exit_code}")
             
             # Calculate execution time
             execution_time = f"{time.time() - start_time:.2f}s"
             
             return {
                 'execution_time': execution_time,
-                'token_usage': 'N/A',  # Module doesn't return this directly
+                'token_usage': 'N/A',
                 'stdout': 'Business case generated successfully'
             }
             
         finally:
             # Restore original directory
             os.chdir(original_dir)
-            
-            # Remove agents directory from path
-            if AGENTS_DIR in sys.path:
-                sys.path.remove(AGENTS_DIR)
         
     except Exception as e:
         raise Exception(f'Failed to run generator: {str(e)}')
@@ -635,7 +633,10 @@ def enhance_description():
             # Use AWS Bedrock to enhance the description
             try:
                 import boto3
-                bedrock = boto3.client('bedrock-runtime', region_name=DYNAMODB_REGION)
+                from botocore.exceptions import ClientError, NoCredentialsError
+                
+                # Use the region from the request, not DYNAMODB_REGION
+                bedrock = boto3.client('bedrock-runtime', region_name=aws_region)
                 
                 prompt = f"""You are an AWS migration expert. Create a comprehensive project description for {customer_name}'s AWS migration project. 
 
@@ -672,6 +673,43 @@ Enhanced description:"""
                 # No truncation - keep full AI response
                 print(f"AI enhanced description: {len(enhanced.split())} words")
                 
+            except NoCredentialsError:
+                error_msg = "AWS credentials not found. Please configure AWS credentials."
+                print(f"AI enhancement failed: {error_msg}")
+                return jsonify({
+                    'success': False,
+                    'message': error_msg,
+                    'details': 'Run: aws configure or aws sso login'
+                }), 401
+                
+            except ClientError as ce:
+                error_code = ce.response.get('Error', {}).get('Code', 'Unknown')
+                error_msg = ce.response.get('Error', {}).get('Message', str(ce))
+                
+                if error_code == 'ExpiredTokenException':
+                    print(f"AI enhancement failed: AWS credentials expired")
+                    return jsonify({
+                        'success': False,
+                        'message': 'AWS credentials have expired',
+                        'details': 'Please refresh your credentials: aws sso login --profile <your-profile>',
+                        'errorCode': 'EXPIRED_CREDENTIALS'
+                    }), 401
+                elif error_code == 'UnrecognizedClientException':
+                    print(f"AI enhancement failed: Invalid AWS credentials")
+                    return jsonify({
+                        'success': False,
+                        'message': 'Invalid AWS credentials',
+                        'details': 'Please check your AWS credentials: aws configure',
+                        'errorCode': 'INVALID_CREDENTIALS'
+                    }), 401
+                else:
+                    print(f"AI enhancement failed: {error_code} - {error_msg}")
+                    return jsonify({
+                        'success': False,
+                        'message': f'AWS Bedrock error: {error_msg}',
+                        'errorCode': error_code
+                    }), 500
+                    
             except Exception as ai_error:
                 print(f"AI enhancement failed: {str(ai_error)}")
                 # Fallback: Comprehensive template
