@@ -223,3 +223,8 @@ agentic-ai-business-case/ui/backend/SECURITY.md
 agentic-ai-business-case/restart-with-fresh-credentials.sh
 agentic-ai-business-case/stop-all.sh
 agentic-ai-business-case/VENV_FIX.md
+agentic-ai-business-case/test-startup-shutdown.sh
+agentic-ai-business-case/STARTUP_SHUTDOWN_GUIDE.md
+agentic-ai-business-case/verify-startup.sh
+.gitignore
+agentic-ai-business-case/.backend.pid
