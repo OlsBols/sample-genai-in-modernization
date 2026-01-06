@@ -93,8 +93,6 @@ Production-grade content safety and compliance:
 **Cost**: ~$0.06 per business case  
 **Use case**: Production deployments, GDPR/HIPAA compliance
 
-Details: [BEDROCK_GUARDRAILS_GUIDE.md](BEDROCK_GUARDRAILS_GUIDE.md)
-
 ### Basic Usage
 
 ```bash
@@ -322,18 +320,8 @@ BEDROCK_GUARDRAIL_CONFIG = {
 
 ## Documentation
 
-**Setup & Usage**
 - `SETUP_GUIDE.md` - Installation and configuration
 - `SYSTEM_ARCHITECTURE.md` - Technical architecture and data flow
-- `BEDROCK_GUARDRAILS_GUIDE.md` - Guardrails setup and configuration
-
-**EKS Implementation**
-- `EKS_PRICING_DESIGN.md` - EKS pricing design and Python-based recommendation logic
-- `WHY_EKS_REQUIRES_LINUX.md` - Technical explanation of EKS/Linux requirements
-
-**Additional Resources**
-- `docs/history/` - Implementation history and detailed guides
-- `tests/README.md` - Testing documentation
 
 ## EKS Container Migration (Production Ready)
 
@@ -367,8 +355,6 @@ EKS_RECOMMENDATION_THRESHOLDS = {
 }
 ```
 
-**Documentation**: `EKS_PRICING_DESIGN.md`, `WHY_EKS_REQUIRES_LINUX.md`
-
 ## Dependency-Based Wave Planning (NEW)
 
 **Intelligent Migration Waves from IT Infrastructure Inventory**
@@ -398,8 +384,6 @@ Wave 2 (Months 4-6): 2 dependent apps, 20 servers
 - Transparent when dependencies unavailable
 
 **Configuration**: Automatic when IT Inventory has dependency sheets
-
-**Documentation**: `WAVE_PLANNING_IMPLEMENTATION.md`, `DEPENDENCY_WAVE_PLANNING_COMPLETE.md`
 
 ## IT Infrastructure Inventory EKS Support (NEW)
 
@@ -433,8 +417,6 @@ Output:
 - Better cost estimates
 
 **Configuration**: Automatic when IT Inventory uploaded
-
-**Documentation**: `IT_INVENTORY_EKS_ENHANCEMENT.md`
 
 ## AWS Backup Cost Analysis (Production Ready)
 
@@ -533,8 +515,6 @@ Without Tiering: $875/month
 With Tiering: $172.50/month
 Savings: $702.50/month (80%)
 ```
-
-**Documentation**: `BACKUP_COST_QUICK_START.md`, `BACKUP_COST_IMPLEMENTATION_GUIDE.md`
 
 ## Version Information
 

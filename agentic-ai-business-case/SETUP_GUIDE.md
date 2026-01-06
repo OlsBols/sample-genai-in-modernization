@@ -645,7 +645,7 @@ BEDROCK_GUARDRAIL_CONFIG = {
 }
 ```
 
-**For detailed information, see [BEDROCK_GUARDRAILS_GUIDE.md](BEDROCK_GUARDRAILS_GUIDE.md)**
+**For detailed information on Bedrock Guardrails setup, refer to the setup script: `./setup_bedrock_guardrail.sh`**
 
 ## Next Steps After Setup
 
