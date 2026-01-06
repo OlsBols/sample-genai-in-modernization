@@ -779,7 +779,11 @@ Generate a CONCISE Migration Strategy section.
    - IF EKS available: Mention hybrid approach (EC2 + EKS)
    - High-level strategy overview
 
-2. 7Rs Distribution (table format):
+2. AWS 7Rs Framework Overview (1-2 sentences):
+   - Brief explanation: "The AWS 7Rs framework provides a structured approach to cloud migration, categorizing workloads by transformation level—from simple lift-and-shift (Rehost) to complete modernization (Refactor/Re-architect)."
+   - Clarify: "The 7Rs distribution below is based on industry-standard patterns for similar infrastructure profiles and does NOT directly impact pricing calculations, which are based on actual infrastructure specifications. Application Assessment is required to determine and map each application to 7R migration strategy"
+
+3. 7Rs Distribution (table format):
    - Use actual numbers or percentages (NO "TBD" values)
    - If exact numbers unavailable, use reasonable estimates
    - IF EKS available: Include "Replatform to EKS" row
@@ -792,12 +796,12 @@ Generate a CONCISE Migration Strategy section.
    | Refactor | 15% | Modernize to serverless |
    | ... | ... | ... |
 
-3. Wave Planning (2-3 sentences):
+4. Wave Planning (2-3 sentences):
    - High-level wave structure
    - Waves MUST fit within project timeline
    - Keep strategic overview only (no detailed wave breakdown)
 
-4. Quick Wins (3-5 bullets):
+5. Quick Wins (3-5 bullets):
    - FOR RVTOOLS (Total VMs): EC2/compute quick wins ONLY (Lambda, Fargate, ECS, EKS, Auto Scaling)
    - ❌ DO NOT mention: RDS, Aurora, DynamoDB, database migration, database consolidation
    - FOR IT INVENTORY (Total Servers + Databases): Include both compute and database quick wins

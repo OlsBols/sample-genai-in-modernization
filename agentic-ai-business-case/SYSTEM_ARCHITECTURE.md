@@ -56,13 +56,6 @@ agents/
 
 ## Recent Updates (January 2026)
 
-### Agents Folder Reorganization (✅ NEW - January 2026)
-- **Modular architecture** with 7 functional subdirectories
-- Organized 30 files into logical groups (core, analysis, pricing, strategy, export, config, utils)
-- Hierarchical imports for better code organization
-- Proper Python packages with `__init__.py` exports
-- **Benefits**: Better maintainability, clearer module boundaries, easier navigation
-
 ### AWS Backup Cost Analysis (✅ NEW - January 2026)
 - **Intelligent backup cost calculation** with storage tiering (up to 85% savings)
 - Production vs pre-production differentiation with different retention policies
