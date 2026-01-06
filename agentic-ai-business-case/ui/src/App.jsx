@@ -16,6 +16,7 @@ import FileUploadStep from './components/FileUploadStep.jsx';
 import ReviewStep from './components/ReviewStep.jsx';
 import ResultsStep from './components/ResultsStep.jsx';
 import SavedCasesModal from './components/SavedCasesModal.jsx';
+import ConfigurationModal from './components/ConfigurationModal.jsx';
 import './styles/App.css';
 
 function App() {
@@ -65,6 +66,7 @@ function App() {
   const [currentCaseId, setCurrentCaseId] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [showSavedCasesModal, setShowSavedCasesModal] = useState(false);
+  const [showConfigModal, setShowConfigModal] = useState(false);
 
   useEffect(() => {
     checkStorageStatus();
@@ -234,6 +236,11 @@ function App() {
         utilities={[
           {
             type: 'button',
+            text: 'Configuration',
+            onClick: () => setShowConfigModal(true)
+          },
+          {
+            type: 'button',
             text: 'Load Saved Cases',
             onClick: () => setShowSavedCasesModal(true),
             disabled: !dynamoDBEnabled
@@ -252,6 +259,11 @@ function App() {
         visible={showSavedCasesModal}
         onDismiss={() => setShowSavedCasesModal(false)}
         onLoadCase={loadCase}
+      />
+
+      <ConfigurationModal
+        visible={showConfigModal}
+        onDismiss={() => setShowConfigModal(false)}
       />
       
       <AppLayout

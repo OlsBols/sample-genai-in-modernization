@@ -75,6 +75,7 @@ ui/backend/*.pyc
 *.tmp
 *.temp
 .cache/
+~$*  # Excel/Office temporary lock files
 
 # Process ID files and logs
 .pids/

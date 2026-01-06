@@ -4,9 +4,9 @@ Provides deterministic ARR calculation from RVTools data
 """
 from strands import tool
 import pandas as pd
-from aws_pricing_calculator import AWSPricingCalculator
-from rv_tool_analysis import rv_tool_analysis
-from config import USE_DETERMINISTIC_PRICING, PRICING_CONFIG
+from agents.pricing.aws_pricing_calculator import AWSPricingCalculator
+from agents.analysis.rv_tool_analysis import rv_tool_analysis
+from agents.config.config import USE_DETERMINISTIC_PRICING, PRICING_CONFIG
 import json
 
 @tool(
@@ -85,7 +85,7 @@ def calculate_exact_aws_arr(rvtools_filename: str, target_region: str = None):
     # Step 4: Export to Excel with both options
     print("Step 4: Generating Excel export with both pricing options...")
     try:
-        from excel_export import export_rvtools_dual_pricing
+        from agents.export.excel_export import export_rvtools_dual_pricing
         excel_path = export_rvtools_dual_pricing(results_option1, results_option2, 'vm_to_ec2_mapping.xlsx')
         if excel_path:
             print(f"✓ Excel export saved: {excel_path}")
@@ -275,7 +275,7 @@ if __name__ == "__main__":
 
 # Helper functions for IT Inventory pricing
 
-def get_ec2_pricing(instance_type, os_type, region='us-east-1', pricing_model='3yr_compute_sp'):
+def get_ec2_pricing(instance_type, os_type, region='us-east-1', pricing_model='3yr_compute_sp', storage_gb=500):
     """
     Get EC2 pricing for a specific instance type and OS using AWS Price List API
     
@@ -287,9 +287,10 @@ def get_ec2_pricing(instance_type, os_type, region='us-east-1', pricing_model='3
                       '3yr_compute_sp' = 3-Year Compute Savings Plan (most flexible, typically cheapest)
                       '3yr_ec2_sp' = 3-Year EC2 Instance Savings Plan (less flexible, typically more expensive than Compute SP)
                       '3yr_no_upfront' = 3-Year Reserved Instance (least flexible)
+        storage_gb: Storage size in GB (for EBS cost calculation)
     
     Returns:
-        dict with monthly_cost and hourly_cost
+        dict with monthly_cost, hourly_cost, monthly_compute, monthly_storage breakdown
     """
     
     # Use pricing calculator with AWS Price List API
@@ -317,11 +318,24 @@ def get_ec2_pricing(instance_type, os_type, region='us-east-1', pricing_model='3
         print(f"⚠️  API pricing failed for {instance_type}, using 3-year RI fallback: {e}")
         hourly_cost = calculator.get_ec2_price_by_term(instance_type, os_type, region, term='3yr', purchase_option='No Upfront')
     
-    monthly_cost = hourly_cost * 730  # 730 hours per month average
+    # Calculate compute cost (730 hours/month average)
+    monthly_compute = hourly_cost * 730
+    
+    # Calculate storage cost (EBS gp3: $0.08/GB-month base rate)
+    from agents.config.config import PRICING_CONFIG
+    base_storage_rate = PRICING_CONFIG.get('storage_rate_per_gb', 0.08)
+    storage_rate = base_storage_rate * calculator._get_regional_multiplier(region)
+    monthly_storage = storage_gb * storage_rate
+    
+    # Total monthly cost
+    monthly_cost = monthly_compute + monthly_storage
     
     return {
         'hourly_cost': hourly_cost,
         'monthly_cost': monthly_cost,
+        'monthly_compute': monthly_compute,
+        'monthly_storage': monthly_storage,
+        'storage_gb': storage_gb,
         'instance_type': instance_type,
         'os_type': os_type,
         'region': region,

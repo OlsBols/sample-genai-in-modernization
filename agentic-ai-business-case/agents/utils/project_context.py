@@ -3,7 +3,7 @@ Utility to read and provide project context to all agents
 """
 import os
 import json
-from config import input_folder_dir_path
+from agents.config.config import input_folder_dir_path
 
 def get_project_context():
     """
@@ -73,6 +73,20 @@ def get_case_input_directory():
     base_dir = os.path.join(input_folder_dir_path, 'input')
     print(f"⚠ Using base input directory (no case ID found): {base_dir}")
     return base_dir
+
+def get_case_input_dir():
+    """Alias for get_case_input_directory() for shorter name"""
+    return get_case_input_directory()
+
+def get_case_id():
+    """
+    Get the current case ID from project info
+    
+    Returns:
+        Case ID string or None if not found
+    """
+    project_info = get_project_info_dict()
+    return project_info.get('caseId')
 
 def get_input_file_path(filename):
     """

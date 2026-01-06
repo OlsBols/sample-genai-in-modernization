@@ -5,8 +5,8 @@ Calculates AWS ARR for Servers (EC2) and Databases (RDS) from IT inventory file
 
 import pandas as pd
 import os
-from pricing_tools import get_ec2_pricing, get_rds_pricing
-from os_detection import detect_os_type
+from agents.pricing.pricing_tools import get_ec2_pricing, get_rds_pricing
+from agents.utils.os_detection import detect_os_type
 
 
 def calculate_it_inventory_arr(inventory_file, region='us-east-1', pricing_model='3yr_compute_sp'):
@@ -19,8 +19,9 @@ def calculate_it_inventory_arr(inventory_file, region='us-east-1', pricing_model
         pricing_model: Pricing model ('3yr_compute_sp', '3yr_ec2_sp', '3yr_no_upfront', '1yr_no_upfront', 'on_demand')
     
     Returns:
-        dict with EC2 costs, RDS costs, total ARR, and detailed breakdowns
+        dict with EC2 costs, RDS costs, backup costs, total ARR, and detailed breakdowns
     """
+    from agents.pricing.backup_pricing import calculate_backup_costs
     
     # Read Servers and Databases tabs
     df_servers = pd.read_excel(inventory_file, sheet_name='Servers')
@@ -32,13 +33,33 @@ def calculate_it_inventory_arr(inventory_file, region='us-east-1', pricing_model
     # Calculate RDS costs for databases
     rds_results = calculate_rds_costs(df_databases, region, pricing_model)
     
+    # Calculate backup costs for servers
+    backup_vms = []
+    for idx, row in df_servers.iterrows():
+        storage_gb = row.get('Storage-Total Disk Size (GB)', 0)
+        if pd.isna(storage_gb) or storage_gb == 0 or storage_gb == '':
+            storage_gb = 500  # Default
+        else:
+            if isinstance(storage_gb, str):
+                storage_gb = storage_gb.replace('GB', '').replace('gb', '').strip()
+            storage_gb = float(storage_gb)
+        
+        backup_vms.append({
+            'vm_name': row['HOSTNAME'],
+            'storage_gb': storage_gb,
+            'environment': row.get('Environment', '')  # If available
+        })
+    
+    backup_costs = calculate_backup_costs(backup_vms, region)
+    
     # Combine results
-    total_monthly = ec2_results['total_monthly'] + rds_results['total_monthly']
+    total_monthly = ec2_results['total_monthly'] + rds_results['total_monthly'] + backup_costs['total_monthly']
     total_annual = total_monthly * 12
     
     return {
         'ec2': ec2_results,
         'rds': rds_results,
+        'backup': backup_costs,
         'total_monthly': total_monthly,
         'total_annual': total_annual,
         'region': region,
@@ -48,6 +69,7 @@ def calculate_it_inventory_arr(inventory_file, region='us-east-1', pricing_model
             'total_databases': len(df_databases),
             'ec2_monthly': ec2_results['total_monthly'],
             'rds_monthly': rds_results['total_monthly'],
+            'backup_monthly': backup_costs['total_monthly'],
             'total_monthly': total_monthly,
             'total_annual': total_annual
         }
@@ -65,7 +87,7 @@ def calculate_ec2_costs(df_servers, region, pricing_model):
     
     def process_server(row):
         """Process a single server (for parallel execution)"""
-        from config import RIGHT_SIZING_CONFIG
+        from agents.config.config import RIGHT_SIZING_CONFIG
         
         vcpus = row['numCpus']
         ram_gb = row['totalRAM (GB)']
@@ -88,7 +110,7 @@ def calculate_ec2_costs(df_servers, region, pricing_model):
         
         # Apply right-sizing if enabled (no utilization data, will use ATX assumptions)
         if RIGHT_SIZING_CONFIG.get('enable_right_sizing', False):
-            from aws_pricing_calculator import AWSPricingCalculator
+            from agents.pricing.aws_pricing_calculator import AWSPricingCalculator
             calculator = AWSPricingCalculator(region=region)
             vcpus, ram_gb, storage_gb = calculator.apply_right_sizing(
                 vcpus, ram_gb, storage_gb,
@@ -112,10 +134,12 @@ def calculate_ec2_costs(df_servers, region, pricing_model):
         # Map to EC2 instance type (using optimized specs)
         instance_type = map_to_ec2_instance(vcpus, ram_gb)
         
-        # Get pricing
-        pricing = get_ec2_pricing(instance_type, os_type, region, pricing_model)
+        # Get pricing with storage breakdown
+        pricing = get_ec2_pricing(instance_type, os_type, region, pricing_model, storage_gb=storage_gb)
         
         monthly_cost = pricing['monthly_cost']
+        monthly_compute = pricing['monthly_compute']
+        monthly_storage = pricing['monthly_storage']
         
         return {
             'server_id': row['Serverid'],
@@ -136,6 +160,9 @@ def calculate_ec2_costs(df_servers, region, pricing_model):
             # AWS recommendation
             'os_type': os_type,
             'instance_type': instance_type,
+            # Cost breakdown
+            'monthly_compute': monthly_compute,
+            'monthly_storage': monthly_storage,
             'monthly_cost': monthly_cost,
             'annual_cost': monthly_cost * 12
         }
@@ -397,7 +424,7 @@ def map_to_rds_engine(source_engine):
         return 'postgresql'
 
 
-def export_it_inventory_complete(results_option1, results_option2, output_file):
+def export_it_inventory_complete(results_option1, results_option2, output_file, backup_costs=None):
     """
     Export complete IT inventory pricing comparison to ONE Excel file with multiple tabs
     
@@ -410,6 +437,7 @@ def export_it_inventory_complete(results_option1, results_option2, output_file):
     - EC2 details with pricing parameters
     - RDS details with pricing parameters (both 3yr and 1yr options)
     - EC2 and RDS comparisons
+    - Backup summary (if backup_costs provided)
     """
     
     with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
@@ -507,7 +535,7 @@ def export_it_inventory_complete(results_option1, results_option2, output_file):
         ec2_details_option1 = []
         for detail in results_option1['ec2']['details']:
             # Get EC2 instance specs
-            from aws_pricing_calculator import AWSPricingCalculator
+            from agents.pricing.aws_pricing_calculator import AWSPricingCalculator
             calculator = AWSPricingCalculator()
             instance_specs = calculator.INSTANCE_SPECS.get(detail['instance_type'], (0, 0))
             ec2_vcpu, ec2_memory = instance_specs
@@ -537,6 +565,8 @@ def export_it_inventory_complete(results_option1, results_option2, output_file):
                 'Pricing Model': '3-Year EC2 Instance Savings Plan',
                 'Term': '3 Years',
                 'Purchase Option': 'No Upfront',
+                'Compute Cost': f"${detail.get('monthly_compute', detail['monthly_cost'] * 0.75):,.2f}",
+                'Storage Cost': f"${detail.get('monthly_storage', detail['monthly_cost'] * 0.25):,.2f}",
                 'Monthly Cost': f"${detail['monthly_cost']:,.2f}",
                 'Annual Cost': f"${detail['annual_cost']:,.2f}"
             })
@@ -547,7 +577,7 @@ def export_it_inventory_complete(results_option1, results_option2, output_file):
         ec2_details_option2 = []
         for detail in results_option2['ec2']['details']:
             # Get EC2 instance specs
-            from aws_pricing_calculator import AWSPricingCalculator
+            from agents.pricing.aws_pricing_calculator import AWSPricingCalculator
             calculator = AWSPricingCalculator()
             instance_specs = calculator.INSTANCE_SPECS.get(detail['instance_type'], (0, 0))
             ec2_vcpu, ec2_memory = instance_specs
@@ -577,6 +607,8 @@ def export_it_inventory_complete(results_option1, results_option2, output_file):
                 'Pricing Model': '3-Year Compute Savings Plan',
                 'Term': '3 Years',
                 'Purchase Option': 'No Upfront',
+                'Compute Cost': f"${detail.get('monthly_compute', detail['monthly_cost'] * 0.75):,.2f}",
+                'Storage Cost': f"${detail.get('monthly_storage', detail['monthly_cost'] * 0.25):,.2f}",
                 'Monthly Cost': f"${detail['monthly_cost']:,.2f}",
                 'Annual Cost': f"${detail['annual_cost']:,.2f}"
             })
@@ -587,7 +619,7 @@ def export_it_inventory_complete(results_option1, results_option2, output_file):
         rds_details_option1 = []
         for detail in results_option1['rds']['details']:
             # Get RDS instance specs (RDS uses same specs as EC2, just with db. prefix)
-            from aws_pricing_calculator import AWSPricingCalculator
+            from agents.pricing.aws_pricing_calculator import AWSPricingCalculator
             calculator = AWSPricingCalculator()
             # Remove 'db.' prefix to look up specs
             ec2_instance_type = detail['instance_type'].replace('db.', '')
@@ -648,7 +680,7 @@ def export_it_inventory_complete(results_option1, results_option2, output_file):
         rds_details_option2 = []
         for detail in results_option2['rds']['details']:
             # Get RDS instance specs (RDS uses same specs as EC2, just with db. prefix)
-            from aws_pricing_calculator import AWSPricingCalculator
+            from agents.pricing.aws_pricing_calculator import AWSPricingCalculator
             calculator = AWSPricingCalculator()
             # Remove 'db.' prefix to look up specs
             ec2_instance_type = detail['instance_type'].replace('db.', '')
@@ -779,6 +811,11 @@ def export_it_inventory_complete(results_option1, results_option2, output_file):
             })
         df_rds_summary = pd.DataFrame(rds_summary)
         df_rds_summary.to_excel(writer, sheet_name='RDS_Summary', index=False)
+        
+        # Tab 10: Backup Summary (if backup costs available)
+        if backup_costs:
+            from agents.export.excel_export import _add_backup_summary_sheet
+            _add_backup_summary_sheet(writer.book, backup_costs)
     
     return output_file
 

@@ -4,7 +4,7 @@ Generates business case directly from ATX PowerPoint without LLM
 Uses deterministic extraction and formatting
 """
 
-from atx_ppt_extractor import extract_atx_ppt_data
+from agents.analysis.atx_ppt_extractor import extract_atx_ppt_data
 from datetime import datetime
 from typing import Dict
 

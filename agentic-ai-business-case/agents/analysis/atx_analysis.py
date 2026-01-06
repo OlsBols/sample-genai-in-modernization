@@ -5,7 +5,7 @@ from strands.models import BedrockModel
 from pypdf import PdfReader
 from pptx import Presentation
 
-from config import input_folder_dir_path, model_id_claude3_7, model_temperature
+from agents.config.config import input_folder_dir_path, model_id_claude3_7, model_temperature
 
 
 # Create a BedrockModel
@@ -16,7 +16,7 @@ bedrock_model = BedrockModel(
 
 def read_file_from_input_dir(filename):
     """Read file from the input directory"""
-    from project_context import get_input_file_path
+    from agents.utils.project_context import get_input_file_path
     return get_input_file_path(filename)
 
 @tool(name="read_excel_file", description="Read Excel file from the input folder and return its content as a dataframe")

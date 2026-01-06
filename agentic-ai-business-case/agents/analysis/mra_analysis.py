@@ -4,7 +4,7 @@ from strands.models import BedrockModel
 from docx import Document
 from pypdf import PdfReader
 
-from config import input_folder_dir_path, model_id_claude3_7, model_temperature
+from agents.config.config import input_folder_dir_path, model_id_claude3_7, model_temperature
 
 
 # Create a BedrockModel
@@ -15,14 +15,14 @@ bedrock_model = BedrockModel(
 
 def read_file_from_input_dir(filename):
     """Read file from the case-specific input directory"""
-    from project_context import get_case_input_directory
+    from agents.utils.project_context import get_case_input_directory
     input_dir = get_case_input_directory()
     full_path = os.path.join(input_dir, filename)
     return full_path
 
 def find_mra_file():
     """Find the MRA file in the input directory (supports .md, .docx, .pdf)"""
-    from project_context import get_case_input_directory
+    from agents.utils.project_context import get_case_input_directory
     input_dir = get_case_input_directory()
     
     # Check for MRA file with any supported extension
@@ -251,6 +251,257 @@ agent = Agent(
 # print(result.message)
 
 
+def extract_cloud_readiness(mra_content: str) -> int:
+    """
+    Extract cloud readiness score from MRA content (1-5 scale).
+    
+    Args:
+        mra_content: MRA document text content
+    
+    Returns:
+        Score from 1 (low) to 5 (high)
+    """
+    if not mra_content:
+        return 3  # Default: Moderate
+    
+    content_lower = mra_content.lower()
+    
+    # Keywords indicating high readiness
+    high_keywords = ['strong', 'excellent', 'mature', 'advanced', 'ready', 'prepared']
+    # Keywords indicating low readiness
+    low_keywords = ['weak', 'poor', 'immature', 'limited', 'lacking', 'unprepared']
+    
+    # Count keyword occurrences in cloud readiness context
+    high_count = sum(1 for keyword in high_keywords if keyword in content_lower)
+    low_count = sum(1 for keyword in low_keywords if keyword in content_lower)
+    
+    # Calculate score based on keyword balance
+    if high_count > low_count + 2:
+        return 5
+    elif high_count > low_count:
+        return 4
+    elif low_count > high_count:
+        return 2
+    elif low_count > high_count + 2:
+        return 1
+    else:
+        return 3
+
+
+def extract_container_expertise(mra_content: str) -> int:
+    """
+    Extract container/Kubernetes expertise from MRA (1-5 scale).
+    
+    Args:
+        mra_content: MRA document text content
+    
+    Returns:
+        Score from 1 (none) to 5 (expert)
+    """
+    if not mra_content:
+        return 3  # Default: Moderate
+    
+    content_lower = mra_content.lower()
+    
+    # Check for container/K8s mentions
+    container_keywords = ['container', 'docker', 'kubernetes', 'k8s', 'eks', 'containerization']
+    expertise_levels = {
+        'expert': 5,
+        'experienced': 4,
+        'familiar': 3,
+        'learning': 2,
+        'none': 1,
+        'no experience': 1
+    }
+    
+    # Count container mentions
+    container_mentions = sum(1 for keyword in container_keywords if keyword in content_lower)
+    
+    # Look for expertise level keywords
+    for level, score in expertise_levels.items():
+        if level in content_lower and any(k in content_lower for k in container_keywords):
+            return score
+    
+    # If containers mentioned but no expertise level, assume moderate
+    if container_mentions > 0:
+        return 3
+    
+    # No container mentions = no expertise
+    return 1
+
+
+def extract_devops_maturity(mra_content: str) -> int:
+    """
+    Extract DevOps maturity from MRA (1-5 scale).
+    
+    Args:
+        mra_content: MRA document text content
+    
+    Returns:
+        Score from 1 (low) to 5 (high)
+    """
+    if not mra_content:
+        return 3  # Default: Moderate
+    
+    content_lower = mra_content.lower()
+    
+    # DevOps indicators
+    devops_keywords = ['ci/cd', 'continuous integration', 'continuous deployment', 
+                      'automation', 'infrastructure as code', 'iac', 'terraform', 
+                      'ansible', 'jenkins', 'gitlab', 'github actions']
+    
+    # Count DevOps practice mentions
+    devops_count = sum(1 for keyword in devops_keywords if keyword in content_lower)
+    
+    # Score based on number of practices mentioned
+    if devops_count >= 5:
+        return 5  # High maturity
+    elif devops_count >= 3:
+        return 4  # Good maturity
+    elif devops_count >= 2:
+        return 3  # Moderate
+    elif devops_count >= 1:
+        return 2  # Developing
+    else:
+        return 1  # Low maturity
+
+
+def extract_change_readiness(mra_content: str) -> int:
+    """
+    Extract change management readiness from MRA (1-5 scale).
+    
+    Args:
+        mra_content: MRA document text content
+    
+    Returns:
+        Score from 1 (low) to 5 (high)
+    """
+    if not mra_content:
+        return 3  # Default: Moderate
+    
+    content_lower = mra_content.lower()
+    
+    # Change management indicators
+    positive_keywords = ['change management', 'agile', 'flexible', 'adaptable', 'innovative']
+    negative_keywords = ['resistant', 'rigid', 'traditional', 'risk-averse', 'slow']
+    
+    positive_count = sum(1 for keyword in positive_keywords if keyword in content_lower)
+    negative_count = sum(1 for keyword in negative_keywords if keyword in content_lower)
+    
+    if positive_count > negative_count + 1:
+        return 5
+    elif positive_count > negative_count:
+        return 4
+    elif negative_count > positive_count:
+        return 2
+    elif negative_count > positive_count + 1:
+        return 1
+    else:
+        return 3
+
+
+def calculate_migration_timeline(mra_scores: dict, vm_categorization: dict) -> dict:
+    """
+    Calculate migration timeline based on MRA scores and VM distribution.
+    
+    Args:
+        mra_scores: Dictionary with MRA scores
+        vm_categorization: VM categorization results
+    
+    Returns:
+        Dictionary with timeline breakdown
+    """
+    # Base timeline assumptions (weeks)
+    base_timeline = {
+        'assessment_weeks': 4,
+        'pilot_weeks': 8,
+        'days_per_simple_app': 3,
+        'days_per_complex_app': 10
+    }
+    
+    # Adjust based on MRA scores
+    container_expertise = mra_scores.get('container_expertise_score', 3)
+    devops_maturity = mra_scores.get('devops_maturity_score', 3)
+    
+    # Lower expertise = longer timeline
+    if container_expertise < 3:
+        base_timeline['pilot_weeks'] = int(base_timeline['pilot_weeks'] * 1.5)
+        base_timeline['days_per_simple_app'] = int(base_timeline['days_per_simple_app'] * 1.3)
+    
+    if devops_maturity < 3:
+        base_timeline['days_per_complex_app'] = int(base_timeline['days_per_complex_app'] * 1.5)
+    
+    # Calculate total timeline
+    eks_vms = vm_categorization.get('eks_total', 0)
+    
+    # Estimate: 70% simple apps, 30% complex apps
+    simple_apps = int(eks_vms * 0.70)
+    complex_apps = int(eks_vms * 0.30)
+    
+    wave1_days = (simple_apps * base_timeline['days_per_simple_app'] + 
+                  complex_apps * base_timeline['days_per_complex_app']) / 5  # 5 parallel teams
+    
+    total_weeks = (base_timeline['assessment_weeks'] + 
+                   base_timeline['pilot_weeks'] + 
+                   int(wave1_days / 5))  # Convert days to weeks
+    
+    return {
+        'assessment_weeks': base_timeline['assessment_weeks'],
+        'pilot_weeks': base_timeline['pilot_weeks'],
+        'wave1_weeks': int(wave1_days / 5),
+        'total_weeks': total_weeks,
+        'total_months': int(total_weeks / 4)
+    }
+
+
+def parse_mra_for_eks(mra_filename: str = None) -> dict:
+    """
+    Parse MRA document and extract all scores for EKS recommendation.
+    
+    Args:
+        mra_filename: MRA file name (auto-detects if None)
+    
+    Returns:
+        Dictionary with all MRA scores
+    """
+    # Find MRA file if not specified
+    if not mra_filename:
+        mra_filename = find_mra_file()
+    
+    if not mra_filename:
+        return {
+            'cloud_readiness_score': 3,
+            'container_expertise_score': 3,
+            'devops_maturity_score': 3,
+            'change_readiness_score': 3,
+            'mra_available': False
+        }
+    
+    # Read MRA content
+    try:
+        if mra_filename.endswith('.pdf'):
+            content = read_pdf_file(mra_filename)
+        elif mra_filename.endswith(('.docx', '.doc')):
+            content = read_docx_file(mra_filename)
+        elif mra_filename.endswith('.md'):
+            content = read_markdown_file(mra_filename)
+        else:
+            content = ""
+    except Exception as e:
+        print(f"Warning: Could not read MRA file: {e}")
+        content = ""
+    
+    # Extract scores
+    return {
+        'cloud_readiness_score': extract_cloud_readiness(content),
+        'container_expertise_score': extract_container_expertise(content),
+        'devops_maturity_score': extract_devops_maturity(content),
+        'change_readiness_score': extract_change_readiness(content),
+        'mra_available': True,
+        'mra_filename': mra_filename
+    }
+
+
 if __name__ == "__main__":
     # Test the MRA analysis tools
     print("Testing Migration Readiness Assessment (MRA) Analysis Tools...")
@@ -264,16 +515,10 @@ if __name__ == "__main__":
     else:
         print(f"\n✓ Found MRA file: {mra_filename}")
         
-        # Read the file based on extension
-        try:
-            if mra_filename.endswith('.pdf'):
-                content = read_pdf_file(mra_filename)
-                print(f"✓ MRA PDF file loaded successfully ({len(content)} characters)")
-            elif mra_filename.endswith(('.docx', '.doc')):
-                content = read_docx_file(mra_filename)
-                print(f"✓ MRA Word document loaded successfully ({len(content)} characters)")
-            elif mra_filename.endswith('.md'):
-                content = read_markdown_file(mra_filename)
-                print(f"✓ MRA Markdown file loaded successfully ({len(content)} characters)")
-        except Exception as e:
-            print(f"✗ Error reading MRA file: {e}")
+        # Parse MRA for EKS
+        mra_scores = parse_mra_for_eks(mra_filename)
+        print(f"\n✓ MRA Scores:")
+        print(f"  Cloud Readiness: {mra_scores['cloud_readiness_score']}/5")
+        print(f"  Container Expertise: {mra_scores['container_expertise_score']}/5")
+        print(f"  DevOps Maturity: {mra_scores['devops_maturity_score']}/5")
+        print(f"  Change Readiness: {mra_scores['change_readiness_score']}/5")

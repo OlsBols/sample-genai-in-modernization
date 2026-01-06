@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Container,
   Header,
@@ -7,7 +7,10 @@ import {
   Button,
   ButtonDropdown,
   Tabs,
-  Alert
+  Alert,
+  ColumnLayout,
+  KeyValuePairs,
+  ExpandableSection
 } from '@cloudscape-design/components';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -27,6 +30,52 @@ const ResultsStep = ({ businessCaseResult, setBusinessCaseResult, projectInfo, d
       setEditedContent(businessCaseResult.content);
       setIsEdited(false);
     }
+  }, [businessCaseResult]);
+
+  // Extract key metrics from business case content
+  const keyMetrics = useMemo(() => {
+    if (!businessCaseResult?.content) return null;
+    
+    const content = businessCaseResult.content;
+    const metrics = {};
+    
+    // Extract monthly cost - more flexible patterns
+    const monthlyMatch = content.match(/(?:Total\s+)?Monthly(?:\s+AWS)?\s+Cost[:\s]*\$?([\d,]+\.?\d*)/i);
+    if (monthlyMatch) metrics.monthlyCost = monthlyMatch[1];
+    
+    // Extract annual cost - handle "ARR" and "including backup"
+    const annualMatch = content.match(/(?:Total\s+)?Annual(?:\s+AWS)?\s+Cost(?:\s+\(ARR(?:,\s+including\s+backup)?\))?[:\s]*\$?([\d,]+\.?\d*)/i);
+    if (annualMatch) metrics.annualCost = annualMatch[1];
+    
+    // Extract 3-year cost
+    const threeYearMatch = content.match(/3-Year\s+(?:Total\s+)?Cost[:\s]*\$?([\d,]+\.?\d*)/i);
+    if (threeYearMatch) metrics.threeYearCost = threeYearMatch[1];
+    
+    // Extract VM count
+    const vmMatch = content.match(/Total\s+VMs?[:\s]*(\d+)/i);
+    if (vmMatch) metrics.totalVMs = vmMatch[1];
+    
+    // Extract vCPU count
+    const vcpuMatch = content.match(/Total\s+vCPUs?[:\s]*([\d,]+)/i);
+    if (vcpuMatch) metrics.totalVCPUs = vcpuMatch[1].replace(/,/g, '');
+    
+    // Extract RAM
+    const ramMatch = content.match(/Total\s+RAM[:\s]*([\d,]+(?:\.\d+)?)\s*GB/i);
+    if (ramMatch) metrics.totalRAM = ramMatch[1].replace(/,/g, '');
+    
+    // Extract storage
+    const storageMatch = content.match(/Total\s+Storage[:\s]*([\d,]+(?:\.\d+)?)\s*TB/i);
+    if (storageMatch) metrics.totalStorage = storageMatch[1].replace(/,/g, '');
+    
+    // Extract timeline - prioritize overall project timeline over wave durations
+    // First try to match "within X months" or "X-month timeline/implementation/phased"
+    const timelineMatch = content.match(/within\s+(\d+)\s*months?/i) ||
+                          content.match(/(\d+)-month\s+(?:phased\s+)?(?:implementation|timeline|approach|migration)/i) ||
+                          content.match(/(?:Migration\s+)?Timeline[:\s]*(\d+)\s*months?/i) ||
+                          content.match(/(\d+)\s*months?\s+(?:phased\s+)?(?:implementation|timeline|approach)/i);
+    if (timelineMatch) metrics.timeline = timelineMatch[1];
+    
+    return Object.keys(metrics).length > 0 ? metrics : null;
   }, [businessCaseResult]);
 
   const handleContentChange = (e) => {
@@ -217,106 +266,323 @@ const ResultsStep = ({ businessCaseResult, setBusinessCaseResult, projectInfo, d
               id: 'preview',
               content: (
                 <Box padding={{ vertical: 'l' }}>
-                  <div id="business-case-content" style={{ 
-                    padding: '20px',
-                    maxWidth: '1200px',
-                    margin: '0 auto'
-                  }}>
+                  {/* Key Metrics Dashboard */}
+                  {keyMetrics && (
+                    <Box margin={{ bottom: 'xl' }}>
+                      <Container
+                        header={
+                          <Header variant="h3">
+                            Key Metrics at a Glance
+                          </Header>
+                        }
+                      >
+                        <ColumnLayout columns={4} variant="text-grid">
+                          {keyMetrics.monthlyCost && (
+                            <div className="metric-card">
+                              <Box variant="awsui-key-label">Monthly Cost</Box>
+                              <div className="metric-value">${keyMetrics.monthlyCost}</div>
+                            </div>
+                          )}
+                          {keyMetrics.annualCost && (
+                            <div className="metric-card">
+                              <Box variant="awsui-key-label">Annual Cost (ARR)</Box>
+                              <div className="metric-value">${keyMetrics.annualCost}</div>
+                            </div>
+                          )}
+                          {keyMetrics.totalVMs && (
+                            <div className="metric-card">
+                              <Box variant="awsui-key-label">Total VMs</Box>
+                              <div className="metric-value">{keyMetrics.totalVMs}</div>
+                            </div>
+                          )}
+                          {keyMetrics.timeline && (
+                            <div className="metric-card">
+                              <Box variant="awsui-key-label">Migration Timeline</Box>
+                              <div className="metric-value">{keyMetrics.timeline} months</div>
+                            </div>
+                          )}
+                        </ColumnLayout>
+                        
+                        {(keyMetrics.totalVCPUs || keyMetrics.totalRAM || keyMetrics.totalStorage) && (
+                          <Box margin={{ top: 'l' }}>
+                            <ColumnLayout columns={3} variant="text-grid">
+                              {keyMetrics.totalVCPUs && (
+                                <div className="metric-card-small">
+                                  <Box variant="awsui-key-label">Total vCPUs</Box>
+                                  <div className="metric-value-small">{keyMetrics.totalVCPUs}</div>
+                                </div>
+                              )}
+                              {keyMetrics.totalRAM && (
+                                <div className="metric-card-small">
+                                  <Box variant="awsui-key-label">Total RAM</Box>
+                                  <div className="metric-value-small">{keyMetrics.totalRAM} GB</div>
+                                </div>
+                              )}
+                              {keyMetrics.totalStorage && (
+                                <div className="metric-card-small">
+                                  <Box variant="awsui-key-label">Total Storage</Box>
+                                  <div className="metric-value-small">{keyMetrics.totalStorage} TB</div>
+                                </div>
+                              )}
+                            </ColumnLayout>
+                          </Box>
+                        )}
+                      </Container>
+                    </Box>
+                  )}
+                  
+                  {/* Business Case Content */}
+                  <div id="business-case-content" className="business-case-professional">
                     <style>{`
+                      /* Metric Cards Styling */
+                      .metric-card {
+                        padding: 16px;
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        border-radius: 8px;
+                        text-align: center;
+                        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                      }
+                      
+                      .metric-card .awsui-key-label {
+                        color: rgba(255, 255, 255, 0.9) !important;
+                        font-size: 12px;
+                        font-weight: 600;
+                        text-transform: uppercase;
+                        letter-spacing: 0.5px;
+                      }
+                      
+                      .metric-value {
+                        color: white;
+                        font-size: 32px;
+                        font-weight: 700;
+                        margin-top: 8px;
+                        line-height: 1;
+                      }
+                      
+                      .metric-card-small {
+                        padding: 12px;
+                        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                        border-radius: 6px;
+                        text-align: center;
+                        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+                      }
+                      
+                      .metric-card-small .awsui-key-label {
+                        color: rgba(255, 255, 255, 0.9) !important;
+                        font-size: 11px;
+                        font-weight: 600;
+                        text-transform: uppercase;
+                      }
+                      
+                      .metric-value-small {
+                        color: white;
+                        font-size: 24px;
+                        font-weight: 700;
+                        margin-top: 4px;
+                      }
+                      
+                      /* Professional Business Case Styling */
+                      .business-case-professional {
+                        background: white;
+                        padding: 48px;
+                        border-radius: 12px;
+                        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+                      }
+                      
                       #business-case-content h1 {
-                        font-size: 2em;
+                        font-size: 2.5em;
                         font-weight: 700;
                         margin-top: 1.5em;
-                        margin-bottom: 0.5em;
-                        color: #16191f;
-                        border-bottom: 2px solid #e9ebed;
-                        padding-bottom: 0.3em;
+                        margin-bottom: 0.6em;
+                        color: #232f3e;
+                        border-bottom: 3px solid #ff9900;
+                        padding-bottom: 0.4em;
+                        letter-spacing: -0.5px;
                       }
+                      
+                      #business-case-content h1:first-child {
+                        margin-top: 0;
+                      }
+                      
                       #business-case-content h2 {
-                        font-size: 1.5em;
+                        font-size: 1.8em;
+                        font-weight: 600;
+                        margin-top: 2em;
+                        margin-bottom: 0.8em;
+                        color: #232f3e;
+                        padding-left: 12px;
+                        border-left: 4px solid #ff9900;
+                      }
+                      
+                      #business-case-content h3 {
+                        font-size: 1.4em;
+                        font-weight: 600;
+                        margin-top: 1.5em;
+                        margin-bottom: 0.6em;
+                        color: #16191f;
+                      }
+                      
+                      #business-case-content h4 {
+                        font-size: 1.1em;
                         font-weight: 600;
                         margin-top: 1.2em;
                         margin-bottom: 0.5em;
-                        color: #16191f;
+                        color: #414d5c;
                       }
-                      #business-case-content h3 {
-                        font-size: 1.2em;
-                        font-weight: 600;
-                        margin-top: 1em;
-                        margin-bottom: 0.5em;
-                        color: #16191f;
-                      }
+                      
                       #business-case-content p {
-                        line-height: 1.6;
-                        margin-bottom: 1em;
-                        color: #16191f;
+                        line-height: 1.8;
+                        margin-bottom: 1.2em;
+                        color: #414d5c;
+                        font-size: 16px;
                       }
+                      
                       #business-case-content table {
                         width: 100%;
-                        border-collapse: collapse;
-                        margin: 1.5em 0;
-                        font-size: 0.9em;
-                        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                        border-collapse: separate;
+                        border-spacing: 0;
+                        margin: 2em 0;
+                        font-size: 0.95em;
+                        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+                        border-radius: 8px;
                         overflow: hidden;
                       }
+                      
                       #business-case-content table thead {
-                        background-color: #232f3e;
+                        background: linear-gradient(135deg, #232f3e 0%, #414d5c 100%);
                         color: white;
                       }
+                      
                       #business-case-content table th {
-                        padding: 12px 15px;
+                        padding: 16px 20px;
                         text-align: left;
                         font-weight: 600;
-                        border: 1px solid #d5dbdb;
+                        border: none;
+                        text-transform: uppercase;
+                        font-size: 0.85em;
+                        letter-spacing: 0.5px;
                       }
+                      
                       #business-case-content table td {
-                        padding: 10px 15px;
-                        border: 1px solid #d5dbdb;
+                        padding: 14px 20px;
+                        border: none;
+                        border-bottom: 1px solid #e9ebed;
                         vertical-align: top;
+                        color: #414d5c;
                       }
+                      
+                      #business-case-content table tbody tr {
+                        transition: all 0.2s ease;
+                      }
+                      
                       #business-case-content table tbody tr:nth-child(even) {
                         background-color: #f9fafb;
                       }
+                      
                       #business-case-content table tbody tr:hover {
-                        background-color: #eaeded;
+                        background-color: #fff8e6;
+                        transform: scale(1.01);
+                        box-shadow: 0 2px 8px rgba(255, 153, 0, 0.1);
                       }
+                      
+                      #business-case-content table tbody tr:last-child td {
+                        border-bottom: none;
+                      }
+                      
                       #business-case-content ul, #business-case-content ol {
-                        margin-left: 1.5em;
-                        margin-bottom: 1em;
-                        line-height: 1.6;
+                        margin-left: 1.8em;
+                        margin-bottom: 1.2em;
+                        line-height: 1.8;
                       }
+                      
                       #business-case-content li {
-                        margin-bottom: 0.5em;
+                        margin-bottom: 0.6em;
+                        color: #414d5c;
+                        padding-left: 0.3em;
                       }
+                      
+                      #business-case-content li::marker {
+                        color: #ff9900;
+                        font-weight: bold;
+                      }
+                      
                       #business-case-content code {
-                        background-color: #f4f4f4;
-                        padding: 2px 6px;
-                        border-radius: 3px;
+                        background: linear-gradient(135deg, #f4f4f4 0%, #e9ebed 100%);
+                        padding: 3px 8px;
+                        border-radius: 4px;
                         font-family: 'Monaco', 'Courier New', monospace;
                         font-size: 0.9em;
+                        color: #d63384;
+                        border: 1px solid #e9ebed;
                       }
+                      
                       #business-case-content pre {
-                        background-color: #f4f4f4;
-                        padding: 15px;
-                        border-radius: 5px;
+                        background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
+                        padding: 20px;
+                        border-radius: 8px;
                         overflow-x: auto;
-                        margin: 1em 0;
+                        margin: 1.5em 0;
+                        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
                       }
+                      
+                      #business-case-content pre code {
+                        background: transparent;
+                        color: #68d391;
+                        border: none;
+                        padding: 0;
+                      }
+                      
                       #business-case-content blockquote {
-                        border-left: 4px solid #ff9900;
-                        padding-left: 1em;
-                        margin: 1em 0;
-                        color: #5f6b7a;
+                        border-left: 5px solid #ff9900;
+                        padding: 16px 24px;
+                        margin: 1.5em 0;
+                        background: linear-gradient(90deg, #fff8e6 0%, #ffffff 100%);
+                        border-radius: 0 8px 8px 0;
+                        color: #414d5c;
                         font-style: italic;
+                        box-shadow: 0 2px 8px rgba(255, 153, 0, 0.1);
                       }
+                      
                       #business-case-content strong {
                         font-weight: 600;
-                        color: #16191f;
+                        color: #232f3e;
                       }
+                      
                       #business-case-content hr {
                         border: none;
-                        border-top: 1px solid #e9ebed;
-                        margin: 2em 0;
+                        border-top: 2px solid #e9ebed;
+                        margin: 3em 0;
+                      }
+                      
+                      #business-case-content a {
+                        color: #0073bb;
+                        text-decoration: none;
+                        border-bottom: 1px solid transparent;
+                        transition: all 0.2s ease;
+                      }
+                      
+                      #business-case-content a:hover {
+                        color: #ff9900;
+                        border-bottom-color: #ff9900;
+                      }
+                      
+                      /* Print Optimization */
+                      @media print {
+                        .business-case-professional {
+                          padding: 20px;
+                          box-shadow: none;
+                        }
+                        
+                        #business-case-content table {
+                          page-break-inside: avoid;
+                        }
+                        
+                        #business-case-content h1, 
+                        #business-case-content h2, 
+                        #business-case-content h3 {
+                          page-break-after: avoid;
+                        }
                       }
                     `}</style>
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>

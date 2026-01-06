@@ -9,7 +9,7 @@ from functools import lru_cache
 from typing import Dict, List, Tuple, Optional
 import pandas as pd
 from botocore.exceptions import ClientError
-from config import PRICING_CONFIG, RIGHT_SIZING_CONFIG
+from agents.config.config import PRICING_CONFIG, RIGHT_SIZING_CONFIG
 
 class AWSPricingCalculator:
     """
@@ -1235,7 +1235,7 @@ class AWSPricingCalculator:
         instance_type = self.map_vm_to_instance_type(vcpu, memory_gb, os, prefer_graviton)
         
         # 2. Determine OS type for pricing (use shared detection logic for consistency)
-        from os_detection import detect_os_type
+        from agents.utils.os_detection import detect_os_type
         os_type = detect_os_type(os)
         # For pricing, treat 'Other' as 'Linux' (more conservative estimate)
         if os_type == 'Other':
@@ -1387,12 +1387,47 @@ class AWSPricingCalculator:
         total_storage = df_results['monthly_storage'].sum()
         total_data_transfer = df_results['monthly_data_transfer'].sum()
         
+        # Calculate backup costs
+        from agents.pricing.backup_pricing import calculate_backup_costs
+        
+        # Prepare VM list for backup calculation
+        backup_vms = []
+        for idx, row in df.iterrows():
+            storage_col = None
+            for col in ['Provisioned MiB', 'Provisioned MB', 'Total disk capacity MiB']:
+                if col in row.index:
+                    storage_col = col
+                    break
+            storage_mb = float(row.get(storage_col, 102400)) if storage_col else 102400
+            storage_gb = storage_mb / 1024
+            
+            vm_name = str(row.get('VM', f'VM-{idx}'))
+            
+            # Get folder/cluster for environment detection (RVTools specific)
+            folder = str(row.get('Folder', '')) if 'Folder' in row.index else ''
+            cluster = str(row.get('Cluster', '')) if 'Cluster' in row.index else ''
+            
+            backup_vms.append({
+                'vm_name': vm_name,
+                'storage_gb': storage_gb,
+                'folder': folder,
+                'cluster': cluster
+            })
+        
+        backup_costs = calculate_backup_costs(backup_vms, self.target_region)
+        
+        # Add backup costs to total
+        total_monthly_with_backup = total_monthly + backup_costs['total_monthly']
+        total_arr_with_backup = total_monthly_with_backup * 12
+        
         print(f"\n{'='*80}")
         print(f"CALCULATION COMPLETE")
         print(f"{'='*80}")
         print(f"Total VMs: {len(results)}")
-        print(f"Total Monthly Cost: ${total_monthly:,.2f}")
-        print(f"Total Annual Cost (ARR): ${total_arr:,.2f}")
+        print(f"Total Monthly Cost (Compute/Storage/Transfer): ${total_monthly:,.2f}")
+        print(f"Total Monthly Backup Cost: ${backup_costs['total_monthly']:,.2f}")
+        print(f"Total Monthly Cost (with Backup): ${total_monthly_with_backup:,.2f}")
+        print(f"Total Annual Cost (ARR with Backup): ${total_arr_with_backup:,.2f}")
         print(f"{'='*80}\n")
         
         return {
@@ -1400,6 +1435,10 @@ class AWSPricingCalculator:
                 'total_vms': len(results),
                 'total_monthly_cost': round(total_monthly, 2),
                 'total_arr': round(total_arr, 2),
+                'backup_monthly_cost': round(backup_costs['total_monthly'], 2),
+                'backup_annual_cost': round(backup_costs['total_annual'], 2),
+                'total_monthly_with_backup': round(total_monthly_with_backup, 2),
+                'total_arr_with_backup': round(total_arr_with_backup, 2),
                 'region': self.target_region,
                 'pricing_model': pricing_model
             },
@@ -1407,12 +1446,325 @@ class AWSPricingCalculator:
                 'monthly_compute': round(total_compute, 2),
                 'monthly_storage': round(total_storage, 2),
                 'monthly_data_transfer': round(total_data_transfer, 2),
-                'monthly_total': round(total_monthly, 2)
+                'monthly_backup': round(backup_costs['total_monthly'], 2),
+                'monthly_total': round(total_monthly, 2),
+                'monthly_total_with_backup': round(total_monthly_with_backup, 2)
             },
+            'backup_costs': backup_costs,
             'instance_type_breakdown': instance_breakdown,
             'os_breakdown': os_breakdown,
             'detailed_results': df_results
         }
+    
+    @lru_cache(maxsize=100)
+    def get_eks_control_plane_price(self, region: str) -> float:
+        """
+        Get EKS Control Plane pricing from AWS Price List API
+        
+        Args:
+            region: AWS region
+        
+        Returns:
+            Hourly cost for EKS control plane ($0.10/hour for most regions)
+        """
+        try:
+            pricing_client = boto3.client('pricing', region_name='us-east-1')
+            
+            # Map region code to location name
+            region_map = {
+                'us-east-1': 'US East (N. Virginia)',
+                'us-east-2': 'US East (Ohio)',
+                'us-west-1': 'US West (N. California)',
+                'us-west-2': 'US West (Oregon)',
+                'eu-west-1': 'EU (Ireland)',
+                'eu-west-2': 'EU (London)',
+                'eu-central-1': 'EU (Frankfurt)',
+                'ap-southeast-1': 'Asia Pacific (Singapore)',
+                'ap-southeast-2': 'Asia Pacific (Sydney)',
+                'ap-northeast-1': 'Asia Pacific (Tokyo)',
+                'ap-south-1': 'Asia Pacific (Mumbai)',
+                'sa-east-1': 'South America (Sao Paulo)',
+            }
+            
+            location = region_map.get(region, 'US East (N. Virginia)')
+            
+            response = pricing_client.get_products(
+                ServiceCode='AmazonEKS',
+                Filters=[
+                    {'Type': 'TERM_MATCH', 'Field': 'location', 'Value': location},
+                    {'Type': 'TERM_MATCH', 'Field': 'productFamily', 'Value': 'Compute'},
+                    {'Type': 'TERM_MATCH', 'Field': 'usagetype', 'Value': f'{region.replace("-", "").upper()}:AmazonEKS-Hours:perCluster'},
+                ]
+            )
+            
+            if response['PriceList']:
+                price_item = json.loads(response['PriceList'][0])
+                on_demand = price_item['terms']['OnDemand']
+                price_dimensions = list(on_demand.values())[0]['priceDimensions']
+                hourly_rate = float(list(price_dimensions.values())[0]['pricePerUnit']['USD'])
+                
+                # Validate the rate is reasonable (EKS control plane is $0.10/hour in most regions)
+                if 0.08 <= hourly_rate <= 0.15:
+                    return hourly_rate
+                else:
+                    print(f"⚠️  EKS Control Plane API returned unexpected rate ${hourly_rate:.4f}, using fallback $0.10")
+                    return 0.10
+            
+            # Fallback to default
+            return 0.10
+            
+        except Exception as e:
+            print(f"⚠️  EKS Control Plane API pricing failed for {region}, using fallback: {e}")
+            return 0.10
+    
+    @lru_cache(maxsize=100)
+    def get_ebs_gp3_price(self, region: str) -> float:
+        """
+        Get EBS gp3 storage pricing from AWS Price List API
+        
+        Args:
+            region: AWS region
+        
+        Returns:
+            Monthly cost per GB for EBS gp3
+        """
+        try:
+            pricing_client = boto3.client('pricing', region_name='us-east-1')
+            
+            region_map = {
+                'us-east-1': 'US East (N. Virginia)',
+                'us-east-2': 'US East (Ohio)',
+                'us-west-1': 'US West (N. California)',
+                'us-west-2': 'US West (Oregon)',
+                'eu-west-1': 'EU (Ireland)',
+                'eu-west-2': 'EU (London)',
+                'eu-central-1': 'EU (Frankfurt)',
+                'ap-southeast-1': 'Asia Pacific (Singapore)',
+                'ap-southeast-2': 'Asia Pacific (Sydney)',
+                'ap-northeast-1': 'Asia Pacific (Tokyo)',
+                'ap-south-1': 'Asia Pacific (Mumbai)',
+                'sa-east-1': 'South America (Sao Paulo)',
+            }
+            
+            location = region_map.get(region, 'US East (N. Virginia)')
+            
+            response = pricing_client.get_products(
+                ServiceCode='AmazonEC2',
+                Filters=[
+                    {'Type': 'TERM_MATCH', 'Field': 'location', 'Value': location},
+                    {'Type': 'TERM_MATCH', 'Field': 'productFamily', 'Value': 'Storage'},
+                    {'Type': 'TERM_MATCH', 'Field': 'volumeApiName', 'Value': 'gp3'},
+                ]
+            )
+            
+            if response['PriceList']:
+                price_item = json.loads(response['PriceList'][0])
+                on_demand = price_item['terms']['OnDemand']
+                price_dimensions = list(on_demand.values())[0]['priceDimensions']
+                monthly_rate = float(list(price_dimensions.values())[0]['pricePerUnit']['USD'])
+                return monthly_rate
+            
+            # Fallback to default
+            return 0.08
+            
+        except Exception as e:
+            print(f"⚠️  EBS gp3 API pricing failed for {region}, using fallback: {e}")
+            return 0.08
+    
+    @lru_cache(maxsize=100)
+    def get_alb_price(self, region: str) -> Dict[str, float]:
+        """
+        Get Application Load Balancer pricing from AWS Price List API
+        
+        Args:
+            region: AWS region
+        
+        Returns:
+            Dict with 'hourly_fixed' and 'lcu_hourly' costs
+        """
+        try:
+            pricing_client = boto3.client('pricing', region_name='us-east-1')
+            
+            region_map = {
+                'us-east-1': 'US East (N. Virginia)',
+                'us-east-2': 'US East (Ohio)',
+                'us-west-1': 'US West (N. California)',
+                'us-west-2': 'US West (Oregon)',
+                'eu-west-1': 'EU (Ireland)',
+                'eu-west-2': 'EU (London)',
+                'eu-central-1': 'EU (Frankfurt)',
+                'ap-southeast-1': 'Asia Pacific (Singapore)',
+                'ap-southeast-2': 'Asia Pacific (Sydney)',
+                'ap-northeast-1': 'Asia Pacific (Tokyo)',
+                'ap-south-1': 'Asia Pacific (Mumbai)',
+                'sa-east-1': 'South America (Sao Paulo)',
+            }
+            
+            location = region_map.get(region, 'US East (N. Virginia)')
+            
+            response = pricing_client.get_products(
+                ServiceCode='AWSELB',
+                Filters=[
+                    {'Type': 'TERM_MATCH', 'Field': 'location', 'Value': location},
+                    {'Type': 'TERM_MATCH', 'Field': 'productFamily', 'Value': 'Load Balancer-Application'},
+                ]
+            )
+            
+            hourly_fixed = 0.0225  # Default
+            lcu_hourly = 0.008  # Default
+            
+            if response['PriceList']:
+                for price_str in response['PriceList']:
+                    price_item = json.loads(price_str)
+                    on_demand = price_item['terms']['OnDemand']
+                    price_dimensions = list(on_demand.values())[0]['priceDimensions']
+                    
+                    for dimension in price_dimensions.values():
+                        unit = dimension.get('unit', '')
+                        price = float(dimension['pricePerUnit']['USD'])
+                        
+                        if 'hour' in unit.lower() and 'lcu' not in dimension.get('description', '').lower():
+                            hourly_fixed = price
+                        elif 'lcu' in dimension.get('description', '').lower():
+                            lcu_hourly = price
+            
+            return {
+                'hourly_fixed': hourly_fixed,
+                'lcu_hourly': lcu_hourly,
+                'monthly_fixed': hourly_fixed * 730
+            }
+            
+        except Exception as e:
+            print(f"⚠️  ALB API pricing failed for {region}, using fallback: {e}")
+            return {
+                'hourly_fixed': 0.0225,
+                'lcu_hourly': 0.008,
+                'monthly_fixed': 16.43
+            }
+    
+    @lru_cache(maxsize=100)
+    def get_nat_gateway_price(self, region: str) -> Dict[str, float]:
+        """
+        Get NAT Gateway pricing from AWS Price List API
+        
+        Args:
+            region: AWS region
+        
+        Returns:
+            Dict with 'hourly' and 'per_gb' costs
+        """
+        try:
+            pricing_client = boto3.client('pricing', region_name='us-east-1')
+            
+            region_map = {
+                'us-east-1': 'US East (N. Virginia)',
+                'us-east-2': 'US East (Ohio)',
+                'us-west-1': 'US West (N. California)',
+                'us-west-2': 'US West (Oregon)',
+                'eu-west-1': 'EU (Ireland)',
+                'eu-west-2': 'EU (London)',
+                'eu-central-1': 'EU (Frankfurt)',
+                'ap-southeast-1': 'Asia Pacific (Singapore)',
+                'ap-southeast-2': 'Asia Pacific (Sydney)',
+                'ap-northeast-1': 'Asia Pacific (Tokyo)',
+                'ap-south-1': 'Asia Pacific (Mumbai)',
+                'sa-east-1': 'South America (Sao Paulo)',
+            }
+            
+            location = region_map.get(region, 'US East (N. Virginia)')
+            
+            response = pricing_client.get_products(
+                ServiceCode='AmazonEC2',
+                Filters=[
+                    {'Type': 'TERM_MATCH', 'Field': 'location', 'Value': location},
+                    {'Type': 'TERM_MATCH', 'Field': 'productFamily', 'Value': 'NAT Gateway'},
+                ]
+            )
+            
+            hourly = 0.045  # Default
+            per_gb = 0.045  # Default
+            
+            if response['PriceList']:
+                for price_str in response['PriceList']:
+                    price_item = json.loads(price_str)
+                    on_demand = price_item['terms']['OnDemand']
+                    price_dimensions = list(on_demand.values())[0]['priceDimensions']
+                    
+                    for dimension in price_dimensions.values():
+                        unit = dimension.get('unit', '')
+                        price = float(dimension['pricePerUnit']['USD'])
+                        
+                        if unit == 'Hrs':
+                            hourly = price
+                        elif unit == 'GB':
+                            per_gb = price
+            
+            return {
+                'hourly': hourly,
+                'per_gb': per_gb,
+                'monthly': hourly * 730
+            }
+            
+        except Exception as e:
+            print(f"⚠️  NAT Gateway API pricing failed for {region}, using fallback: {e}")
+            return {
+                'hourly': 0.045,
+                'per_gb': 0.045,
+                'monthly': 32.85
+            }
+    
+    @lru_cache(maxsize=100)
+    def get_cloudwatch_logs_price(self, region: str) -> float:
+        """
+        Get CloudWatch Logs ingestion pricing from AWS Price List API
+        
+        Args:
+            region: AWS region
+        
+        Returns:
+            Cost per GB for log ingestion
+        """
+        try:
+            pricing_client = boto3.client('pricing', region_name='us-east-1')
+            
+            region_map = {
+                'us-east-1': 'US East (N. Virginia)',
+                'us-east-2': 'US East (Ohio)',
+                'us-west-1': 'US West (N. California)',
+                'us-west-2': 'US West (Oregon)',
+                'eu-west-1': 'EU (Ireland)',
+                'eu-west-2': 'EU (London)',
+                'eu-central-1': 'EU (Frankfurt)',
+                'ap-southeast-1': 'Asia Pacific (Singapore)',
+                'ap-southeast-2': 'Asia Pacific (Sydney)',
+                'ap-northeast-1': 'Asia Pacific (Tokyo)',
+                'ap-south-1': 'Asia Pacific (Mumbai)',
+                'sa-east-1': 'South America (Sao Paulo)',
+            }
+            
+            location = region_map.get(region, 'US East (N. Virginia)')
+            
+            response = pricing_client.get_products(
+                ServiceCode='AmazonCloudWatch',
+                Filters=[
+                    {'Type': 'TERM_MATCH', 'Field': 'location', 'Value': location},
+                    {'Type': 'TERM_MATCH', 'Field': 'group', 'Value': 'Logs'},
+                ]
+            )
+            
+            if response['PriceList']:
+                price_item = json.loads(response['PriceList'][0])
+                on_demand = price_item['terms']['OnDemand']
+                price_dimensions = list(on_demand.values())[0]['priceDimensions']
+                per_gb = float(list(price_dimensions.values())[0]['pricePerUnit']['USD'])
+                return per_gb
+            
+            # Fallback to default
+            return 0.50
+            
+        except Exception as e:
+            print(f"⚠️  CloudWatch Logs API pricing failed for {region}, using fallback: {e}")
+            return 0.50
 
 
 if __name__ == "__main__":

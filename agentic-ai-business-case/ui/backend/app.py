@@ -266,8 +266,13 @@ def generate_business_case():
         result = run_business_case_generator(project_info, selected_agents)
         
         # Read the generated business case
-        output_file = os.path.join(OUTPUT_DIR, 'aws_business_case.md')
-        excel_file = os.path.join(OUTPUT_DIR, 'vm_to_ec2_mapping.xlsx')
+        # First check case-specific output folder, then fall back to root
+        case_output_dir = os.path.join(OUTPUT_DIR, case_id)
+        output_file = os.path.join(case_output_dir, 'aws_business_case.md')
+        
+        if not os.path.exists(output_file):
+            # Fallback to root output folder
+            output_file = os.path.join(OUTPUT_DIR, 'aws_business_case.md')
         
         output_s3_keys = {}
         
@@ -282,12 +287,44 @@ def generate_business_case():
                     output_s3_keys['business_case'] = s3_key
                     print(f"✓ Business case uploaded to S3: {s3_key}")
             
-            # Upload Excel file to S3 if it exists and S3 is enabled
-            if os.path.exists(excel_file) and is_s3_enabled():
-                s3_key = upload_file_to_s3(excel_file, case_id, 'vm_to_ec2_mapping.xlsx')
-                if s3_key:
-                    output_s3_keys['excel_mapping'] = s3_key
-                    print(f"✓ Excel mapping uploaded to S3: {s3_key}")
+            # Upload all Excel files to S3 if they exist and S3 is enabled
+            if is_s3_enabled():
+                # Check for RVTools Excel file (check case folder first)
+                excel_file = os.path.join(case_output_dir, 'vm_to_ec2_mapping.xlsx')
+                if not os.path.exists(excel_file):
+                    excel_file = os.path.join(OUTPUT_DIR, 'vm_to_ec2_mapping.xlsx')
+                
+                if os.path.exists(excel_file):
+                    s3_key = upload_file_to_s3(excel_file, case_id, 'vm_to_ec2_mapping.xlsx')
+                    if s3_key:
+                        output_s3_keys['excel_mapping'] = s3_key
+                        print(f"✓ Excel mapping uploaded to S3: {s3_key}")
+                
+                # Check for EKS Excel file (check case folder first)
+                eks_excel_file = os.path.join(case_output_dir, 'eks_migration_analysis.xlsx')
+                if not os.path.exists(eks_excel_file):
+                    eks_excel_file = os.path.join(OUTPUT_DIR, 'eks_migration_analysis.xlsx')
+                
+                if os.path.exists(eks_excel_file):
+                    s3_key = upload_file_to_s3(eks_excel_file, case_id, 'eks_migration_analysis.xlsx')
+                    if s3_key:
+                        output_s3_keys['eks_analysis'] = s3_key
+                        print(f"✓ EKS analysis uploaded to S3: {s3_key}")
+                
+                # Check for IT Inventory Excel file (check case folder first, then root)
+                import glob
+                it_inventory_files = glob.glob(os.path.join(case_output_dir, 'it_inventory_aws_pricing_*.xlsx'))
+                if not it_inventory_files:
+                    it_inventory_files = glob.glob(os.path.join(OUTPUT_DIR, 'it_inventory_aws_pricing_*.xlsx'))
+                
+                if it_inventory_files:
+                    # Upload the most recent IT inventory file
+                    it_inventory_file = max(it_inventory_files, key=os.path.getmtime)
+                    filename = os.path.basename(it_inventory_file)
+                    s3_key = upload_file_to_s3(it_inventory_file, case_id, filename)
+                    if s3_key:
+                        output_s3_keys['it_inventory'] = s3_key
+                        print(f"✓ IT Inventory uploaded to S3: {s3_key}")
             
             return jsonify({
                 'success': True,
@@ -634,9 +671,17 @@ def enhance_description():
             try:
                 import boto3
                 from botocore.exceptions import ClientError, NoCredentialsError
+                from botocore.config import Config
+                
+                # Retry configuration for production reliability
+                retry_config = Config(
+                    retries={'max_attempts': 5, 'mode': 'adaptive'},
+                    connect_timeout=10,
+                    read_timeout=300
+                )
                 
                 # Use the region from the request, not DYNAMODB_REGION
-                bedrock = boto3.client('bedrock-runtime', region_name=aws_region)
+                bedrock = boto3.client('bedrock-runtime', region_name=aws_region, config=retry_config)
                 
                 prompt = f"""You are an AWS migration expert. Create a comprehensive project description for {customer_name}'s AWS migration project. 
 
@@ -728,6 +773,103 @@ Enhanced description:"""
             'success': False,
             'message': str(e)
         }), 500
+
+@app.route('/api/config/schema', methods=['GET'])
+def get_config_schema_endpoint():
+    """Get configuration schema with metadata for UI."""
+    try:
+        # Add agents directory to path if not already there
+        if AGENTS_DIR not in sys.path:
+            sys.path.insert(0, AGENTS_DIR)
+        
+        import agents.config.config as config_manager
+        schema = config_manager.get_config_schema()
+        
+        # Use json.dumps with sort_keys=False to preserve order
+        response = app.response_class(
+            response=json.dumps(schema, sort_keys=False),
+            status=200,
+            mimetype='application/json'
+        )
+        return response
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Config schema error: {error_details}")
+        return jsonify({'error': str(e), 'details': error_details}), 500
+
+@app.route('/api/config', methods=['GET'])
+def get_config():
+    """Get current configuration (defaults + overrides)."""
+    try:
+        # Add agents directory to path if not already there
+        if AGENTS_DIR not in sys.path:
+            sys.path.insert(0, AGENTS_DIR)
+        
+        import agents.config.config as config_manager
+        schema = config_manager.get_config_schema()
+        overrides = config_manager.load_overrides()
+        
+        # Merge defaults with overrides
+        config_data = {}
+        for group_key, group in schema.items():
+            config_data[group_key] = {}
+            for setting_key, setting in group['settings'].items():
+                # Use override if exists, otherwise use default
+                override_key = f"{group_key}.{setting_key}"
+                config_data[group_key][setting_key] = overrides.get(override_key, setting['default'])
+        
+        # Use json.dumps with sort_keys=False to preserve order
+        response = app.response_class(
+            response=json.dumps(config_data, sort_keys=False),
+            status=200,
+            mimetype='application/json'
+        )
+        return response
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Config get error: {error_details}")
+        return jsonify({'error': str(e), 'details': error_details}), 500
+
+@app.route('/api/config', methods=['POST'])
+def update_config():
+    """Update configuration overrides."""
+    try:
+        # Add agents directory to path if not already there
+        if AGENTS_DIR not in sys.path:
+            sys.path.insert(0, AGENTS_DIR)
+        
+        import agents.config.config as config_manager
+        data = request.json
+        
+        # Flatten nested config to dot notation
+        flat_overrides = {}
+        for group_key, settings in data.items():
+            for setting_key, value in settings.items():
+                flat_overrides[f"{group_key}.{setting_key}"] = value
+        
+        config_manager.save_overrides(flat_overrides)
+        return jsonify({'message': 'Configuration updated successfully'}), 200
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Config update error: {error_details}")
+        return jsonify({'error': str(e), 'details': error_details}), 500
+
+@app.route('/api/config/reset', methods=['POST'])
+def reset_config():
+    """Reset configuration to defaults (clear overrides)."""
+    try:
+        override_file = os.path.join(OUTPUT_DIR, 'config_overrides.json')
+        if os.path.exists(override_file):
+            os.remove(override_file)
+        return jsonify({'message': 'Configuration reset to defaults'}), 200
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Config reset error: {error_details}")
+        return jsonify({'error': str(e), 'details': error_details}), 500
 
 if __name__ == '__main__':
     # This application requires Gunicorn to run

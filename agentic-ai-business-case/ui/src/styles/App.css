@@ -1,6 +1,6 @@
 .app {
   min-height: 100vh;
-  background-color: #f2f3f3;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
 }
 
 #business-case-content {
@@ -121,4 +121,56 @@
 /* Hide the entire footer on Results page */
 .hide-wizard-actions footer {
   display: none !important;
+}
+
+/* Metric Cards Styling - Fix for Issue 1 */
+.metric-card {
+  min-width: 220px;
+  max-width: 100%;
+  flex: 1 1 220px;
+}
+
+.metric-value {
+  font-size: 24px;
+  font-weight: bold;
+  white-space: nowrap;
+  word-break: keep-all;
+}
+
+.metric-card-small {
+  min-width: 160px;
+  max-width: 100%;
+  flex: 1 1 160px;
+}
+
+.metric-value-small {
+  font-size: 18px;
+  font-weight: bold;
+  white-space: nowrap;
+  word-break: keep-all;
+}
+
+/* Smooth transitions for interactive elements */
+* {
+  transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Enhanced button hover effects */
+button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Loading animation */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.loading {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }

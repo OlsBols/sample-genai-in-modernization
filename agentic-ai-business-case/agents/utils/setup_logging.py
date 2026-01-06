@@ -4,7 +4,7 @@ Logging configuration for agent workflow
 import logging
 import os
 from datetime import datetime
-from config import output_folder_dir_path
+from agents.config.config import output_folder_dir_path
 
 def setup_logging():
     """

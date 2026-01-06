@@ -4,7 +4,7 @@ import glob
 from strands import Agent, tool
 from strands.models import BedrockModel
 
-from config import input_folder_dir_path, model_id_claude3_7, model_temperature, MAX_ROWS_RVTOOLS
+from agents.config.config import input_folder_dir_path, model_id_claude3_7, model_temperature, MAX_ROWS_RVTOOLS
 
 
 # Create a BedrockModel
@@ -18,7 +18,7 @@ def read_csv_from_current_dir(filename, max_rows=MAX_ROWS_RVTOOLS):
     Read CSV/Excel file with row limit to prevent context overflow.
     For large datasets, only reads first max_rows to stay within context limits.
     """
-    from project_context import get_input_file_path
+    from agents.utils.project_context import get_input_file_path
     
     # Extract just the filename if path is included
     filename_only = os.path.basename(filename)
@@ -94,7 +94,7 @@ def generate_vm_summary(df):
     
     if os_col:
         # Use shared OS detection logic for consistency
-        from os_detection import count_os_distribution
+        from agents.utils.os_detection import count_os_distribution
         os_counts = count_os_distribution(df[os_col])
         summary['windows_vms'] = os_counts['windows']
         summary['linux_vms'] = os_counts['linux']
@@ -141,7 +141,7 @@ def rv_tool_analysis(filename_or_pattern):
     """
     # Check if pattern contains wildcard
     if '*' in filename_or_pattern:
-        from project_context import get_case_input_directory
+        from agents.utils.project_context import get_case_input_directory
         
         # Find all matching files in case-specific directory
         filename_pattern = os.path.basename(filename_or_pattern)

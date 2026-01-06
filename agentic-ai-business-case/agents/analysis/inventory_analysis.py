@@ -6,7 +6,7 @@ import boto3
 from strands import Agent, tool
 from strands.models import BedrockModel
 
-from config import input_folder_dir_path, model_id_claude3_7,model_temperature
+from agents.config.config import input_folder_dir_path, model_id_claude3_7,model_temperature
 
 
 # Create a BedrockModel
@@ -27,7 +27,7 @@ def excel_to_json(filename, create_file=False, max_rows_per_sheet=3000):
     Limits each sheet to max_rows_per_sheet to stay within model context limits.
     """
     try:
-        from project_context import get_input_file_path
+        from agents.utils.project_context import get_input_file_path
         
         # Get input folder path from config.py and join with filename directory and construct full path
         # Extract just the filename if path is included
@@ -181,10 +181,9 @@ def calculate_it_inventory_arr(inventory_filename: str, target_region: str = 'us
         - Detailed breakdowns by instance type
         - Excel file path with full details
     """
-    from project_context import get_input_file_path
-    from it_inventory_pricing import calculate_it_inventory_arr as calc_arr
-    from it_inventory_pricing import export_it_inventory_to_excel
-    from config import output_folder_dir_path
+    from agents.utils.project_context import get_input_file_path
+    from agents.pricing.it_inventory_pricing import calculate_it_inventory_arr as calc_arr
+    from agents.pricing.it_inventory_pricing import export_it_inventory_to_excel
     
     try:
         # Get full path to inventory file
@@ -207,7 +206,7 @@ def calculate_it_inventory_arr(inventory_filename: str, target_region: str = 'us
         df_servers = pd.read_excel(full_path, sheet_name='Servers')
         df_databases = pd.read_excel(full_path, sheet_name='Databases')
         
-        from it_inventory_pricing import calculate_ec2_costs, calculate_rds_costs
+        from agents.pricing.it_inventory_pricing import calculate_ec2_costs, calculate_rds_costs
         
         # Option 1: EC2 Instance SP + RDS 3yr Partial Upfront
         ec2_option1 = calculate_ec2_costs(df_servers, target_region, '3yr_ec2_sp')
@@ -259,11 +258,33 @@ def calculate_it_inventory_arr(inventory_filename: str, target_region: str = 'us
         three_year_savings = monthly_savings * 36
         savings_pct = (monthly_savings / results_option2['summary']['total_monthly'] * 100) if results_option2['summary']['total_monthly'] > 0 else 0
         
+        # Calculate backup costs for servers
+        from agents.pricing.backup_pricing import calculate_backup_costs
+        backup_vms = []
+        for idx, row in df_servers.iterrows():
+            storage_gb = row.get('Storage-Total Disk Size (GB)', 0)
+            if pd.isna(storage_gb) or storage_gb == 0 or storage_gb == '':
+                storage_gb = 500  # Default
+            else:
+                if isinstance(storage_gb, str):
+                    storage_gb = storage_gb.replace('GB', '').replace('gb', '').strip()
+                storage_gb = float(storage_gb)
+            
+            backup_vms.append({
+                'vm_name': row['HOSTNAME'],
+                'storage_gb': storage_gb,
+                'environment': row.get('Environment', '')  # If available
+            })
+        
+        backup_costs = calculate_backup_costs(backup_vms, target_region)
+        
         # Export BOTH pricing options to ONE Excel file with multiple tabs
-        from it_inventory_pricing import export_it_inventory_complete
+        from agents.pricing.it_inventory_pricing import export_it_inventory_complete
+        from agents.export.excel_export import get_case_output_path
+        
         output_filename = f"it_inventory_aws_pricing_{target_region}.xlsx"
-        output_path = os.path.join(output_folder_dir_path, output_filename)
-        export_it_inventory_complete(results_option1, results_option2, output_path)
+        output_path = get_case_output_path(output_filename)
+        export_it_inventory_complete(results_option1, results_option2, output_path, backup_costs=backup_costs)
         
         # Log the results for debugging
         import logging
@@ -380,8 +401,8 @@ def extract_atx_arr_tool(atx_filename: str, target_region: str = 'us-east-1'):
         - Cost breakdown (compute, licensing)
         - Pricing model (1-Year NURI)
     """
-    from project_context import get_input_file_path
-    from atx_pricing_extractor import extract_atx_arr
+    from agents.utils.project_context import get_input_file_path
+    from agents.pricing.atx_pricing_extractor import extract_atx_arr
     
     try:
         # Get full path to ATX file

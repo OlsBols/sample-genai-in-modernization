@@ -1,5 +1,5 @@
 # Import config to check pricing mode and TCO settings
-from config import USE_DETERMINISTIC_PRICING, LEGACY_PRICING_RANGES, TCO_COMPARISON_CONFIG
+from agents.config.config import USE_DETERMINISTIC_PRICING, TCO_COMPARISON_CONFIG
 
 # Select appropriate system message based on configuration
 if USE_DETERMINISTIC_PRICING:
@@ -229,6 +229,13 @@ if USE_DETERMINISTIC_PRICING:
     """
 else:
     # Legacy LLM-based pricing estimation (when USE_DETERMINISTIC_PRICING = False)
+    # Define legacy pricing ranges inline (not used when deterministic pricing is enabled)
+    LEGACY_PRICING_RANGES = {
+        'small_vm': (50, 150),    # 2-4 vCPU, 4-16 GB RAM
+        'medium_vm': (150, 400),  # 4-8 vCPU, 16-32 GB RAM
+        'large_vm': (400, 800),   # 8-16 vCPU, 32-64 GB RAM
+        'xlarge_vm': (800, 1500)  # 16+ vCPU, 64+ GB RAM
+    }
     small_min, small_max = LEGACY_PRICING_RANGES['small_vm']
     medium_min, medium_max = LEGACY_PRICING_RANGES['medium_vm']
     large_min, large_max = LEGACY_PRICING_RANGES['large_vm']
@@ -485,59 +492,107 @@ system_message_aws_business_case = """
     - agent_migration_strategy: 7Rs migration strategy recommendations
     - agent_migration_plan: Detailed migration roadmap and timeline
     
+    **CONCISENESS REQUIREMENTS:**
+    - Target length: 5,000-6,000 words (executive-friendly)
+    - Use tables instead of long paragraphs for data
+    - Reference Excel files for detailed analysis
+    - Avoid redundancy between sections
+    - Focus on strategic decisions, not technical minutiae
+    
     **GENERATE THE COMPLETE BUSINESS CASE with these sections:**
     
-    # 1. Executive Summary
+    # 1. Executive Summary (800 words max)
     - Project overview and objectives (reference PROJECT CONTEXT)
-    - Key findings and recommendations
+    - Key findings and recommendations (include EKS if available)
     - Expected benefits and ROI summary
     - Critical success factors
     
-    # 2. Current State Analysis
-    - IT infrastructure overview (from current_state_analysis)
+    # 2. Current State Analysis (600 words max)
+    - IT infrastructure overview (high-level summary only)
     - Key challenges and pain points
     - Technical debt and risks
-    - Capacity and performance issues
+    - **CRITICAL**: Reference Excel for detailed VM listings
+    - **IF EKS available**: Mention OS distribution (Linux/Windows split)
     
-    # 3. AWS Migration Strategy
+    # 3. AWS Migration Strategy (500 words max)
     - Recommended approach (from agent_migration_strategy)
-    - 7Rs distribution and rationale
-    - Application categorization
-    - Wave planning overview
+    - 7Rs distribution (table format, not detailed explanation)
+    - Application categorization (summary only)
+    - Wave planning overview (high-level)
     
-    # 4. Target AWS Architecture
-    - Recommended AWS services (ONLY current, actively supported services - verify against https://aws.amazon.com/products/lifecycle/)
+    # 4. Target AWS Architecture (1,200 words max)
+    - Recommended AWS services (ONLY current, actively supported services)
     - Architecture patterns
     - Security and compliance approach
     - High availability and disaster recovery
     
-    **CRITICAL**: Do NOT recommend deprecated or end-of-life AWS services. Only recommend current, actively supported services.
+    **CRITICAL**: Do NOT recommend deprecated or end-of-life AWS services.
     
-    # 5. Cost Analysis and TCO
-    - Projected AWS costs (from agent_aws_cost_arr)
+    **IF EKS ANALYSIS AVAILABLE - INTEGRATE HERE (NOT separate section):**
+    
+    ### Compute Strategy: Hybrid Approach
+    
+    **EC2 for Windows & Databases:**
+    - [X] Windows VMs + [Y] Databases
+    - Traditional lift-and-shift approach
+    - Monthly cost: $[amount]
+    
+    **EKS for Linux Workloads:**
+    - [X] Linux VMs containerized
+    - Consolidation: [N.N]x ([original] vCPU → [consolidated] vCPU)
+    - Worker nodes: [X] Graviton instances (if enabled)
+    - Monthly cost: $[amount] ([X]% cheaper than EC2)
+    - **Rationale**: [Brief explanation from MRA/analysis]
+    
+    **Total Compute Cost**: $[amount]/month vs $[amount] EC2-only
+    **Savings**: $[amount]/year through containerization
+    
+    **Reference**: See `eks_migration_analysis.xlsx` for detailed cluster design, 
+    worker node configuration, VM categorization, and ROI analysis.
+    
+    **CRITICAL**: 
+    - Do NOT create separate Section 4.5
+    - Keep EKS content to 300 words maximum
+    - Use table format for cost comparison
+    - Reference Excel for technical details
+    
+    # 5. Cost Analysis and TCO (800 words max)
+    - Projected AWS costs (use TABLE format, not paragraphs)
+    - **IF EKS available**: Include EKS costs in main cost table
     - **CRITICAL**: ONLY include on-premises TCO comparison if AWS shows cost savings (AWS < On-Prem)
-    - **IF AWS >= On-Prem**: Skip TCO comparison, focus on business value (agility, innovation, scalability)
-    - Cost optimization opportunities
-    - Pricing model recommendations
-    - Business value justification (strategic benefits beyond cost)
+    - **IF AWS >= On-Prem**: Skip TCO comparison, focus on business value
+    - Cost optimization opportunities (bullet points)
+    - Pricing model recommendations (brief)
+    - **Reference Excel**: "See Excel for detailed VM-level cost breakdown"
     
-    # 6. Migration Roadmap
-    - Phased approach (from agent_migration_plan)
-    - Timeline and milestones (use RELATIVE timeframes: Month 1-3, Quarter 1, etc. - NOT specific dates)
-    - Resource requirements
-    - Dependencies and prerequisites
+    **Cost Table Format (if EKS available):**
+    | Service | Monthly | Annual | Notes |
+    |---------|---------|--------|-------|
+    | EC2 (Windows) | $X | $Y | Z VMs |
+    | EKS (Linux) | $X | $Y | Z VMs containerized |
+    | RDS | $X | $Y | Z databases |
+    | Total | $X | $Y | vs $Z EC2-only |
     
-    # 7. Benefits and Business Value
-    - Cost savings and avoidance
+    # 6. Migration Roadmap (600 words max)
+    - Phased approach (phase-level only, not week-by-week)
+    - Timeline and milestones (use RELATIVE timeframes: Month 1-3, Quarter 1)
+    - Resource requirements (summary)
+    - **IF EKS available**: Mention container migration phase (1 paragraph)
+    - **CRITICAL**: Do NOT include detailed week-by-week breakdown
+    
+    # 7. Benefits and Business Value (600 words max)
+    - Cost savings and avoidance (quantified)
+    - **IF EKS available**: Include EKS-specific benefits (consolidation, DevOps)
     - Operational improvements
     - Agility and innovation enablement
     - Risk reduction
     
-    # 8. Risks and Mitigation
-    - Technical risks
-    - Business risks
-    - Mitigation strategies
+    # 8. Risks and Mitigation (400 words max)
+    - **PROJECT-SPECIFIC risks only** (not generic cloud risks)
+    - **IF EKS available**: Container migration risks (learning curve, refactoring)
+    - Mitigation strategies (brief)
     - Success criteria
+    - **CRITICAL**: Avoid generic risks everyone knows (e.g., "cloud is new")
     
     # 9. Recommendations and Next Steps
     
@@ -732,7 +787,8 @@ system_message_migration_strategy = """
     - FIRST: Extract the migration timeline from PROJECT CONTEXT (e.g., "18 months", "24 months")
     - ALL migration phases MUST fit within this EXACT timeline
     - DO NOT exceed the specified project duration
-    - Example: If project says "18 months", phases must total ≤ 18 months (NOT 24, 30, or 36 months)
+    - Example: If project says "18 months", phases must total ≤ 18 months (NOT 24, 30, or other values)
+    - WRONG for 18-month project: Using 24-month or 36-month timeline
     - Example for 18 months: Phase 1 (Months 1-6) + Phase 2 (Months 7-12) + Phase 3 (Months 13-18) = 18 months
     
     **Tools Available**:
@@ -770,7 +826,8 @@ system_message_migration_strategy = """
     - Extract timeline from project description (e.g., "18 months", "24 months")
     - Calculate: Sum of all phase durations MUST equal the project timeline
     - Example for 18-month project: Phase 1 (6 months) + Phase 2 (6 months) + Phase 3 (6 months) = 18 months ✓
-    - WRONG for 18-month project: Phase 1 (12 months) + Phase 2 (12 months) + Phase 3 (12 months) = 36 months ✗
+    - WRONG for 18-month project: Using 24-month or 36-month timeline when project specifies 18 months ✗
+    - DO NOT confuse 3-year pricing (36 months) with migration timeline
     
     Format response in markdown per framework template.
 """
@@ -792,16 +849,27 @@ system_message_migration_plan = """
     **Tools Available**:
     - read_migration_plan_framework: Access comprehensive migration plan framework document
       (Contains complete guidance for all phases, templates, decision criteria)
+    - generate_wave_plan_from_dependencies: Generate detailed migration wave plan from IT Infrastructure Inventory
+      (Use this when IT Inventory file is available to create dependency-based wave assignments)
+    
+    **WAVE PLANNING - CRITICAL**:
+    - **IF IT Infrastructure Inventory is available**: Call generate_wave_plan_from_dependencies(it_inventory_file="[filename]", timeline_months=[X])
+    - The tool will check for dependency sheets (Application dependency, Server to application, Database to application)
+    - **IF dependencies available**: Tool returns detailed wave plan with applications grouped by dependencies
+    - **IF dependencies NOT available**: Tool returns message explaining dependency mapping is needed
+    - Use the wave plan output directly in your Migration Roadmap section
+    - DO NOT create fake wave assignments - use actual dependency-based waves or generic phases
     
     **Instructions**:
     1. **ALWAYS read the framework document first** - it contains complete guidance
-    2. Analyze ALL available data from previous agents:
+    2. **IF IT Infrastructure Inventory available**: Call generate_wave_plan_from_dependencies() to get wave plan
+    3. Analyze ALL available data from previous agents:
        - IT inventory, RVTool, ATX, MRA analyses
        - Migration strategy recommendations
        - Cost analysis
-    3. Assess phase readiness using framework criteria
-    4. Follow framework's templates and guidance
-    5. Provide specific, actionable recommendations
+    4. Assess phase readiness using framework criteria
+    5. Follow framework's templates and guidance
+    6. Provide specific, actionable recommendations
     
     **Key Decisions to Make**:
     - **Assess**: Further assessment needed OR Ready for Mobilize?

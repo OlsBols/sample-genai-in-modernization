@@ -2,7 +2,8 @@ import os
 from strands import Agent, tool
 from strands.models import BedrockModel
 
-from config import input_folder_dir_path, model_id_claude3_7, model_temperature
+from agents.config.config import input_folder_dir_path, model_id_claude3_7, model_temperature
+from agents.strategy.wave_planning import generate_wave_plan_from_dependencies
 
 
 # Create a BedrockModel
@@ -13,7 +14,7 @@ bedrock_model = BedrockModel(
 
 def read_file_from_input_dir(filename):
     """Read file from the input directory"""
-    from project_context import get_input_file_path
+    from agents.utils.project_context import get_input_file_path
     return get_input_file_path(filename)
 
 @tool(name="read_migration_plan_framework", description="Read the comprehensive AWS migration plan framework document")
@@ -35,6 +36,8 @@ that provides clear recommendations for each phase.
 **Available Tools**:
 - read_migration_plan_framework: Access the comprehensive AWS migration plan framework document
   (This document contains complete guidance for all four phases, templates, and decision criteria)
+- generate_wave_plan_from_dependencies: Generate detailed migration wave plan from IT Infrastructure Inventory
+  (Use this when IT Inventory file is available to create dependency-based wave assignments)
 
 **CRITICAL**: The migration plan framework document (aws-migration-plan-framework.md) contains ALL 
 the information you need including:
@@ -46,18 +49,27 @@ the information you need including:
 - Success metrics
 - Output format templates
 
+**WAVE PLANNING - CRITICAL**:
+- **IF IT Infrastructure Inventory is available**: Call generate_wave_plan_from_dependencies() to get detailed wave plan
+- The tool will check for dependency sheets (Application dependency, Server to application, Database to application)
+- **IF dependencies available**: Tool returns detailed wave plan with applications grouped by dependencies
+- **IF dependencies NOT available**: Tool returns message explaining dependency mapping is needed
+- Use the wave plan output directly in your Migration Roadmap section
+- DO NOT create fake wave assignments - use actual dependency-based waves or generic phases
+
 **Instructions**:
 1. **ALWAYS read the framework document first** using read_migration_plan_framework()
-2. Analyze ALL available data from previous agents:
+2. **IF IT Infrastructure Inventory available**: Call generate_wave_plan_from_dependencies(it_inventory_file="[filename]", timeline_months=[X])
+3. Analyze ALL available data from previous agents:
    - IT Infrastructure Inventory analysis
    - RVTool VMware assessment
    - ATX VMware assessment
    - MRA organizational readiness
    - Migration strategy recommendations
    - AWS cost analysis
-3. Assess current state and phase readiness
-4. Follow the framework's guidance for each phase
-5. Use the output format template provided in the framework
+4. Assess current state and phase readiness
+5. Follow the framework's guidance for each phase
+6. Use the output format template provided in the framework
 
 **Key Analysis Points**:
 
@@ -149,7 +161,7 @@ Format your response in markdown following the template in the framework documen
 agent = Agent(
     model=bedrock_model,
     system_prompt=system_message,
-    tools=[read_migration_plan_framework]
+    tools=[read_migration_plan_framework, generate_wave_plan_from_dependencies]
 )
 
 # Example usage (commented out)
@@ -173,3 +185,12 @@ if __name__ == "__main__":
         print(f"\n✓ Migration plan framework loaded successfully ({len(framework)} characters)")
     except Exception as e:
         print(f"\n✗ Error reading framework: {e}")
+    
+    # Test wave planning
+    try:
+        test_file = "it-infrastructure-inventory.xlsx"
+        wave_plan = generate_wave_plan_from_dependencies(test_file, 18)
+        print(f"\n✓ Wave planning tool executed successfully")
+        print(f"Output preview: {wave_plan[:200]}...")
+    except Exception as e:
+        print(f"\n✗ Error testing wave planning: {e}")
