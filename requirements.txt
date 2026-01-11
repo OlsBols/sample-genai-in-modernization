@@ -2,3 +2,6 @@ streamlit
 boto3
 botocore
 pandas
+Pillow
+PyMuPDF
+mem0ai

@@ -1,33 +1,23 @@
-"""
-AWS Bedrock client utilities for invoking various models.
-"""
-
-import json
-
 import boto3
+import json
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
-from .config import BEDROCK_CONFIG, get_aws_region, get_model_config
+
+from .config import (
+    get_aws_region,
+    get_model_config,
+    BEDROCK_CONFIG,
+)
 
 
 def _create_bedrock_client():
-    """Create and return AWS Bedrock runtime client."""
+    """Create and return AWS Bedrock runtime client"""
     config = Config(**BEDROCK_CONFIG)
     return boto3.client("bedrock-runtime", region_name=get_aws_region(), config=config)
 
 
 def invoke_bedrock_model_without_reasoning(text_content):
-    """
-    Invoke Bedrock model without reasoning capabilities.
-
-    Args:
-        text_content (str): The text content to process
-
-    Returns:
-        str: The model's response text, or None if an error occurs
-    """
-    model_config = None
     try:
         client = _create_bedrock_client()
         model_config = get_model_config("claude_3_7")
@@ -50,25 +40,14 @@ def invoke_bedrock_model_without_reasoning(text_content):
         response_content = json.loads(response["body"].read())
         return response_content["content"][0]["text"]
 
-    except (BotoCoreError, ClientError) as e:
-        model_id = (
-            model_config["model_id"]
-            if model_config and "model_id" in model_config
-            else "claude_3_7"
-        )
-        print(f"ERROR: Can't invoke '{model_id}'. Reason: {e}")
-        return None
-    except KeyError as e:
-        print(f"ERROR: Missing key in response: {e}")
-        return None
-    except (json.JSONDecodeError, TypeError) as e:
-        print(f"ERROR: Failed to parse response: {e}")
+    except (BotoCoreError, ClientError, Exception) as e:
+        print(f"ERROR: Can't invoke '{model_config['model_id']}'. Reason: {e}")
         return None
 
 
 def invoke_bedrock_model_with_reasoning(prompt: str):
     """
-    Invoke Bedrock model with reasoning capabilities using configuration settings from config.py.
+    Invoke Bedrock model with reasoning capabilities using configuration settings from config.py
 
     Args:
         prompt (str): The user prompt for the model
@@ -76,7 +55,6 @@ def invoke_bedrock_model_with_reasoning(prompt: str):
     Returns:
         dict: Dictionary containing both reasoning and response text
     """
-    model_config = None
     try:
         client = _create_bedrock_client()
         model_config = get_model_config("claude_3_7")
@@ -116,6 +94,11 @@ def invoke_bedrock_model_with_reasoning(prompt: str):
                 reasoning = block["reasoningContent"]["reasoningText"]["text"]
             if "text" in block:
                 text = block["text"]
+        # print(reasoning)
+        # if text:
+        #     return text
+        # else:
+        #     return "No text response received from the model."
 
         return {
             "reasoning": reasoning,
@@ -123,32 +106,12 @@ def invoke_bedrock_model_with_reasoning(prompt: str):
             "success": True,
         }
 
-    except (BotoCoreError, ClientError) as e:
-        model_id = (
-            model_config["model_id"]
-            if model_config and "model_id" in model_config
-            else "claude_3_7"
-        )
-        print(f"ERROR: Can't invoke '{model_id}'. Reason: {e}")
-        return {"reasoning": None, "response": None, "success": False, "error": str(e)}
-    except KeyError as e:
-        print(f"ERROR: Missing key in response: {e}")
+    except (BotoCoreError, ClientError, Exception) as e:
+        print(f"ERROR: Can't invoke '{model_config['model_id']}'. Reason: {e}")
         return {"reasoning": None, "response": None, "success": False, "error": str(e)}
 
 
 def invoke_bedrock_model_for_image_analysis(onprem_image, prompt, image_type):
-    """
-    Invoke Bedrock model for image analysis with text prompt.
-
-    Args:
-        onprem_image (str): Base64 encoded image data
-        prompt (str): Text prompt for image analysis
-        image_type (str): MIME type of the image
-
-    Returns:
-        str: The model's analysis response, or None if an error occurs
-    """
-    model_config = None
     try:
         client = _create_bedrock_client()
         model_config = get_model_config("claude_3_7")
@@ -185,17 +148,42 @@ def invoke_bedrock_model_for_image_analysis(onprem_image, prompt, image_type):
         response_content = json.loads(response["body"].read())
         return response_content["content"][0]["text"]
 
-    except (BotoCoreError, ClientError) as e:
-        model_id = (
-            model_config["model_id"]
-            if model_config and "model_id" in model_config
-            else "claude_3_7"
+    except (BotoCoreError, ClientError, Exception) as e:
+        print(f"ERROR: Can't invoke '{model_config['model_id']}'. Reason: {e}")
+        return None
+
+
+def invoke_bedrock_model_claude_3_5(prompt):
+    """
+    Invoke Bedrock Claude 3.5 Sonnet model with a prompt
+
+    Args:
+        prompt (str): The user prompt for the model
+
+    Returns:
+        str: The model's response text, or None if an error occurs
+    """
+    print(prompt)
+    try:
+        client = _create_bedrock_client()
+        model_config = get_model_config("claude_3_5")
+
+        # Prepare the request body
+        body = {
+            "anthropic_version": "bedrock-2023-05-31",
+            "max_tokens": model_config["max_tokens"],
+            "messages": [{"role": "user", "content": prompt}],
+        }
+
+        # Make the API call
+        response = client.invoke_model(
+            modelId=model_config["model_id"], body=json.dumps(body)
         )
-        print(f"ERROR: Can't invoke '{model_id}'. Reason: {e}")
-        return None
-    except KeyError as e:
-        print(f"ERROR: Missing key in response: {e}")
-        return None
-    except (json.JSONDecodeError, TypeError) as e:
-        print(f"ERROR: Failed to parse response: {e}")
+
+        # Parse response
+        response_content = json.loads(response["body"].read())
+        return response_content["content"][0]["text"]
+
+    except (BotoCoreError, ClientError, Exception) as e:
+        print(f"ERROR: Can't invoke '{model_config['model_id']}'. Reason: {e}")
         return None

@@ -1,9 +1,4 @@
-"""
-Resource Planning Module for AWS Migration Strategy.
-
-This page provides functionality to develop resource planning based on
-migration strategy, wave planning data, and resource details.
-"""
+"""Resource planning module for AWS migration team structure and allocation."""
 
 import re
 
@@ -13,77 +8,116 @@ from prompt_library.resource_planning.resource_planning_prompt import (
     get_resource_planning_prompt,
 )
 from utils.bedrock_client import invoke_bedrock_model_with_reasoning
-from utils.file_handler import read_csv_file
+from utils.config import load_css
+from utils.file_handler import read_csv_file, validate_file_size
 
 
 def page_details():
-    """Display the main page details and description for resource planning."""
-    st.title("Develop Resource Plan for the Migration Strategy")
-    aws_resource_planning = """
-        Develop resource planning based on three key inputs:
-        * (1) migration strategy,
-        * (2) wave planning data, and
-        * (3) resource details.
-
-        It creates detailed team structures and resource allocation plans,
-        providing five key outputs: an executive summary, team structure
-        evaluation, resource summary, wave-based planning, and role-based
-        resource allocation. The focus is on two team structure models
-        (Hub-and-Spoke and Wave-Based), with justification for the
-        recommended approach.
+    """Display page header and description for resource planning."""
+    # Enhanced page header using CSS classes
+    st.markdown(
         """
-    st.markdown(aws_resource_planning)
-    st.header("Upload migration strategy document with wave planning")
+    <div class="page-header">
+        <h1>Develop Resource Planning</h1>
+        <p>Team Structure & Resource Allocation</p>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
 
+    # Description section using CSS classes
+    st.markdown(
+        """
+    <div class="info-card">
+        <p>
+            Develop resource planning based on three key inputs: (1) migration strategy, 
+            (2) wave planning data, and (3) resource details.
+        </p>
+        <p>
+            It creates detailed team structures and resource allocation plans, providing 
+            five key outputs: an executive summary, team structure evaluation, resource 
+            summary, wave-based planning, and role-based resource allocation. The focus 
+            is on two team structure models (Hub-and-Spoke and Wave-Based), with 
+            justification for the recommended approach.
+        </p>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
 
-def develop_resource_planning(strategy_content):
+def develop_resource_planning(migration_strategy):
     """
-    Develop resource planning based on migration strategy content.
-
+    Develop resource planning based on migration strategy and resource data.
+    
     Args:
-        strategy_content (str): The migration strategy document content.
+        migration_strategy: Migration strategy document content as string
     """
     pattern = r"\|(.*?)\|[\r\n]"
-    wave_planning_data = re.findall(pattern, strategy_content)
+    wave_planning_data = re.findall(pattern, migration_strategy)
     if not wave_planning_data:
         wave_planning_data = ""
 
     resource_details = read_csv_file("resource_profile")
-    with st.expander("Resource Profile"):
+    if resource_details is None or resource_details.empty:
+        st.error(
+            "Resource profile data is empty. Please check the resource_profile_template.csv file and add resource data."
+        )
+        return
+    with st.expander("Resource Profile", expanded=True):
+        st.markdown("**Available Resource Profile Data**")
         st.dataframe(resource_details)
-
     resource_prompt = get_resource_planning_prompt(
-        strategy_content, wave_planning_data, resource_details
+        migration_strategy, wave_planning_data, resource_details
     )
     resource_planning_data = invoke_bedrock_model_with_reasoning(resource_prompt)
-
-    if resource_planning_data and resource_planning_data.get("success", False):
-        st.markdown(resource_planning_data["response"])
-        print("*" * 80)
-        print(resource_planning_data["reasoning"])
-        st.download_button(
-            label="Download Strategy",
-            data=resource_planning_data["response"],
-            file_name="aws_resource_planning_data.md",
-            mime="text/markdown",
+    if resource_planning_data:
+        # Enhanced results section using CSS classes
+        st.markdown(
+            """
+        <div class="results-section">
+            <h3>Resource Planning Results</h3>
+        </div>
+        """,
+            unsafe_allow_html=True,
         )
-    elif resource_planning_data:
-        st.error(
-            f"Error generating resource planning: "
-            f"{resource_planning_data.get('error', 'Unknown error')}"
-        )
-    else:
-        st.error("Failed to generate resource planning data")
+        st.session_state["resource_planning_data"] = resource_planning_data["response"]
+        with st.expander("Resource Planning Strategy", expanded=True):
+            st.markdown("**Team Structure & Resource Allocation Plan**")
+            st.markdown(st.session_state["resource_planning_data"])
+            print("*" * 80)
+            print(resource_planning_data["reasoning"])
+            st.download_button(
+                label="Download Resource Planning Strategy",
+                data=st.session_state["resource_planning_data"],
+                file_name="aws_resource_planning_data.md",
+                mime="text/markdown",
+            )
 
 
 if __name__ == "__main__":
+    # Load external CSS
+    load_css()
+
     page_details()
+
+
     migration_strategy = st.file_uploader(
-        "Upload migration strategy document with wave plan"
+        "Upload migration strategy document with wave planning"
     )
+
     if st.button("Generate Resource Planning", type="primary"):
-        if migration_strategy:
-            with st.spinner(
-                "The resource planning is being developed. This may take a few minutes."
-            ):
-                develop_resource_planning(migration_strategy.read().decode("utf-8"))
+        if not migration_strategy:
+            st.error("Please upload a migration strategy document.")
+        else:
+            # Validate file size
+            is_valid, error_msg = validate_file_size(migration_strategy)
+            if not is_valid:
+                st.error(f"File validation error: {error_msg}")
+            else:
+                with st.spinner(
+                    "The resource planning is being developed. "
+                    "This may take a few minutes."
+                ):
+                    develop_resource_planning(
+                        migration_strategy.getvalue().decode("utf-8")
+                    )

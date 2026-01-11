@@ -1,4 +1,4 @@
-def get_inventory_analysis_prompt(inventory_csv):
+def get_invventory_analysis_prompt(inventory_csv):
     prompt = f"""
         As an AWS migration expert, conduct a comprehensive analysis of the provided IT inventory with emphasis on cost optimisation, performance metrics, disaster recovery capabilities, and strategic planning.
 

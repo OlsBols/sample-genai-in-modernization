@@ -9,7 +9,7 @@ def get_migration_patterns_prompt(services_summary, scope_text):
         2. Generate three different patterns to modernize these workloads, progressing from minimal changes to more comprehensive modernization.
         3. Compare these three approaches and identify the most common or consistent elements across all strategies.
         4. Based on this analysis, synthesise a final strategy that incorporates the most consistent aspects from all three approaches.
-        5. Create a migration wave plan for the final strategy with in a table format:
+        5. Create a migration wave planning for the final strategy with in a table format:
            - Table header 'High Level Wave Plan'
            - Wave number and description
            - Services/workloads included in each wave

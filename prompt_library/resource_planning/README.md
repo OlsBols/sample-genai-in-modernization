@@ -21,9 +21,9 @@ This module serves as the prompt engineering foundation for automated resource p
 - Flexible resource allocation based on migration complexity
 
 ### 2. **Multi-Input Integration**
-- 1. Processes migration strategy documents 
-- 2. Incorporates wave planning data and timelines 
-- 3. Utilises resource profile information for cost and skill matching
+- Processes migration strategy documents 
+- Incorporates wave planning data and timelines 
+- Utilises resource profile information for cost and skill matching
 - Note: (a) The input for items 1 and 2 could be a migration strategy generated using a migration strategy sample `(pages/02_migration_strategy.py)` (b) The resource profile could be a CSV file `(sampledata/resource_profile_template.csv)`  that includes resource category (core, specialist, and support), resource role, resource level (junior, senior and principal), and resource charge
 
 ### 3. **Comprehensive Output Structure**

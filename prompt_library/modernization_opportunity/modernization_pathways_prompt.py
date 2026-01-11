@@ -14,7 +14,8 @@ def get_modernization_pathways_prompt(
         {"Target Architecture Analysis:" + architecture_description if architecture_description else "No target architecture provided."}
         
         To develop an AWS modernisation strategy with implementation approach: 
-        (a) Use the following modernisation pathways and recommend AWS services for each applicable pathway:
+        (a) Start with high levle data driven and actionable concise executive summary 
+        (b) Use the following modernisation pathways and recommend AWS services for each applicable pathway:
         
         1. Move to Cloud Native: API Gateway, Lambda, EventBridge, Step Functions, SQS, SNS, Amazon MQ, AppSync, Cognito, Amplify, X-Ray, Migration Hub Refactor Spaces, CognitoSync
         2. Move to Containers: EKS, ECS, ECR, Fargate, App Runner
@@ -26,20 +27,24 @@ def get_modernization_pathways_prompt(
         8. Additional AWS Services Assessment -Identify any additional AWS services required other the modernisation pathways
         
         Format your response as Table name 'High Level AWS Cost' with the following columns:
-        Mondernization Pathway or Additional AWS Services
+        Group as Mondernization Pathway or Additional AWS Services
+        AWS region Europe (Ireland) eu-west-1
         AWS Service Name
-        Recommend Service Configuration
         Monthly cost in USD($) for AWS region Europe (Ireland) eu-west-1
         Estimate ARR (annual recurring costs) in USD($) 
+        Recommend Service Configuration
+        | Group | Region | AWS Service | Monthly | First 12 months total | Configuration summary |
+        |------|-------------|----------------|---------------|----------------|----------------|
+        |  | | | | | |
 
-        (b) For each applicable pathway:
+        (c) For each applicable pathway:
         1. Explain why this pathway is appropriate
         2. Recommend specific AWS services based on provided IT Inventory and include suggested AWS services configuration.
         3. Provide rational bheind selecting AWS services
         4. Estimate monthly costs in USD for all recommended services (provide a estimate in the range of $1,000-$50,000)
         4. Estimate ARR (annual recurring costs) in USD($) for all recommended services (provide a estimate in the range of $1,000-$50,000) for AWS region Europe (Ireland) eu-west-1
 
-        (c) Develop high level implementation approach
+        (d) Develop high level implementation approach
 
         Format your response in markdown to make it readable and structured. Use British English standards.
         """

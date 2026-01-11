@@ -1,12 +1,6 @@
 def get_resource_planning_prompt(
     migration_strategy, wave_planning_data, resource_details
 ):
-    # Step 3: Apply Structural Guidelines - Variables
-    target_utilisation = "85-95%"
-    team_pods = "3-5"
-    contingency = "15-20%"
-    effort_estimation = "Use person-days where 8 hours = 1 day and 5 days = 1 week"
-
     resource_prompt = f"""
         As an AWS migration expert, please develop comprehensive AWS migration resource planning using the following inputs:
 
@@ -38,10 +32,11 @@ def get_resource_planning_prompt(
 
         **Step 3: Apply Structural Guidelines**
         For both team structures, implement:
-        • Target utilisation rate: {target_utilisation}
-        • Team pods of {team_pods} people with role specialisations from {resource_details}
-        • {contingency} contingency capacity on all calculations
-        • **Effort Estimation Standard**: {effort_estimation}
+        • Target utilisation rate: 85-95%
+        • Team pods of 3-5 people with role specialisations from {resource_details}
+        • 15-20% contingency capacity on all calculations
+        • UK-specific constraints (public holidays and school holidays)
+        • **Effort Estimation Standard**: Use person-days where 8 hours = 1 day and 5 days = 1 week
 
         **Step 4: Resource Calculations**
         Calculate team sizes using:
@@ -49,7 +44,7 @@ def get_resource_planning_prompt(
         • Migration complexity factors from {migration_strategy}
         • Available skills and rates from {resource_details}
         • 6 R's migration strategy complexity multipliers
-        • **Calculation Standard**: All effort estimations must use {effort_estimation.lower()}
+        • **Calculation Standard**: All effort estimations must use person-days (8 hours = 1 day, 5 days = 1 week)
 
         **OUTPUT REQUIREMENTS:**
 
@@ -86,7 +81,7 @@ def get_resource_planning_prompt(
         **4. Role-Based resource allocation**
         - Ensure the Role-Based resource allocation is inline with a point number (Team structure evaluation and recommendation) which the most relevant skills based on migration complexity, cost-effectiveness and accelerated migration delivery
         - Total Number of Days are the same as Total Effort Required. Ensure only relevant and required specialists are included
-        **Note**: All calculations based on {effort_estimation.lower()}
+        **Note**: All calculations based on person-days where 8 hours = 1 day and 5 days = 1 week
 
         | Role | Required FTE | Number of Days | Utilisation % | Daily Rate (£) | Total Cost (£) |
         |------|-------------|----------------|---------------|----------------|----------------|
@@ -103,7 +98,7 @@ def get_resource_planning_prompt(
         **5. Justification and Rationale**
         Provide detailed reasoning for:
         • **Team Sizing Rational**: How wave volumes and complexity drove team size decisions
-        • **Effort Estimation Methodology**: Calculation approach using complexity factors (Rehost,Replatform, and Refactor) and {effort_estimation.lower()}
+        • **Effort Estimation Methodology**: Calculation approach using complexity factors (Rehost,Replatform, and Refactor) and person-days standard (8 hours = 1 day, 5 days = 1 week)
         • **Cost Optimisation Strategy**: How the recommended structure balances cost efficiency with delivery acceleration
 
         Format your response in markdown to make it readable and structured. Use British English standards. 
