@@ -10,7 +10,7 @@ def get_project_context():
     Read project information from the input folder.
     Returns a formatted string with project context.
     """
-    project_info_file = os.path.join(input_folder_dir_path, 'input', 'project_info.json')
+    project_info_file = os.path.join(input_folder_dir_path, 'project_info.json')
     
     if not os.path.exists(project_info_file):
         return ""
@@ -38,7 +38,7 @@ def get_project_info_dict():
     Read project information and return as dictionary.
     Includes uploaded filenames if available.
     """
-    project_info_file = os.path.join(input_folder_dir_path, 'input', 'project_info.json')
+    project_info_file = os.path.join(input_folder_dir_path, 'project_info.json')
     
     if not os.path.exists(project_info_file):
         return {}
@@ -62,7 +62,7 @@ def get_case_input_directory():
     case_id = project_info.get('caseId')
     
     if case_id:
-        case_dir = os.path.join(input_folder_dir_path, 'input', case_id)
+        case_dir = os.path.join(input_folder_dir_path, case_id)
         if os.path.exists(case_dir):
             print(f"✓ Using case-specific input directory: {case_dir}")
             return case_dir
@@ -70,9 +70,8 @@ def get_case_input_directory():
             print(f"⚠ Case directory does not exist: {case_dir}")
     
     # Fallback to base input directory (backward compatibility only)
-    base_dir = os.path.join(input_folder_dir_path, 'input')
-    print(f"⚠ Using base input directory (no case ID found): {base_dir}")
-    return base_dir
+    print(f"⚠ Using base input directory (no case ID found): {input_folder_dir_path}")
+    return input_folder_dir_path
 
 def get_case_input_dir():
     """Alias for get_case_input_directory() for shorter name"""

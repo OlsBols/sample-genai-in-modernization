@@ -64,6 +64,8 @@ def extract_exact_costs_from_excel(agent_results=None):
         from agents.utils.project_context import get_case_id
         case_id = get_case_id()
         
+        excel_files = []  # Initialize to empty list
+        
         if case_id:
             case_output_dir = os.path.join(output_folder_dir_path, case_id)
             if os.path.exists(case_output_dir):
