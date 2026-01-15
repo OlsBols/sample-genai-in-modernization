@@ -1,14 +1,14 @@
 import os
 from botocore.config import Config
 
-# Get the directory where this config file is located
+# Get the directory where this config file is located (agents/config/)
 _config_dir = os.path.dirname(os.path.abspath(__file__))
 
-# Set paths relative to the project root (parent of agents directory)
-_project_root = os.path.dirname(_config_dir)
+# Set paths relative to the project root (two levels up: agents/config/ -> agents/ -> project root)
+_project_root = os.path.dirname(os.path.dirname(_config_dir))
 
 # Input and output directories (relative paths)
-input_folder_dir_path = _project_root + "/"
+input_folder_dir_path = os.path.join(_project_root, "input") + "/"
 output_folder_dir_path = os.path.join(_project_root, "output") + "/"
 
 # S3 Configuration for case file storage

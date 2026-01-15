@@ -1,4 +1,4 @@
 """Migration strategy and planning modules."""
-from agents.strategy.migration_strategy import *
-from agents.strategy.migration_plan import *
-from agents.strategy.wave_planning import *
+from .migration_strategy import *
+from .migration_plan import *
+from .wave_planning import *

@@ -24,10 +24,15 @@ MAX_CONTENT_LENGTH = 100 * 1024 * 1024  # 100MB
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
 
-# Path to the agents directory
-AGENTS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../agents'))
-INPUT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../input'))
-OUTPUT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../output'))
+# Path to the project root and directories
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+AGENTS_DIR = os.path.join(PROJECT_ROOT, 'agents')
+INPUT_DIR = os.path.join(PROJECT_ROOT, 'input')
+OUTPUT_DIR = os.path.join(PROJECT_ROOT, 'output')
+
+# Add project root to Python path so agents module can be imported
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 # DynamoDB configuration
 DYNAMODB_TABLE_NAME = os.environ.get('DYNAMODB_TABLE_NAME', 'aws-migration-business-cases')
@@ -374,38 +379,38 @@ def run_business_case_generator(project_info, selected_agents):
         if not os.path.exists(main_venv_python):
             main_venv_python = sys.executable
         
-        # Save current directory
-        original_dir = os.getcwd()
+        # Path to the business case generator (now in agents/core/)
+        generator_script = os.path.join(PROJECT_ROOT, 'agents', 'core', 'aws_business_case.py')
         
-        # Change to agents directory
-        os.chdir(AGENTS_DIR)
+        # Set PYTHONPATH to include project root so agents module can be imported
+        # Get existing PYTHONPATH and append project root
+        existing_pythonpath = os.environ.get('PYTHONPATH', '')
+        if existing_pythonpath:
+            new_pythonpath = f"{PROJECT_ROOT}:{existing_pythonpath}"
+        else:
+            new_pythonpath = PROJECT_ROOT
         
-        try:
-            # Use os.system instead of subprocess to avoid scanner warnings
-            # This executes: python3 aws_business_case.py
-            exit_code = os.system(f'"{main_venv_python}" aws_business_case.py > /tmp/business_case_output.log 2>&1')
-            
-            if exit_code != 0:
-                # Read error output
-                try:
-                    with open('/tmp/business_case_output.log', 'r') as f:
-                        error_output = f.read()
-                    raise Exception(f"Generator failed with exit code {exit_code}: {error_output[-500:]}")
-                except:
-                    raise Exception(f"Generator failed with exit code {exit_code}")
-            
-            # Calculate execution time
-            execution_time = f"{time.time() - start_time:.2f}s"
-            
-            return {
-                'execution_time': execution_time,
-                'token_usage': 'N/A',
-                'stdout': 'Business case generated successfully'
-            }
-            
-        finally:
-            # Restore original directory
-            os.chdir(original_dir)
+        # Use os.system instead of subprocess to avoid scanner warnings
+        # This executes: PYTHONPATH=/path/to/project python3 agents/core/aws_business_case.py
+        exit_code = os.system(f'cd "{PROJECT_ROOT}" && PYTHONPATH="{new_pythonpath}" "{main_venv_python}" "{generator_script}" > /tmp/business_case_output.log 2>&1')
+        
+        if exit_code != 0:
+            # Read error output
+            try:
+                with open('/tmp/business_case_output.log', 'r') as f:
+                    error_output = f.read()
+                raise Exception(f"Generator failed with exit code {exit_code}: {error_output[-500:]}")
+            except:
+                raise Exception(f"Generator failed with exit code {exit_code}")
+        
+        # Calculate execution time
+        execution_time = f"{time.time() - start_time:.2f}s"
+        
+        return {
+            'execution_time': execution_time,
+            'token_usage': 'N/A',
+            'stdout': 'Business case generated successfully'
+        }
         
     except Exception as e:
         raise Exception(f'Failed to run generator: {str(e)}')
@@ -778,11 +783,7 @@ Enhanced description:"""
 def get_config_schema_endpoint():
     """Get configuration schema with metadata for UI."""
     try:
-        # Add agents directory to path if not already there
-        if AGENTS_DIR not in sys.path:
-            sys.path.insert(0, AGENTS_DIR)
-        
-        import agents.config.config as config_manager
+        import agents.config.config_manager as config_manager
         schema = config_manager.get_config_schema()
         
         # Use json.dumps with sort_keys=False to preserve order
@@ -802,11 +803,7 @@ def get_config_schema_endpoint():
 def get_config():
     """Get current configuration (defaults + overrides)."""
     try:
-        # Add agents directory to path if not already there
-        if AGENTS_DIR not in sys.path:
-            sys.path.insert(0, AGENTS_DIR)
-        
-        import agents.config.config as config_manager
+        import agents.config.config_manager as config_manager
         schema = config_manager.get_config_schema()
         overrides = config_manager.load_overrides()
         
@@ -836,11 +833,7 @@ def get_config():
 def update_config():
     """Update configuration overrides."""
     try:
-        # Add agents directory to path if not already there
-        if AGENTS_DIR not in sys.path:
-            sys.path.insert(0, AGENTS_DIR)
-        
-        import agents.config.config as config_manager
+        import agents.config.config_manager as config_manager
         data = request.json
         
         # Flatten nested config to dot notation

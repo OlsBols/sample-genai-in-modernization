@@ -153,9 +153,10 @@ import glob
 
 # Detect which input files are available
 # For RVTools, check the actual uploaded file (not glob pattern)
-# Need to build absolute path since code runs from agents/ directory
-script_dir = os.path.dirname(os.path.abspath(__file__))  # agents/
-project_root = os.path.dirname(script_dir)  # project root
+# Need to build absolute path since code runs from agents/core/ directory
+script_dir = os.path.dirname(os.path.abspath(__file__))  # agents/core/
+agents_dir = os.path.dirname(script_dir)  # agents/
+project_root = os.path.dirname(agents_dir)  # project root
 rvtools_file_path = os.path.join(project_root, input_base, uploaded_files['rvTool'][0]) if 'rvTool' in uploaded_files and uploaded_files['rvTool'] else None
 
 
@@ -436,7 +437,8 @@ def get_it_inventory_servers_for_eks(it_inventory_path):
         servers = []
         for idx, row in df_servers.iterrows():
             # Extract server specs
-            server_name = row.get('Server Name', f'Server-{idx+1}')
+            # Use HOSTNAME column (same as pricing) with fallback to Server Name
+            server_name = row.get('HOSTNAME', row.get('Server Name', f'Server-{idx+1}'))
             vcpu = int(row.get('numCpus', 2))
             memory_gb = float(row.get('totalRAM (GB)', 4.0))
             os_name = str(row.get('osName', 'Linux'))
@@ -726,8 +728,9 @@ def get_atx_ppt_summary_precomputed(atx_ppt_path):
         return None
 
 # Get pre-computed summaries based on which files exist (priority: RVTools > IT Inventory > ATX)
-script_dir = os.path.dirname(os.path.abspath(__file__))  # agents/
-project_root = os.path.dirname(script_dir)  # project root
+script_dir = os.path.dirname(os.path.abspath(__file__))  # agents/core/
+agents_dir = os.path.dirname(script_dir)  # agents/
+project_root = os.path.dirname(agents_dir)  # project root
 
 # Try RVTools first (highest priority)
 rvtools_summary = None
@@ -1380,18 +1383,29 @@ if eks_enabled and eks_strategy != 'disabled':
                     if excel_files:
                         latest_excel = max(excel_files, key=os.path.getmtime)
                         
-                        # Read EC2 Details - Option 1 sheet to get actual costs
-                        df_ec2_details = pd.read_excel(latest_excel, sheet_name='EC2 Details - Option 1')
+                        # Determine sheet name based on file type
+                        # IT Inventory uses: EC2_Option1_Instance_SP
+                        # RVTools uses: EC2 Details - Option 1
+                        sheet_name = 'EC2_Option1_Instance_SP' if 'it_inventory' in os.path.basename(latest_excel) else 'EC2 Details - Option 1'
+                        
+                        # Read EC2 Details sheet to get actual costs
+                        df_ec2_details = pd.read_excel(latest_excel, sheet_name=sheet_name)
                         
                         # Create EC2 cost map for ALL VMs (for later use in EKS Excel)
                         ec2_cost_map_all_vms = {}
-                        vm_name_col = df_ec2_details.columns[0]  # First column is VM Name
-                        cost_col = 'Total Monthly Cost ($)'
+                        
+                        # IT Inventory uses 'Hostname', RVTools uses 'VM Name'
+                        vm_name_col = 'Hostname' if 'it_inventory' in os.path.basename(latest_excel) else df_ec2_details.columns[0]
+                        # IT Inventory uses 'Monthly Cost', RVTools uses 'Total Monthly Cost ($)'
+                        cost_col = 'Monthly Cost' if 'it_inventory' in os.path.basename(latest_excel) else 'Total Monthly Cost ($)'
                         
                         for idx, row in df_ec2_details.iterrows():
                             vm_name = row.get(vm_name_col, '')
                             vm_cost = row.get(cost_col, 0)
                             if vm_name and vm_cost:
+                                # Remove $ and commas if it's a string
+                                if isinstance(vm_cost, str):
+                                    vm_cost = vm_cost.replace('$', '').replace(',', '')
                                 ec2_cost_map_all_vms[vm_name] = float(vm_cost)
                         
                         logger.info(f"  - Loaded EC2 costs for {len(ec2_cost_map_all_vms)} VMs from pricing sheet")

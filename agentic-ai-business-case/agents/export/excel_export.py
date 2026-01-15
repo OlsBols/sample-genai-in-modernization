@@ -2314,18 +2314,15 @@ def export_eks_analysis_to_excel(vm_categorization, cluster_config, ec2_costs, e
             # Find the pricing Excel file
             import glob
             from agents.utils.project_context import get_case_id
+            from agents.config.config import output_folder_dir_path
             case_id = get_case_id()
             
             pricing_excel = None
+            df_ec2 = None
+            
             if case_id:
-                # Construct case output directory path
-                if '/' in output_filename:
-                    # output_filename has a path, use its directory
-                    case_output_dir = os.path.join(os.path.dirname(output_filename), case_id)
-                else:
-                    # output_filename is just a filename, use ../output/case_id
-                    # (agents run from agents/ directory, need to go up one level)
-                    case_output_dir = f'../output/{case_id}'
+                # Use absolute path from config
+                case_output_dir = os.path.join(output_folder_dir_path, case_id)
                 
                 logger.info(f"Looking for pricing Excel in: {case_output_dir}")
                 
@@ -2339,18 +2336,42 @@ def export_eks_analysis_to_excel(vm_categorization, cluster_config, ec2_costs, e
                     logger.info(f"Found pricing Excel: {pricing_excel}")
             
             if pricing_excel and os.path.exists(pricing_excel):
-                # Read EC2 Details - Option 1 sheet
-                df_ec2 = pd.read_excel(pricing_excel, sheet_name='EC2 Details - Option 1')
-                logger.info(f"✓ Reading actual EC2 costs from {os.path.basename(pricing_excel)}")
+                # Determine sheet name based on file type
+                # IT Inventory uses: EC2_Option1_Instance_SP
+                # RVTools uses: EC2 Details - Option 1
+                sheet_name = 'EC2_Option1_Instance_SP' if 'it_inventory' in os.path.basename(pricing_excel) else 'EC2 Details - Option 1'
+                
+                # Read EC2 Details sheet
+                df_ec2 = pd.read_excel(pricing_excel, sheet_name=sheet_name)
+                logger.info(f"✓ Reading actual EC2 costs from {os.path.basename(pricing_excel)} (sheet: {sheet_name})")
             
-            # Create a mapping of VM name to EC2 cost
-            for idx, row in df_ec2.iterrows():
-                vm_name = row.get('VM Name', '')
-                total_cost = row.get('Total Monthly Cost ($)', 0)
-                if vm_name and total_cost:
-                    ec2_cost_map[vm_name] = float(total_cost)
-            
-            logger.info(f"✓ Loaded EC2 costs for {len(ec2_cost_map)} VMs from pricing sheet")
+            # Create a mapping of VM name to EC2 cost (only if df_ec2 was successfully loaded)
+            if df_ec2 is not None:
+                for idx, row in df_ec2.iterrows():
+                    # IT Inventory uses 'Hostname', RVTools uses 'VM Name'
+                    vm_name = row.get('Hostname', row.get('VM Name', ''))
+                    
+                    # IT Inventory uses 'Monthly Cost', RVTools uses 'Total Monthly Cost ($)'
+                    total_cost = row.get('Monthly Cost', row.get('Total Monthly Cost ($)', 0))
+                    
+                    if vm_name and total_cost:
+                        # Remove $ and commas from cost if it's a string
+                        if isinstance(total_cost, str):
+                            total_cost = total_cost.replace('$', '').replace(',', '')
+                        
+                        ec2_cost_map[vm_name] = float(total_cost)
+                        
+                        # Also add variant with hyphen (Server1 -> Server-1)
+                        # This handles naming mismatches between Excel and categorization
+                        if vm_name and vm_name[0].isalpha():
+                            # Find where digits start
+                            for i, char in enumerate(vm_name):
+                                if char.isdigit():
+                                    vm_name_with_hyphen = vm_name[:i] + '-' + vm_name[i:]
+                                    ec2_cost_map[vm_name_with_hyphen] = float(total_cost)
+                                    break
+                
+                logger.info(f"✓ Loaded EC2 costs for {len(ec2_cost_map)} VMs from pricing sheet")
             
             # Also read backup costs from Pricing Comparison sheet
             try:
