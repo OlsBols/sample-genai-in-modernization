@@ -1,0 +1,9 @@
+resource_category,resource_role,resource_level,resource_charge
+core,Delivery Architect,L2,"1,338"
+core,Delivery Architect,L1,"1,609"
+core,Delivery Consultant,L2,"1,256"
+core,Delivery Consultant,L1,"1,045"
+core,Delivery Engineer,L2,749
+core,Delivery Engineer,L1,594
+core,Project Manager,L2,946
+core,Project Coordinator,L1,499
