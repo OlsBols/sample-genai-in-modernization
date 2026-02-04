@@ -153,17 +153,14 @@ import glob
 
 # Detect which input files are available
 # For RVTools, check the actual uploaded file (not glob pattern)
-# Need to build absolute path since code runs from agents/core/ directory
-script_dir = os.path.dirname(os.path.abspath(__file__))  # agents/core/
-agents_dir = os.path.dirname(script_dir)  # agents/
-project_root = os.path.dirname(agents_dir)  # project root
-rvtools_file_path = os.path.join(project_root, input_base, uploaded_files['rvTool'][0]) if 'rvTool' in uploaded_files and uploaded_files['rvTool'] else None
+# Use the configured input folder path (handles both dev and production)
+from agents.config.config import input_folder_dir_path
 
+rvtools_file_path = os.path.join(input_folder_dir_path, case_id, uploaded_files['rvTool'][0]) if case_id and 'rvTool' in uploaded_files and uploaded_files['rvTool'] else None
 
-
-# Build absolute paths for all files
-abs_input_files1 = os.path.join(project_root, input_files1)
-abs_input_files3_pptx = os.path.join(project_root, input_files3_pptx)
+# Build absolute paths for all files using configured input folder
+abs_input_files1 = os.path.join(input_folder_dir_path, input_files1)
+abs_input_files3_pptx = os.path.join(input_folder_dir_path, input_files3_pptx)
 
 has_it_inventory = os.path.exists(abs_input_files1)
 has_rvtools = rvtools_file_path is not None and os.path.exists(rvtools_file_path)
@@ -740,8 +737,26 @@ if has_rvtools:
     else:
         rvtools_filename = "RVTools_Export.xlsx"
     
-    rvtools_path = os.path.join(project_root, input_base, rvtools_filename)
+    rvtools_path = os.path.join(input_folder_dir_path, case_id, rvtools_filename) if case_id else os.path.join(input_folder_dir_path, rvtools_filename)
+    logger.info(f"="*80)
+    logger.info(f"ATTEMPTING TO LOAD RVTOOLS SUMMARY")
+    logger.info(f"="*80)
+    logger.info(f"RVTools filename: {rvtools_filename}")
+    logger.info(f"Input base: {input_base}")
+    logger.info(f"Input folder path: {input_folder_dir_path}")
+    logger.info(f"Case ID: {case_id}")
     logger.info(f"RVTools absolute path: {rvtools_path}")
+    logger.info(f"File exists: {os.path.exists(rvtools_path)}")
+    if not os.path.exists(rvtools_path):
+        logger.error(f"RVTools file NOT FOUND at: {rvtools_path}")
+        # List directory contents to debug
+        input_dir = os.path.join(input_folder_dir_path, case_id) if case_id else input_folder_dir_path
+        if os.path.exists(input_dir):
+            logger.info(f"Contents of {input_dir}:")
+            for item in os.listdir(input_dir):
+                logger.info(f"  - {item}")
+        else:
+            logger.error(f"Input directory does not exist: {input_dir}")
     rvtools_summary = get_rvtools_summary_precomputed(rvtools_path)
 
 # Try IT Inventory if RVTools not available
@@ -752,8 +767,26 @@ if has_it_inventory and not rvtools_summary:
     else:
         it_inventory_filename = "it-infrastructure-inventory.xlsx"
     
-    it_inventory_path = os.path.join(project_root, input_base, it_inventory_filename)
+    it_inventory_path = os.path.join(input_folder_dir_path, case_id, it_inventory_filename) if case_id else os.path.join(input_folder_dir_path, it_inventory_filename)
+    logger.info(f"="*80)
+    logger.info(f"ATTEMPTING TO LOAD IT INVENTORY SUMMARY")
+    logger.info(f"="*80)
+    logger.info(f"IT Inventory filename: {it_inventory_filename}")
+    logger.info(f"Input base: {input_base}")
+    logger.info(f"Input folder path: {input_folder_dir_path}")
+    logger.info(f"Case ID: {case_id}")
     logger.info(f"IT Inventory absolute path: {it_inventory_path}")
+    logger.info(f"File exists: {os.path.exists(it_inventory_path)}")
+    if not os.path.exists(it_inventory_path):
+        logger.error(f"IT Inventory file NOT FOUND at: {it_inventory_path}")
+        # List directory contents to debug
+        input_dir = os.path.join(input_folder_dir_path, case_id) if case_id else input_folder_dir_path
+        if os.path.exists(input_dir):
+            logger.info(f"Contents of {input_dir}:")
+            for item in os.listdir(input_dir):
+                logger.info(f"  - {item}")
+        else:
+            logger.error(f"Input directory does not exist: {input_dir}")
     it_inventory_summary = get_it_inventory_summary_precomputed(it_inventory_path)
 
 # Try ATX if neither RVTools nor IT Inventory available
@@ -764,8 +797,26 @@ if has_atx and not rvtools_summary and not it_inventory_summary:
     else:
         atx_filename = "atx_business_case.pptx"
     
-    atx_path = os.path.join(project_root, input_base, atx_filename)
+    atx_path = os.path.join(input_folder_dir_path, case_id, atx_filename) if case_id else os.path.join(input_folder_dir_path, atx_filename)
+    logger.info(f"="*80)
+    logger.info(f"ATTEMPTING TO LOAD ATX SUMMARY")
+    logger.info(f"="*80)
+    logger.info(f"ATX filename: {atx_filename}")
+    logger.info(f"Input base: {input_base}")
+    logger.info(f"Input folder path: {input_folder_dir_path}")
+    logger.info(f"Case ID: {case_id}")
     logger.info(f"ATX absolute path: {atx_path}")
+    logger.info(f"File exists: {os.path.exists(atx_path)}")
+    if not os.path.exists(atx_path):
+        logger.error(f"ATX file NOT FOUND at: {atx_path}")
+        # List directory contents to debug
+        input_dir = os.path.join(input_folder_dir_path, case_id) if case_id else input_folder_dir_path
+        if os.path.exists(input_dir):
+            logger.info(f"Contents of {input_dir}:")
+            for item in os.listdir(input_dir):
+                logger.info(f"  - {item}")
+        else:
+            logger.error(f"Input directory does not exist: {input_dir}")
     atx_summary = get_atx_ppt_summary_precomputed(atx_path)
 
 # Build data section based on what's available (priority: RVTools > IT Inventory > ATX)
@@ -905,13 +956,17 @@ else:
 
 # Build agent task with MRA content if available
 # Truncate MRA to 10000 chars to prevent token overflow
-mra_section = f"""
+if mra_content:
+    mra_summary = f"--- MRA SUMMARY (first 10000 chars) ---\n{mra_content[:10000]}\n--- END MRA SUMMARY ---"
+    mra_section = f"""
     **MRA STATUS**: {mra_status}
     
-    {'**MRA CONTENT PROVIDED** - MRA file available for analysis' if mra_content else '**MRA NOT AVAILABLE** - Recommend conducting MRA as next step.'}
+    **MRA CONTENT PROVIDED** - MRA file available for analysis
     
-    {f'--- MRA SUMMARY (first 10000 chars) ---\\n{mra_content[:10000]}\\n--- END MRA SUMMARY ---' if mra_content else ''}
-    """ if mra_content else "**MRA STATUS**: Not Available"
+    {mra_summary}
+    """
+else:
+    mra_section = "**MRA STATUS**: Not Available"
 
 # Extract timeline from project description
 import re
@@ -1127,10 +1182,17 @@ eks_results = None
 eks_enabled = EKS_CONFIG.get('enabled', True)
 eks_strategy = EKS_CONFIG.get('strategy', 'hybrid')
 
+logger.info("="*80)
+logger.info("EKS ANALYSIS CHECK")
+logger.info("="*80)
 logger.info(f"EKS Analysis: {'ENABLED' if eks_enabled else 'DISABLED'}")
 logger.info(f"EKS Strategy: {eks_strategy}")
+logger.info(f"RVTools Summary Available: {rvtools_summary is not None}")
+logger.info(f"IT Inventory Summary Available: {it_inventory_summary is not None}")
+logger.info(f"ATX Summary Available: {atx_summary is not None}")
 
 if eks_enabled and eks_strategy != 'disabled':
+    logger.info("✓ EKS analysis will be attempted")
     try:
         # Get VMs from pre-computed summary
         vms_for_eks = []
@@ -1142,6 +1204,8 @@ if eks_enabled and eks_strategy != 'disabled':
             
             # Get actual VM specs from RVTools
             rvtools_path = os.path.join(project_root, input_base, rvtools_filename)
+            logger.info(f"RVTools path: {rvtools_path}")
+            logger.info(f"RVTools file exists: {os.path.exists(rvtools_path)}")
             actual_vms = get_rvtools_vms_for_eks(rvtools_path)
             
             if actual_vms:
@@ -1361,15 +1425,26 @@ if eks_enabled and eks_strategy != 'disabled':
                     case_id = get_case_id()
                     excel_files = []
                     
+                    logger.info(f"[EKS Hybrid] Looking for Excel file - case_id: {case_id}, output_dir: {output_folder_dir_path}")
+                    
                     if case_id:
                         case_output_dir = os.path.join(output_folder_dir_path, case_id)
+                        logger.info(f"[EKS Hybrid] Checking case-specific directory: {case_output_dir}")
                         if os.path.exists(case_output_dir):
                             # Try IT Inventory in case folder
                             excel_files = glob.glob(os.path.join(case_output_dir, 'it_inventory_aws_pricing_*.xlsx'))
                             
                             # If no IT Inventory, try RVTools in case folder
                             if not excel_files:
-                                excel_files = glob.glob(os.path.join(case_output_dir, 'vm_to_ec2_mapping.xlsx'))
+                                rvtools_path = os.path.join(case_output_dir, 'vm_to_ec2_mapping.xlsx')
+                                logger.info(f"[EKS Hybrid] Checking RVTools path: {rvtools_path}")
+                                if os.path.exists(rvtools_path):
+                                    excel_files = [rvtools_path]
+                                    logger.info(f"[EKS Hybrid] ✓ Found RVTools file in case directory")
+                                else:
+                                    logger.warning(f"[EKS Hybrid] RVTools file not found at: {rvtools_path}")
+                        else:
+                            logger.warning(f"[EKS Hybrid] Case output directory does not exist: {case_output_dir}")
                     
                     # Fallback to root output folder if not found in case folder
                     if not excel_files:
@@ -1378,7 +1453,9 @@ if eks_enabled and eks_strategy != 'disabled':
                         
                         # If no IT Inventory, try RVTools
                         if not excel_files:
-                            excel_files = glob.glob(os.path.join(output_folder_dir_path, 'vm_to_ec2_mapping.xlsx'))
+                            rvtools_path = os.path.join(output_folder_dir_path, 'vm_to_ec2_mapping.xlsx')
+                            if os.path.exists(rvtools_path):
+                                excel_files = [rvtools_path]
                     
                     if excel_files:
                         latest_excel = max(excel_files, key=os.path.getmtime)
@@ -1410,15 +1487,37 @@ if eks_enabled and eks_strategy != 'disabled':
                         
                         logger.info(f"  - Loaded EC2 costs for {len(ec2_cost_map_all_vms)} VMs from pricing sheet")
                         
+                        # Debug: Show sample VM names from cost map
+                        if ec2_cost_map_all_vms:
+                            sample_names = list(ec2_cost_map_all_vms.keys())[:5]
+                            logger.info(f"  - Sample VM names in cost map: {sample_names}")
+                        
                         # Sum up costs for VMs staying on EC2
                         ec2_only_monthly = 0
+                        matched_vms = 0
+                        missing_vms = []
                         
                         for vm in ec2_only_vms:
                             vm_name = vm.get('name', vm.get('vm_name', ''))
                             if vm_name in ec2_cost_map_all_vms:
                                 ec2_only_monthly += ec2_cost_map_all_vms[vm_name]
+                                matched_vms += 1
                             else:
-                                logger.warning(f"  VM '{vm_name}' not found in EC2 Details sheet")
+                                missing_vms.append(vm_name)
+                        
+                        logger.info(f"  - Matched {matched_vms}/{ec2_only_vm_count} EC2 VMs in pricing sheet")
+                        
+                        if missing_vms:
+                            logger.warning(f"  - Missing VMs in pricing sheet: {missing_vms[:10]}")  # Show first 10
+                            
+                            # FALLBACK: If most VMs are missing, use proportional calculation
+                            if matched_vms < ec2_only_vm_count * 0.5:  # Less than 50% matched
+                                logger.warning(f"  - Less than 50% VMs matched, using proportional fallback")
+                                # Calculate total cost from all VMs in cost map
+                                total_cost_all_vms = sum(ec2_cost_map_all_vms.values())
+                                # Proportionally allocate to EC2-only VMs
+                                ec2_only_monthly = total_cost_all_vms * (ec2_only_vm_count / len(ec2_cost_map_all_vms))
+                                logger.info(f"  - Fallback EC2 cost: ${ec2_only_monthly:,.2f}/month (proportional)")
                         
                         logger.info(f"  - EC2 cost for {ec2_only_vm_count} VMs (from pricing sheet): ${ec2_only_monthly:,.2f}/month")
                     else:
@@ -1471,15 +1570,26 @@ if eks_enabled and eks_strategy != 'disabled':
                     case_id = get_case_id()
                     excel_files = []
                     
+                    logger.info(f"[EKS Recommendation] Looking for Excel file - case_id: {case_id}, output_dir: {output_folder_dir_path}")
+                    
                     if case_id:
                         case_output_dir = os.path.join(output_folder_dir_path, case_id)
+                        logger.info(f"[EKS Recommendation] Checking case-specific directory: {case_output_dir}")
                         if os.path.exists(case_output_dir):
                             # Try IT Inventory in case folder
                             excel_files = glob.glob(os.path.join(case_output_dir, 'it_inventory_aws_pricing_*.xlsx'))
                             
                             # If no IT Inventory, try RVTools in case folder
                             if not excel_files:
-                                excel_files = glob.glob(os.path.join(case_output_dir, 'vm_to_ec2_mapping.xlsx'))
+                                rvtools_path = os.path.join(case_output_dir, 'vm_to_ec2_mapping.xlsx')
+                                logger.info(f"[EKS Recommendation] Checking RVTools path: {rvtools_path}")
+                                if os.path.exists(rvtools_path):
+                                    excel_files = [rvtools_path]
+                                    logger.info(f"[EKS Recommendation] ✓ Found RVTools file in case directory")
+                                else:
+                                    logger.warning(f"[EKS Recommendation] RVTools file not found at: {rvtools_path}")
+                        else:
+                            logger.warning(f"[EKS Recommendation] Case output directory does not exist: {case_output_dir}")
                     
                     # Fallback to root output folder if not found in case folder
                     if not excel_files:
@@ -1488,7 +1598,9 @@ if eks_enabled and eks_strategy != 'disabled':
                         
                         # If no IT Inventory, try RVTools
                         if not excel_files:
-                            excel_files = glob.glob(os.path.join(output_folder_dir_path, 'vm_to_ec2_mapping.xlsx'))
+                            rvtools_path = os.path.join(output_folder_dir_path, 'vm_to_ec2_mapping.xlsx')
+                            if os.path.exists(rvtools_path):
+                                excel_files = [rvtools_path]
                     
                     if excel_files:
                         latest_excel = max(excel_files, key=os.path.getmtime)
@@ -1743,6 +1855,9 @@ if eks_enabled and eks_strategy != 'disabled':
                     logger.error(traceback.format_exc())
                 
                 logger.info("✓ EKS analysis completed successfully")
+                logger.info(f"✓ EKS results available: {eks_results is not None}")
+                if eks_results:
+                    logger.info(f"✓ EKS Excel path: {eks_results.get('excel_path', 'N/A')}")
             else:
                 logger.info("No VMs eligible for EKS migration")
         else:
@@ -1754,7 +1869,7 @@ if eks_enabled and eks_strategy != 'disabled':
         logger.error(traceback.format_exc())
         eks_results = None
 else:
-    logger.info("EKS analysis disabled or strategy set to 'disabled'")
+    logger.info("✗ EKS analysis skipped (disabled or strategy='disabled')")
 
 logger.info("="*80)
 logger.info("FINAL BUSINESS CASE GENERATION")
@@ -1808,7 +1923,7 @@ if ENABLE_MULTI_STAGE:
             except Exception as e:
                 logger.warning(f"Deterministic ATX generation failed: {e}")
                 logger.info("Falling back to multi-stage LLM generation")
-                final_result_text = generate_multi_stage_business_case(result.results, project_context_with_timeline)
+                final_result_text = generate_multi_stage_business_case(result.results, project_context_with_timeline, rvtools_summary, it_inventory_summary, atx_summary)
                 logger.info(f"Multi-stage business case generated ({len(final_result_text)} characters)")
         else:
             # Add EKS results to agent results if available
@@ -1820,7 +1935,7 @@ if ENABLE_MULTI_STAGE:
                 logger.info("✓ EKS results added to business case context")
             
             # Generate business case in multiple stages using LLM
-            final_result_text = generate_multi_stage_business_case(result.results, project_context_with_timeline)
+            final_result_text = generate_multi_stage_business_case(result.results, project_context_with_timeline, rvtools_summary, it_inventory_summary, atx_summary)
             logger.info(f"Multi-stage business case generated ({len(final_result_text)} characters)")
         
         file_path = os.path.join(output_folder_dir_path, 'aws_business_case.md')

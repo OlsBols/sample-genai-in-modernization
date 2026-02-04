@@ -63,12 +63,12 @@ const FileUploadStep = ({ uploadedFiles, setUploadedFiles }) => {
     },
     {
       key: 'mra',
-      label: 'Migration Readiness Assessment (MRA)',
+      label: 'Migration Readiness Assessment (MRA) (Optional)',
       description: 'Organizational readiness evaluation document',
       acceptedFormats: '.md, .docx, .doc, .pdf',
-      required: true,
+      required: false,
       inputType: null, // Not part of input type restriction
-      details: 'Migration Readiness Assessment evaluating organizational readiness across business, people, process, technology, security, operations, and financial dimensions. Supports Markdown, Word, and PDF formats.',
+      details: 'Migration Readiness Assessment evaluating organizational readiness across business, people, process, technology, security, operations, and financial dimensions. Supports Markdown, Word, and PDF formats. If not provided, the business case will recommend conducting an MRA.',
       example: 'aws-customer-migration-readiness-assessment.md or mra-report.pdf'
     },
     {
@@ -174,15 +174,16 @@ const FileUploadStep = ({ uploadedFiles, setUploadedFiles }) => {
 
         {!status.hasInfrastructureFile ? (
           <Alert type="warning">
-            Please upload at least one infrastructure file (IT Infrastructure Inventory, RVTools, or ATX files) and the MRA document to proceed.
-          </Alert>
-        ) : !status.complete ? (
-          <Alert type="info">
-            MRA document is required. {status.uploaded} of {status.total} required files uploaded.
+            Please upload at least one infrastructure file (IT Infrastructure Inventory, RVTools, or ATX files) to proceed.
           </Alert>
         ) : (
           <Alert type="success">
-            All required files uploaded. You can proceed to the next step.
+            Infrastructure file uploaded. You can proceed to the next step.
+            {!uploadedFiles['mra'] && (
+              <Box variant="p" margin={{ top: 's' }}>
+                <strong>Note:</strong> MRA document is optional but recommended. If not provided, the business case will include a recommendation to conduct a Migration Readiness Assessment.
+              </Box>
+            )}
           </Alert>
         )}
 

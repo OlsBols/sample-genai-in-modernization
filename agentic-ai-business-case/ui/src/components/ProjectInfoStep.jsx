@@ -10,6 +10,7 @@ import {
   Button,
   Alert
 } from '@cloudscape-design/components';
+import { getApiUrl } from '../utils/apiConfig.js';
 
 const ProjectInfoStep = ({ projectInfo, setProjectInfo }) => {
   const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
@@ -62,7 +63,7 @@ const ProjectInfoStep = ({ projectInfo, setProjectInfo }) => {
     
     try {
       // Call AI service to enhance description
-      const response = await fetch('http://localhost:5000/api/enhance-description', {
+      const response = await fetch(getApiUrl('/enhance-description'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

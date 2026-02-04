@@ -17,6 +17,7 @@ import ReviewStep from './components/ReviewStep.jsx';
 import ResultsStep from './components/ResultsStep.jsx';
 import SavedCasesModal from './components/SavedCasesModal.jsx';
 import ConfigurationModal from './components/ConfigurationModal.jsx';
+import { getApiUrl } from './utils/apiConfig.js';
 import './styles/App.css';
 
 function App() {
@@ -32,6 +33,7 @@ function App() {
     runAll: false,
     agents: {}
   });
+  const [currentUser, setCurrentUser] = useState(null);
 
   // Auto-select agents based on uploaded files
   useEffect(() => {
@@ -70,11 +72,32 @@ function App() {
 
   useEffect(() => {
     checkStorageStatus();
+    fetchCurrentUser();
   }, []);
+
+  // Handle auto-saved cases - set currentCaseId and lastUpdated
+  useEffect(() => {
+    if (businessCaseResult?.autoSaved && businessCaseResult?.caseId) {
+      setCurrentCaseId(businessCaseResult.caseId);
+      setLastUpdated(new Date().toISOString());
+    }
+  }, [businessCaseResult?.autoSaved, businessCaseResult?.caseId]);
+
+  const fetchCurrentUser = async () => {
+    try {
+      const response = await fetch(getApiUrl('/user'));
+      const data = await response.json();
+      if (data.success) {
+        setCurrentUser(data.user);
+      }
+    } catch (error) {
+      console.error('Failed to fetch user:', error);
+    }
+  };
 
   const checkStorageStatus = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/storage/status');
+      const response = await fetch(getApiUrl('/storage/status'));
       const data = await response.json();
       setDynamoDBAvailable(data.dynamodb.enabled);
       setDynamoDBEnabled(data.dynamodb.enabled);
@@ -90,7 +113,7 @@ function App() {
     if (!dynamoDBEnabled || !businessCaseResult) return;
 
     try {
-      const response = await fetch('http://localhost:5000/api/dynamodb/save', {
+      const response = await fetch(getApiUrl('/dynamodb/save'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -107,6 +130,7 @@ function App() {
             tokenUsage: businessCaseResult.tokenUsage
           },
           s3FileKeys: businessCaseResult.s3FileKeys,
+          outputS3Keys: businessCaseResult.outputS3Keys,  // Add this for downloads!
           s3BucketName: businessCaseResult.s3BucketName
         })
       });
@@ -133,6 +157,7 @@ function App() {
       uploadedFiles: caseData.uploadedFiles || [],
       caseId: caseData.caseId,
       s3FileKeys: caseData.s3FileKeys,
+      outputS3Keys: caseData.outputS3Keys || {},  // Add outputS3Keys for downloads
       s3BucketName: caseData.s3BucketName,
       ...caseData.executionStats
     });
@@ -160,10 +185,8 @@ function App() {
                                    uploadedFiles['atxPdf'] || 
                                    uploadedFiles['atxPptx'];
     
-    // Check if MRA is uploaded (required)
-    const hasMRA = uploadedFiles['mra'];
-    
-    return hasInfrastructureFile && hasMRA;
+    // MRA is now optional
+    return hasInfrastructureFile;
   };
 
   const steps = [
@@ -234,6 +257,20 @@ function App() {
           }
         }}
         utilities={[
+          {
+            type: 'menu-dropdown',
+            text: currentUser 
+              ? `Welcome, ${currentUser.given_name || currentUser.name?.split(' ')[0] || currentUser.email?.split('@')[0] || 'User'}` 
+              : 'User',
+            iconName: 'user-profile',
+            items: [
+              {
+                id: 'user-info',
+                text: currentUser?.email || 'Not authenticated',
+                disabled: true
+              }
+            ]
+          },
           {
             type: 'button',
             text: 'Configuration',

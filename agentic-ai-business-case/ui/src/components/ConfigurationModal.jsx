@@ -13,6 +13,7 @@ import {
   Select,
   Header
 } from '@cloudscape-design/components';
+import { getApiUrl } from '../utils/apiConfig.js';
 
 export default function ConfigurationModal({ visible, onDismiss }) {
   const [schema, setSchema] = useState(null);
@@ -30,8 +31,8 @@ export default function ConfigurationModal({ visible, onDismiss }) {
   const loadConfiguration = async () => {
     try {
       const [schemaRes, configRes] = await Promise.all([
-        fetch('http://localhost:5000/api/config/schema'),
-        fetch('http://localhost:5000/api/config')
+        fetch(getApiUrl('/config/schema')),
+        fetch(getApiUrl('/config'))
       ]);
       
       if (!schemaRes.ok || !configRes.ok) {
@@ -54,7 +55,7 @@ export default function ConfigurationModal({ visible, onDismiss }) {
     setSaving(true);
     setMessage(null);
     try {
-      const response = await fetch('http://localhost:5000/api/config', {
+      const response = await fetch(getApiUrl('/config'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config)
@@ -77,7 +78,7 @@ export default function ConfigurationModal({ visible, onDismiss }) {
     
     setMessage(null);
     try {
-      const response = await fetch('http://localhost:5000/api/config/reset', { method: 'POST' });
+      const response = await fetch(getApiUrl('/config/reset'), { method: 'POST' });
       if (response.ok) {
         await loadConfiguration();
         setMessage({ type: 'success', text: 'Configuration reset to defaults' });

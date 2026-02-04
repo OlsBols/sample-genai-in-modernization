@@ -10,11 +10,13 @@ import {
   Alert,
   ColumnLayout,
   KeyValuePairs,
-  ExpandableSection
+  ExpandableSection,
+  StatusIndicator
 } from '@cloudscape-design/components';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import html2pdf from 'html2pdf.js';
+import { getApiUrl } from '../utils/apiConfig.js';
 
 const ResultsStep = ({ businessCaseResult, setBusinessCaseResult, projectInfo, dynamoDBEnabled, onSave, lastUpdated, currentCaseId }) => {
   const [activeTabId, setActiveTabId] = useState('preview');
@@ -23,6 +25,7 @@ const ResultsStep = ({ businessCaseResult, setBusinessCaseResult, projectInfo, d
   const [saveMessage, setSaveMessage] = useState(null);
   const [editedContent, setEditedContent] = useState('');
   const [isEdited, setIsEdited] = useState(false);
+  const [downloadingFile, setDownloadingFile] = useState(null);
 
   // Initialize edited content when business case result changes
   React.useEffect(() => {
@@ -155,6 +158,57 @@ const ResultsStep = ({ businessCaseResult, setBusinessCaseResult, projectInfo, d
     }
   };
 
+  const handleDownloadFile = async (fileType, fileName) => {
+    setDownloadingFile(fileType);
+    try {
+      console.log('Download attempt:', { fileType, fileName });
+      console.log('businessCaseResult:', businessCaseResult);
+      console.log('outputS3Keys:', businessCaseResult?.outputS3Keys);
+      
+      const caseId = currentCaseId || businessCaseResult.caseId;
+      
+      // Get the S3 key for this file type from outputS3Keys
+      const s3Key = businessCaseResult.outputS3Keys?.[fileType];
+      
+      console.log('Resolved:', { caseId, s3Key });
+      
+      if (!s3Key) {
+        setSaveMessage({ type: 'error', text: `File not available for download. ${fileName} was not generated or uploaded to S3.` });
+        setDownloadingFile(null);
+        return;
+      }
+
+      // Build URL with either caseId (for saved cases) or s3Key (for unsaved cases)
+      let url = getApiUrl(`/download/${fileType}`);
+      if (caseId) {
+        url += `?caseId=${encodeURIComponent(caseId)}`;
+      } else {
+        url += `?s3Key=${encodeURIComponent(s3Key)}`;
+      }
+
+      console.log('Fetching:', url);
+      
+      const response = await fetch(url);
+      const data = await response.json();
+      
+      console.log('Download response:', data);
+      
+      if (data.success) {
+        // Open presigned URL in new tab to trigger download
+        window.open(data.url, '_blank');
+        setSaveMessage({ type: 'success', text: `Downloading ${fileName}...` });
+        setTimeout(() => setSaveMessage(null), 3000);
+      } else {
+        setSaveMessage({ type: 'error', text: `Download failed: ${data.message}` });
+      }
+    } catch (error) {
+      console.error('Download error:', error);
+      setSaveMessage({ type: 'error', text: `Download error: ${error.message}` });
+    } finally {
+      setDownloadingFile(null);
+    }
+  };
+
   if (!businessCaseResult) {
     return (
       <Container>
@@ -189,7 +243,7 @@ const ResultsStep = ({ businessCaseResult, setBusinessCaseResult, projectInfo, d
                   </Button>
                 </>
               )}
-              {dynamoDBEnabled && !isEdited && (
+              {dynamoDBEnabled && !isEdited && !businessCaseResult.autoSaved && (
                 <Button
                   iconName="upload"
                   onClick={handleSaveToDatabase}
@@ -198,6 +252,11 @@ const ResultsStep = ({ businessCaseResult, setBusinessCaseResult, projectInfo, d
                 >
                   {lastUpdated ? 'Update in Database' : 'Save to Database'}
                 </Button>
+              )}
+              {businessCaseResult.autoSaved && (
+                <Box variant="span" color="text-status-success">
+                  <StatusIndicator type="success">Auto-saved to database</StatusIndicator>
+                </Box>
               )}
               <Button
                 iconName="copy"
@@ -673,6 +732,116 @@ const ResultsStep = ({ businessCaseResult, setBusinessCaseResult, projectInfo, d
                         )}
                       </Box>
                     </Box>
+                  </SpaceBetween>
+                </Box>
+              )
+            },
+            {
+              label: 'Download Files',
+              id: 'downloads',
+              content: (
+                <Box padding={{ vertical: 'l' }}>
+                  <SpaceBetween size="l">
+                    <Alert type="info">
+                      Download the generated business case files. Files are stored in S3 and available for download.
+                    </Alert>
+                    
+                    <Container
+                      header={
+                        <Header variant="h3">
+                          Generated Files
+                        </Header>
+                      }
+                    >
+                      <ColumnLayout columns={2} variant="text-grid">
+                        <SpaceBetween size="m">
+                          <Box>
+                            <Box variant="awsui-key-label">Business Case Document</Box>
+                            <Box variant="p" margin={{ top: 'xs', bottom: 's' }}>
+                              Complete business case in Markdown format with all analysis and recommendations.
+                            </Box>
+                            <Button
+                              onClick={() => handleDownloadFile('business_case', 'Business Case (MD)')}
+                              iconName="download"
+                              loading={downloadingFile === 'business_case'}
+                              disabled={!businessCaseResult.outputS3Keys?.business_case}
+                            >
+                              Download Business Case (MD)
+                            </Button>
+                          </Box>
+                          
+                          {/* Show VM to EC2 Mapping for RVTools input */}
+                          {businessCaseResult.outputS3Keys?.excel_mapping && (
+                            <Box>
+                              <Box variant="awsui-key-label">VM to EC2 Mapping</Box>
+                              <Box variant="p" margin={{ top: 'xs', bottom: 's' }}>
+                                Detailed Excel spreadsheet mapping VMware VMs to recommended EC2 instances with pricing.
+                              </Box>
+                              <Button
+                                onClick={() => handleDownloadFile('excel_mapping', 'VM to EC2 Mapping (Excel)')}
+                                iconName="download"
+                                loading={downloadingFile === 'excel_mapping'}
+                              >
+                                Download VM Mapping (Excel)
+                              </Button>
+                            </Box>
+                          )}
+                          
+                          {/* Show IT Inventory for IT Inventory input */}
+                          {businessCaseResult.outputS3Keys?.it_inventory && (
+                            <Box>
+                              <Box variant="awsui-key-label">IT Inventory Pricing</Box>
+                              <Box variant="p" margin={{ top: 'xs', bottom: 's' }}>
+                                Complete IT inventory with AWS pricing calculations and cost breakdown.
+                              </Box>
+                              <Button
+                                onClick={() => handleDownloadFile('it_inventory', 'IT Inventory (Excel)')}
+                                iconName="download"
+                                loading={downloadingFile === 'it_inventory'}
+                              >
+                                Download IT Inventory (Excel)
+                              </Button>
+                            </Box>
+                          )}
+                        </SpaceBetween>
+                        
+                        <SpaceBetween size="m">
+                          {/* Show EKS Analysis only if generated */}
+                          {businessCaseResult.outputS3Keys?.eks_analysis && (
+                            <Box>
+                              <Box variant="awsui-key-label">EKS Migration Analysis</Box>
+                              <Box variant="p" margin={{ top: 'xs', bottom: 's' }}>
+                                Kubernetes workload analysis and EKS migration recommendations with cost estimates.
+                              </Box>
+                              <Button
+                                onClick={() => handleDownloadFile('eks_analysis', 'EKS Analysis (Excel)')}
+                                iconName="download"
+                                loading={downloadingFile === 'eks_analysis'}
+                              >
+                                Download EKS Analysis (Excel)
+                              </Button>
+                            </Box>
+                          )}
+                        </SpaceBetween>
+                      </ColumnLayout>
+                      
+                      {(!businessCaseResult.outputS3Keys || Object.keys(businessCaseResult.outputS3Keys).length === 0) && (
+                        <Box margin={{ top: 'l' }}>
+                          <Alert type="warning">
+                            No files available for download. Files are only available when S3 storage is enabled. 
+                            {!businessCaseResult.s3InputBucket && ' Please ensure S3 is configured in your deployment.'}
+                          </Alert>
+                        </Box>
+                      )}
+                      
+                      {businessCaseResult.outputS3Keys && Object.keys(businessCaseResult.outputS3Keys).length > 0 && !businessCaseResult.outputS3Keys.eks_analysis && (
+                        <Box margin={{ top: 'l' }}>
+                          <Alert type="info">
+                            <strong>Note:</strong> EKS Migration Analysis is only generated when eligible containerizable workloads are detected in your infrastructure.
+                          </Alert>
+                        </Box>
+                      )}
+                    </Container>
                   </SpaceBetween>
                 </Box>
               )

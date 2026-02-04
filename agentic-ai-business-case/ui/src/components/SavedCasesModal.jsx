@@ -10,6 +10,7 @@ import {
   StatusIndicator,
   TextFilter
 } from '@cloudscape-design/components';
+import { getApiUrl } from '../utils/apiConfig.js';
 
 const SavedCasesModal = ({ visible, onDismiss, onLoadCase }) => {
   const [savedCases, setSavedCases] = useState([]);
@@ -29,7 +30,7 @@ const SavedCasesModal = ({ visible, onDismiss, onLoadCase }) => {
     setError(null);
     
     try {
-      const response = await fetch('http://localhost:5000/api/dynamodb/list');
+      const response = await fetch(getApiUrl('/dynamodb/list'));
       const data = await response.json();
       
       if (data.success) {
@@ -51,7 +52,7 @@ const SavedCasesModal = ({ visible, onDismiss, onLoadCase }) => {
     setLoading(true);
     
     try {
-      const response = await fetch(`http://localhost:5000/api/dynamodb/load/${caseId}`);
+      const response = await fetch(getApiUrl(`/dynamodb/load/${caseId}`));
       const data = await response.json();
       
       if (data.success) {
@@ -74,7 +75,7 @@ const SavedCasesModal = ({ visible, onDismiss, onLoadCase }) => {
     setLoading(true);
     
     try {
-      const response = await fetch(`http://localhost:5000/api/dynamodb/delete/${caseId}`, {
+      const response = await fetch(getApiUrl(`/dynamodb/delete/${caseId}`), {
         method: 'DELETE'
       });
       const data = await response.json();

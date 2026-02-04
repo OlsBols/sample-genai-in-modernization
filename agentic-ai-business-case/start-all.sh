@@ -4,6 +4,9 @@
 
 echo "Starting AWS Migration Business Case Generator..."
 
+# Set environment to development
+export FLASK_ENV=development
+
 # Create PID file directory
 mkdir -p .pids
 

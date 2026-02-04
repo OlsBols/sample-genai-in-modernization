@@ -58,6 +58,8 @@ Comprehensive markdown document with 7 sections:
 
 ## Quick Start
 
+### Local Development
+
 ```bash
 # 1. Configure AWS credentials
 aws configure
@@ -80,6 +82,24 @@ Access at: `http://localhost:3000`
 **Prerequisites**: Python 3.8+, Node.js 16+, AWS account with Bedrock access
 
 **Detailed setup**: See [SETUP_GUIDE.md](SETUP_GUIDE.md)
+
+### AWS Deployment (Production)
+
+Single command deployment to AWS with ALB, ECS Fargate, S3, and DynamoDB:
+
+```bash
+cd infrastructure/cdk
+./deploy.sh
+```
+
+The script will:
+- ✓ Check all prerequisites (AWS CLI, Node.js, Python, Docker/Finch, CDK)
+- ✓ Prompt for configuration (domain, certificates, OIDC)
+- ✓ Build and deploy everything automatically
+
+**Deployment guide**: See [DEPLOY_README.md](DEPLOY_README.md)
+
+**Prerequisites**: AWS CLI, Node.js, Python 3, Docker or Finch, AWS CDK CLI
 
 ### Bedrock Guardrails (Optional)
 

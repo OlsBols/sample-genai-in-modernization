@@ -1,0 +1,39 @@
+# CDK build artifacts
+cdk/cdk.out/
+cdk/.venv/
+cdk/node_modules/
+cdk/.deployment-config
+
+# Python cache
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+.Python
+
+# Virtual environments
+**/venv/
+**/env/
+**/.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp

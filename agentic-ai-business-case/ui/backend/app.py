@@ -1,7 +1,7 @@
 """
 AWS Migration Business Case Generator - Backend API
 """
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import os
 import sys
@@ -14,7 +14,17 @@ import boto3
 from botocore.exceptions import ClientError
 
 app = Flask(__name__)
-CORS(app)
+
+# Environment detection
+FLASK_ENV = os.environ.get('FLASK_ENV', 'development')
+IS_PRODUCTION = FLASK_ENV == 'production'
+
+# CORS only in development (frontend runs on different port)
+if not IS_PRODUCTION:
+    CORS(app)
+    print("✓ Running in DEVELOPMENT mode - CORS enabled")
+else:
+    print("✓ Running in PRODUCTION mode - serving frontend from Flask")
 
 # Configuration
 UPLOAD_FOLDER = tempfile.mkdtemp()
@@ -27,20 +37,35 @@ app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
 # Path to the project root and directories
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 AGENTS_DIR = os.path.join(PROJECT_ROOT, 'agents')
-INPUT_DIR = os.path.join(PROJECT_ROOT, 'input')
-OUTPUT_DIR = os.path.join(PROJECT_ROOT, 'output')
+
+# Storage paths depend on environment
+if IS_PRODUCTION:
+    # In production, use /tmp for temporary storage (ECS Fargate)
+    INPUT_DIR = '/tmp/input'
+    OUTPUT_DIR = '/tmp/output'
+    os.makedirs(INPUT_DIR, exist_ok=True)
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+else:
+    # In development, use project directories
+    INPUT_DIR = os.path.join(PROJECT_ROOT, 'input')
+    OUTPUT_DIR = os.path.join(PROJECT_ROOT, 'output')
+
+# Frontend build directory (for production)
+FRONTEND_BUILD_DIR = os.path.join(PROJECT_ROOT, 'ui', 'dist')
 
 # Add project root to Python path so agents module can be imported
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 # DynamoDB configuration
-DYNAMODB_TABLE_NAME = os.environ.get('DYNAMODB_TABLE_NAME', 'aws-migration-business-cases')
+DYNAMODB_TABLE_NAME = os.environ.get('DYNAMODB_TABLE_NAME', 'business-case-cases')
 DYNAMODB_REGION = os.environ.get('AWS_REGION', 'us-east-1')
+AUTO_SAVE_TO_DYNAMODB = os.environ.get('AUTO_SAVE_TO_DYNAMODB', 'true').lower() == 'true'
 
-# S3 configuration (optional)
-S3_BUCKET_NAME = os.environ.get('S3_BUCKET_NAME', None)
-S3_ENABLED = S3_BUCKET_NAME is not None
+# S3 configuration
+S3_INPUT_BUCKET = os.environ.get('S3_INPUT_BUCKET', None)
+S3_OUTPUT_BUCKET = os.environ.get('S3_OUTPUT_BUCKET', None)
+S3_ENABLED = S3_INPUT_BUCKET is not None and S3_OUTPUT_BUCKET is not None
 
 # Initialize DynamoDB client (will be None if credentials not available)
 dynamodb_client = None
@@ -48,6 +73,7 @@ dynamodb_table = None
 try:
     dynamodb_client = boto3.resource('dynamodb', region_name=DYNAMODB_REGION)
     dynamodb_table = dynamodb_client.Table(DYNAMODB_TABLE_NAME)
+    print(f"✓ DynamoDB table '{DYNAMODB_TABLE_NAME}' configured")
 except Exception as e:
     print(f"Warning: DynamoDB not available: {str(e)}")
 
@@ -56,9 +82,10 @@ s3_client = None
 if S3_ENABLED:
     try:
         s3_client = boto3.client('s3', region_name=DYNAMODB_REGION)
-        # Verify bucket exists
-        s3_client.head_bucket(Bucket=S3_BUCKET_NAME)
-        print(f"✓ S3 bucket '{S3_BUCKET_NAME}' is accessible")
+        # Verify buckets exist
+        s3_client.head_bucket(Bucket=S3_INPUT_BUCKET)
+        s3_client.head_bucket(Bucket=S3_OUTPUT_BUCKET)
+        print(f"✓ S3 buckets configured: {S3_INPUT_BUCKET}, {S3_OUTPUT_BUCKET}")
     except Exception as e:
         print(f"Warning: S3 not available: {str(e)}")
         s3_client = None
@@ -66,6 +93,86 @@ if S3_ENABLED:
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def get_user_from_oidc():
+    """
+    Extract user info from ALB OIDC headers.
+    ALB adds x-amzn-oidc-data header with JWT containing user info.
+    """
+    import base64
+    import json
+    
+    # In development, return a mock user
+    if not IS_PRODUCTION:
+        return {
+            'sub': 'dev-user-123',
+            'email': 'developer@example.com',
+            'name': 'Developer User',
+            'given_name': 'Developer',
+            'family_name': 'User'
+        }
+    
+    # ALB adds x-amzn-oidc-data header with JWT
+    oidc_data = request.headers.get('x-amzn-oidc-data')
+    if not oidc_data:
+        print("Warning: No OIDC data found in headers")
+        # Log all headers for debugging
+        print("Available headers:", dict(request.headers))
+        return None
+    
+    try:
+        # JWT format: header.payload.signature
+        parts = oidc_data.split('.')
+        if len(parts) != 3:
+            print(f"Warning: Invalid JWT format (expected 3 parts, got {len(parts)})")
+            return None
+        
+        # Decode payload (add padding if needed)
+        payload_encoded = parts[1]
+        # Add padding if needed
+        padding = 4 - len(payload_encoded) % 4
+        if padding != 4:
+            payload_encoded += '=' * padding
+        
+        payload = base64.urlsafe_b64decode(payload_encoded)
+        user_data = json.loads(payload)
+        
+        # Log the full user data for debugging
+        print(f"✓ OIDC user data: {json.dumps(user_data, indent=2)}")
+        
+        # Extract first name with multiple fallbacks (case-insensitive)
+        # Try both lowercase and uppercase versions
+        given_name = (user_data.get('given_name') or 
+                     user_data.get('GIVEN_NAME') or 
+                     user_data.get('givenName'))
+        
+        if not given_name:
+            # Try to extract from 'name' field
+            name = user_data.get('name') or user_data.get('NAME') or ''
+            if name:
+                given_name = name.split()[0] if ' ' in name else name
+            else:
+                # Fallback to email username
+                email = user_data.get('email') or user_data.get('EMAIL') or ''
+                given_name = email.split('@')[0] if email else 'User'
+        
+        # Extract family name (case-insensitive)
+        family_name = (user_data.get('family_name') or 
+                      user_data.get('FAMILY_NAME') or 
+                      user_data.get('familyName'))
+        
+        return {
+            'sub': user_data.get('sub') or user_data.get('SUB'),
+            'email': user_data.get('email') or user_data.get('EMAIL'),
+            'name': user_data.get('name') or user_data.get('NAME'),
+            'given_name': given_name,
+            'family_name': family_name
+        }
+    except Exception as e:
+        print(f"Error decoding OIDC data: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 def is_dynamodb_enabled():
     """Check if DynamoDB is available and configured"""
@@ -82,7 +189,9 @@ def upload_file_to_s3(file_path, case_id, file_key):
     
     try:
         s3_key = f"{case_id}/{file_key}"
-        s3_client.upload_file(file_path, S3_BUCKET_NAME, s3_key)
+        # Use output bucket for generated files, input bucket for uploaded files
+        bucket = S3_OUTPUT_BUCKET if 'output' in file_path or 'aws_business_case' in file_key or 'mapping' in file_key else S3_INPUT_BUCKET
+        s3_client.upload_file(file_path, bucket, s3_key)
         return s3_key
     except Exception as e:
         print(f"Error uploading to S3: {str(e)}")
@@ -94,7 +203,11 @@ def download_file_from_s3(s3_key, local_path):
         return False
     
     try:
-        s3_client.download_file(S3_BUCKET_NAME, s3_key, local_path)
+        # Try output bucket first, then input bucket
+        try:
+            s3_client.download_file(S3_OUTPUT_BUCKET, s3_key, local_path)
+        except:
+            s3_client.download_file(S3_INPUT_BUCKET, s3_key, local_path)
         return True
     except Exception as e:
         print(f"Error downloading from S3: {str(e)}")
@@ -106,19 +219,21 @@ def delete_files_from_s3(case_id):
         return True
     
     try:
-        # List all objects with the case_id prefix
-        response = s3_client.list_objects_v2(
-            Bucket=S3_BUCKET_NAME,
-            Prefix=f"{case_id}/"
-        )
-        
-        if 'Contents' in response:
-            objects = [{'Key': obj['Key']} for obj in response['Contents']]
-            if objects:
-                s3_client.delete_objects(
-                    Bucket=S3_BUCKET_NAME,
-                    Delete={'Objects': objects}
-                )
+        # Delete from both buckets
+        for bucket in [S3_INPUT_BUCKET, S3_OUTPUT_BUCKET]:
+            # List all objects with the case_id prefix
+            response = s3_client.list_objects_v2(
+                Bucket=bucket,
+                Prefix=f"{case_id}/"
+            )
+            
+            if 'Contents' in response:
+                objects = [{'Key': obj['Key']} for obj in response['Contents']]
+                if objects:
+                    s3_client.delete_objects(
+                        Bucket=bucket,
+                        Delete={'Objects': objects}
+                    )
         return True
     except Exception as e:
         print(f"Error deleting from S3: {str(e)}")
@@ -127,6 +242,14 @@ def delete_files_from_s3(case_id):
 @app.route('/api/health', methods=['GET'])
 def health_check():
     return jsonify({'status': 'healthy', 'message': 'API is running'})
+
+@app.route('/api/user', methods=['GET'])
+def get_current_user():
+    """Get current user info from OIDC"""
+    user = get_user_from_oidc()
+    if user:
+        return jsonify({'success': True, 'user': user})
+    return jsonify({'success': False, 'message': 'Not authenticated'}), 401
 
 @app.route('/api/storage/status', methods=['GET'])
 def storage_status():
@@ -139,7 +262,8 @@ def storage_status():
         },
         's3': {
             'enabled': is_s3_enabled(),
-            'bucketName': S3_BUCKET_NAME if is_s3_enabled() else None,
+            'inputBucket': S3_INPUT_BUCKET if is_s3_enabled() else None,
+            'outputBucket': S3_OUTPUT_BUCKET if is_s3_enabled() else None,
             'region': DYNAMODB_REGION if is_s3_enabled() else None
         }
     })
@@ -331,6 +455,38 @@ def generate_business_case():
                         output_s3_keys['it_inventory'] = s3_key
                         print(f"✓ IT Inventory uploaded to S3: {s3_key}")
             
+            # Auto-save to DynamoDB if enabled
+            saved_to_db = False
+            if AUTO_SAVE_TO_DYNAMODB and is_dynamodb_enabled():
+                try:
+                    user = get_user_from_oidc()
+                    if user:
+                        item = {
+                            'caseId': case_id,
+                            'userId': user['sub'],
+                            'userEmail': user.get('email', 'unknown'),
+                            'projectInfo': project_info,
+                            'uploadedFiles': list(uploaded_files.keys()),
+                            'selectedAgents': selected_agents,
+                            'businessCaseContent': content,
+                            'createdAt': datetime.utcnow().isoformat(),
+                            'lastUpdated': datetime.utcnow().isoformat(),
+                            'executionStats': {
+                                'agentsExecuted': len(selected_agents),
+                                'executionTime': result.get('execution_time', 'N/A'),
+                                'tokenUsage': result.get('token_usage', 'N/A')
+                            },
+                            's3FileKeys': s3_file_keys if is_s3_enabled() else {},
+                            'outputS3Keys': output_s3_keys if is_s3_enabled() else {},
+                            's3BucketName': S3_INPUT_BUCKET if is_s3_enabled() else None,
+                            's3Enabled': is_s3_enabled()
+                        }
+                        dynamodb_table.put_item(Item=item)
+                        saved_to_db = True
+                        print(f"✓ Auto-saved to DynamoDB: {case_id}")
+                except Exception as db_error:
+                    print(f"Warning: Auto-save to DynamoDB failed: {str(db_error)}")
+            
             return jsonify({
                 'success': True,
                 'content': content,
@@ -341,8 +497,10 @@ def generate_business_case():
                 'caseId': case_id,
                 'uploadedFiles': list(uploaded_files.keys()),
                 's3FileKeys': s3_file_keys if is_s3_enabled() else None,
-                's3BucketName': S3_BUCKET_NAME if is_s3_enabled() else None,
-                'outputS3Keys': output_s3_keys if is_s3_enabled() else None
+                's3InputBucket': S3_INPUT_BUCKET if is_s3_enabled() else None,
+                's3OutputBucket': S3_OUTPUT_BUCKET if is_s3_enabled() else None,
+                'outputS3Keys': output_s3_keys if is_s3_enabled() else None,
+                'autoSaved': saved_to_db
             })
         else:
             return jsonify({
@@ -365,6 +523,7 @@ def run_business_case_generator(project_info, selected_agents):
     not the backend venv. We need to use the main venv's Python interpreter.
     """
     import time
+    import subprocess
     
     start_time = time.time()
     
@@ -378,30 +537,49 @@ def run_business_case_generator(project_info, selected_agents):
         # Fallback to system Python if main venv doesn't exist
         if not os.path.exists(main_venv_python):
             main_venv_python = sys.executable
+            print(f"Warning: Main venv not found, using system Python: {main_venv_python}")
+        else:
+            print(f"Using main venv Python: {main_venv_python}")
         
         # Path to the business case generator (now in agents/core/)
         generator_script = os.path.join(PROJECT_ROOT, 'agents', 'core', 'aws_business_case.py')
+        print(f"Generator script: {generator_script}")
+        print(f"Script exists: {os.path.exists(generator_script)}")
         
         # Set PYTHONPATH to include project root so agents module can be imported
-        # Get existing PYTHONPATH and append project root
-        existing_pythonpath = os.environ.get('PYTHONPATH', '')
+        env = os.environ.copy()
+        existing_pythonpath = env.get('PYTHONPATH', '')
         if existing_pythonpath:
-            new_pythonpath = f"{PROJECT_ROOT}:{existing_pythonpath}"
+            env['PYTHONPATH'] = f"{PROJECT_ROOT}:{existing_pythonpath}"
         else:
-            new_pythonpath = PROJECT_ROOT
+            env['PYTHONPATH'] = PROJECT_ROOT
         
-        # Use os.system instead of subprocess to avoid scanner warnings
-        # This executes: PYTHONPATH=/path/to/project python3 agents/core/aws_business_case.py
-        exit_code = os.system(f'cd "{PROJECT_ROOT}" && PYTHONPATH="{new_pythonpath}" "{main_venv_python}" "{generator_script}" > /tmp/business_case_output.log 2>&1')
+        print(f"PYTHONPATH: {env['PYTHONPATH']}")
+        print(f"Working directory: {PROJECT_ROOT}")
         
-        if exit_code != 0:
-            # Read error output
-            try:
-                with open('/tmp/business_case_output.log', 'r') as f:
-                    error_output = f.read()
-                raise Exception(f"Generator failed with exit code {exit_code}: {error_output[-500:]}")
-            except:
-                raise Exception(f"Generator failed with exit code {exit_code}")
+        # Use subprocess for better error handling
+        result = subprocess.run(
+            [main_venv_python, generator_script],
+            cwd=PROJECT_ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=600  # 10 minute timeout
+        )
+        
+        # Log stdout and stderr
+        if result.stdout:
+            print(f"Generator stdout:\n{result.stdout}")
+        if result.stderr:
+            print(f"Generator stderr:\n{result.stderr}")
+        
+        if result.returncode != 0:
+            error_msg = f"Generator failed with exit code {result.returncode}"
+            if result.stderr:
+                error_msg += f"\nError output: {result.stderr[-1000:]}"
+            if result.stdout:
+                error_msg += f"\nStdout: {result.stdout[-1000:]}"
+            raise Exception(error_msg)
         
         # Calculate execution time
         execution_time = f"{time.time() - start_time:.2f}s"
@@ -409,10 +587,15 @@ def run_business_case_generator(project_info, selected_agents):
         return {
             'execution_time': execution_time,
             'token_usage': 'N/A',
-            'stdout': 'Business case generated successfully'
+            'stdout': result.stdout if result.stdout else 'Business case generated successfully'
         }
         
+    except subprocess.TimeoutExpired:
+        raise Exception('Generator timed out after 10 minutes')
     except Exception as e:
+        print(f"Generator error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise Exception(f'Failed to run generator: {str(e)}')
 
 @app.route('/api/status/<job_id>', methods=['GET'])
@@ -444,6 +627,14 @@ def save_to_dynamodb():
             'message': 'DynamoDB is not enabled or configured'
         }), 503
     
+    # Get current user
+    user = get_user_from_oidc()
+    if not user:
+        return jsonify({
+            'success': False,
+            'message': 'Not authenticated'
+        }), 401
+    
     try:
         data = request.json
         case_id = data.get('caseId')
@@ -454,6 +645,8 @@ def save_to_dynamodb():
         
         item = {
             'caseId': case_id,
+            'userId': user['sub'],  # Add user ID for filtering
+            'userEmail': user['email'],  # Add email for display
             'projectInfo': data.get('projectInfo', {}),
             'uploadedFiles': data.get('uploadedFiles', {}),
             'selectedAgents': data.get('selectedAgents', {}),
@@ -463,7 +656,7 @@ def save_to_dynamodb():
             'executionStats': data.get('executionStats', {}),
             's3FileKeys': data.get('s3FileKeys', {}) if is_s3_enabled() else {},
             'outputS3Keys': data.get('outputS3Keys', {}) if is_s3_enabled() else {},
-            's3BucketName': S3_BUCKET_NAME if is_s3_enabled() else None,
+            's3BucketName': S3_INPUT_BUCKET if is_s3_enabled() else None,
             's3Enabled': is_s3_enabled()
         }
         
@@ -489,16 +682,27 @@ def save_to_dynamodb():
 
 @app.route('/api/dynamodb/list', methods=['GET'])
 def list_business_cases():
-    """List all saved business cases"""
+    """List all saved business cases for the current user"""
     if not is_dynamodb_enabled():
         return jsonify({
             'success': False,
             'message': 'DynamoDB is not enabled or configured'
         }), 503
     
+    # Get current user
+    user = get_user_from_oidc()
+    if not user:
+        return jsonify({
+            'success': False,
+            'message': 'Not authenticated'
+        }), 401
+    
     try:
+        # Scan with filter for current user
         response = dynamodb_table.scan(
-            ProjectionExpression='caseId, projectInfo, createdAt, lastUpdated'
+            FilterExpression='userId = :userId',
+            ExpressionAttributeValues={':userId': user['sub']},
+            ProjectionExpression='caseId, projectInfo, createdAt, lastUpdated, userEmail'
         )
         
         items = response.get('Items', [])
@@ -531,20 +735,50 @@ def load_business_case(case_id):
             'message': 'DynamoDB is not enabled or configured'
         }), 503
     
+    # Get current user
+    user = get_user_from_oidc()
+    if not user:
+        return jsonify({
+            'success': False,
+            'message': 'Not authenticated'
+        }), 401
+    
     try:
-        response = dynamodb_table.get_item(Key={'caseId': case_id})
+        # Query using UserIdIndex GSI (userId + createdAt)
+        # Then filter by caseId since we can't use get_item with composite key
+        response = dynamodb_table.query(
+            IndexName='UserIdIndex',
+            KeyConditionExpression='userId = :userId',
+            FilterExpression='caseId = :caseId',
+            ExpressionAttributeValues={
+                ':userId': user['sub'],
+                ':caseId': case_id
+            }
+        )
         
-        if 'Item' not in response:
+        if not response.get('Items'):
             return jsonify({
                 'success': False,
                 'message': 'Business case not found'
             }), 404
         
-        case_data = response['Item']
+        case_data = response['Items'][0]  # Should only be one match
+        
+        # Verify user owns this case
+        if case_data.get('userId') != user['sub']:
+            return jsonify({
+                'success': False,
+                'message': 'Access denied: You do not own this business case'
+            }), 403
         
         # Restore input files from S3 if available
         files_restored = {}
         if is_s3_enabled() and 's3FileKeys' in case_data:
+            # Create case-specific input directory for restored files
+            case_input_dir = os.path.join(INPUT_DIR, case_id)
+            os.makedirs(case_input_dir, exist_ok=True)
+            print(f"Restoring files to case-specific directory: {case_input_dir}")
+            
             file_mapping = {
                 'itInventory': 'it-infrastructure-inventory.xlsx',
                 'atxPptx': 'atx_business_case.pptx',
@@ -558,40 +792,58 @@ def load_business_case(case_id):
                         rv_restored = []
                         for s3_key in value:
                             filename = os.path.basename(s3_key)
-                            local_path = os.path.join(INPUT_DIR, filename)
+                            local_path = os.path.join(case_input_dir, filename)
                             if download_file_from_s3(s3_key, local_path):
+                                print(f"✓ Restored RVTools file: {filename}")
                                 rv_restored.append(True)
                             else:
+                                print(f"✗ Failed to restore RVTools file: {filename}")
                                 rv_restored.append(False)
                         files_restored[key] = all(rv_restored)
                     else:
                         # Single RVTools file (backward compatibility)
-                        local_path = os.path.join(INPUT_DIR, os.path.basename(value))
-                        files_restored[key] = download_file_from_s3(value, local_path)
+                        filename = os.path.basename(value)
+                        local_path = os.path.join(case_input_dir, filename)
+                        if download_file_from_s3(value, local_path):
+                            print(f"✓ Restored RVTools file: {filename}")
+                            files_restored[key] = True
+                        else:
+                            print(f"✗ Failed to restore RVTools file: {filename}")
+                            files_restored[key] = False
                 elif key == 'mra':
                     # Handle MRA file - preserve original filename from S3
                     filename = os.path.basename(value)
-                    local_path = os.path.join(INPUT_DIR, filename)
+                    local_path = os.path.join(case_input_dir, filename)
                     if download_file_from_s3(value, local_path):
+                        print(f"✓ Restored MRA file: {filename}")
                         files_restored[key] = True
                     else:
+                        print(f"✗ Failed to restore MRA file: {filename}")
                         files_restored[key] = False
                 elif key in file_mapping:
-                    local_path = os.path.join(INPUT_DIR, file_mapping[key])
+                    filename = file_mapping[key]
+                    local_path = os.path.join(case_input_dir, filename)
                     if download_file_from_s3(value, local_path):
+                        print(f"✓ Restored {key} file: {filename}")
                         files_restored[key] = True
                     else:
+                        print(f"✗ Failed to restore {key} file: {filename}")
                         files_restored[key] = False
         
         # Restore output files from S3 if available
         output_files_restored = {}
         if is_s3_enabled() and 'outputS3Keys' in case_data:
+            # Create case-specific output directory for restored files
+            case_output_dir = os.path.join(OUTPUT_DIR, case_id)
+            os.makedirs(case_output_dir, exist_ok=True)
+            print(f"Restoring output files to case-specific directory: {case_output_dir}")
+            
             output_s3_keys = case_data.get('outputS3Keys', {})
             
             # Restore business case
             if 'business_case' in output_s3_keys:
                 s3_key = output_s3_keys['business_case']
-                local_path = os.path.join(OUTPUT_DIR, 'aws_business_case.md')
+                local_path = os.path.join(case_output_dir, 'aws_business_case.md')
                 if download_file_from_s3(s3_key, local_path):
                     output_files_restored['business_case'] = True
                     print(f"✓ Restored business case from S3: {s3_key}")
@@ -601,12 +853,32 @@ def load_business_case(case_id):
             # Restore Excel mapping
             if 'excel_mapping' in output_s3_keys:
                 s3_key = output_s3_keys['excel_mapping']
-                local_path = os.path.join(OUTPUT_DIR, 'vm_to_ec2_mapping.xlsx')
+                local_path = os.path.join(case_output_dir, 'vm_to_ec2_mapping.xlsx')
                 if download_file_from_s3(s3_key, local_path):
                     output_files_restored['excel_mapping'] = True
                     print(f"✓ Restored Excel mapping from S3: {s3_key}")
                 else:
                     output_files_restored['excel_mapping'] = False
+            
+            # Restore EKS analysis if available
+            if 'eks_analysis' in output_s3_keys:
+                s3_key = output_s3_keys['eks_analysis']
+                local_path = os.path.join(case_output_dir, 'eks_migration_analysis.xlsx')
+                if download_file_from_s3(s3_key, local_path):
+                    output_files_restored['eks_analysis'] = True
+                    print(f"✓ Restored EKS analysis from S3: {s3_key}")
+                else:
+                    output_files_restored['eks_analysis'] = False
+            
+            # Restore IT Inventory analysis if available
+            if 'it_inventory' in output_s3_keys:
+                s3_key = output_s3_keys['it_inventory']
+                local_path = os.path.join(case_output_dir, 'it_inventory_ec2_cost_analysis.xlsx')
+                if download_file_from_s3(s3_key, local_path):
+                    output_files_restored['it_inventory'] = True
+                    print(f"✓ Restored IT Inventory analysis from S3: {s3_key}")
+                else:
+                    output_files_restored['it_inventory'] = False
         
         return jsonify({
             'success': True,
@@ -636,7 +908,34 @@ def delete_business_case(case_id):
             'message': 'DynamoDB is not enabled or configured'
         }), 503
     
+    # Get current user
+    user = get_user_from_oidc()
+    if not user:
+        return jsonify({
+            'success': False,
+            'message': 'Not authenticated'
+        }), 401
+    
     try:
+        # Query using UserIdIndex GSI to find and verify ownership
+        response = dynamodb_table.query(
+            IndexName='UserIdIndex',
+            KeyConditionExpression='userId = :userId',
+            FilterExpression='caseId = :caseId',
+            ExpressionAttributeValues={
+                ':userId': user['sub'],
+                ':caseId': case_id
+            }
+        )
+        
+        if not response.get('Items'):
+            return jsonify({
+                'success': False,
+                'message': 'Case not found or access denied'
+            }), 404
+        
+        case_data = response['Items'][0]
+        
         # Delete from S3 first if enabled
         if is_s3_enabled():
             delete_files_from_s3(case_id)
@@ -659,6 +958,83 @@ def delete_business_case(case_id):
             'success': False,
             'message': str(e)
         }), 500
+
+@app.route('/api/download/<file_type>', methods=['GET'])
+def download_file(file_type):
+    """Generate presigned URL for downloading output files from S3"""
+    case_id = request.args.get('caseId')
+    s3_key_param = request.args.get('s3Key')  # Allow direct S3 key for unsaved cases
+    
+    if not case_id and not s3_key_param:
+        return jsonify({'success': False, 'message': 'Case ID or S3 key is required'}), 400
+    
+    if not is_s3_enabled():
+        return jsonify({'success': False, 'message': 'S3 storage is not enabled'}), 503
+    
+    # Get current user
+    user = get_user_from_oidc()
+    if not user:
+        return jsonify({'success': False, 'message': 'Not authenticated'}), 401
+    
+    try:
+        s3_key = None
+        
+        # If S3 key is provided directly (for unsaved cases), use it
+        if s3_key_param:
+            s3_key = s3_key_param
+            print(f"Using direct S3 key: {s3_key}")
+        # Otherwise, look up from DynamoDB (for saved cases)
+        elif case_id and is_dynamodb_enabled():
+            # Query using UserIdIndex GSI to verify ownership
+            response = dynamodb_table.query(
+                IndexName='UserIdIndex',
+                KeyConditionExpression='userId = :userId',
+                FilterExpression='caseId = :caseId',
+                ExpressionAttributeValues={
+                    ':userId': user['sub'],
+                    ':caseId': case_id
+                }
+            )
+            
+            if not response.get('Items'):
+                return jsonify({'success': False, 'message': 'Case not found in database'}), 404
+            
+            case_data = response['Items'][0]
+            
+            # Map file types to S3 keys
+            output_s3_keys = case_data.get('outputS3Keys', {})
+            
+            file_mapping = {
+                'business_case': output_s3_keys.get('business_case'),
+                'excel_mapping': output_s3_keys.get('excel_mapping'),
+                'eks_analysis': output_s3_keys.get('eks_analysis'),
+                'it_inventory': output_s3_keys.get('it_inventory')
+            }
+            
+            s3_key = file_mapping.get(file_type)
+        
+        if not s3_key:
+            return jsonify({'success': False, 'message': f'File type "{file_type}" not found for this case'}), 404
+        
+        # Generate presigned URL (valid for 1 hour)
+        url = s3_client.generate_presigned_url(
+            'get_object',
+            Params={'Bucket': S3_OUTPUT_BUCKET, 'Key': s3_key},
+            ExpiresIn=3600
+        )
+        
+        filename = s3_key.split('/')[-1]  # Get filename from S3 key
+        
+        return jsonify({
+            'success': True,
+            'url': url,
+            'filename': filename
+        })
+        
+    except ClientError as e:
+        return jsonify({'success': False, 'message': f'S3 error: {str(e)}'}), 500
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/enhance-description', methods=['POST'])
 def enhance_description():
@@ -863,6 +1239,27 @@ def reset_config():
         error_details = traceback.format_exc()
         print(f"Config reset error: {error_details}")
         return jsonify({'error': str(e), 'details': error_details}), 500
+
+# ============================================================================
+# Frontend Serving (Production Only)
+# ============================================================================
+
+if IS_PRODUCTION:
+    @app.route('/', defaults={'path': ''})
+    @app.route('/<path:path>')
+    def serve_frontend(path):
+        """
+        Serve React frontend in production mode.
+        In development, Vite dev server handles this.
+        """
+        # If path is a file and exists, serve it
+        if path and os.path.exists(os.path.join(FRONTEND_BUILD_DIR, path)):
+            return send_from_directory(FRONTEND_BUILD_DIR, path)
+        
+        # Otherwise serve index.html (for client-side routing)
+        return send_from_directory(FRONTEND_BUILD_DIR, 'index.html')
+    
+    print(f"✓ Frontend serving enabled from: {FRONTEND_BUILD_DIR}")
 
 if __name__ == '__main__':
     # This application requires Gunicorn to run

@@ -8,8 +8,14 @@ _config_dir = os.path.dirname(os.path.abspath(__file__))
 _project_root = os.path.dirname(os.path.dirname(_config_dir))
 
 # Input and output directories (relative paths)
-input_folder_dir_path = os.path.join(_project_root, "input") + "/"
-output_folder_dir_path = os.path.join(_project_root, "output") + "/"
+# In production (ECS), use /tmp directories set by backend
+# In development, use project directories
+if os.environ.get('FLASK_ENV') == 'production':
+    input_folder_dir_path = '/tmp/input/'
+    output_folder_dir_path = '/tmp/output/'
+else:
+    input_folder_dir_path = os.path.join(_project_root, "input") + "/"
+    output_folder_dir_path = os.path.join(_project_root, "output") + "/"
 
 # S3 Configuration for case file storage
 S3_BUCKET_NAME = os.environ.get('S3_BUCKET_NAME', None)

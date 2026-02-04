@@ -83,6 +83,14 @@ ui/backend/*.pyc
 # Internal documentation
 docs/
 
+# Deployment configuration (contains secrets)
+infrastructure/cdk/.deployment-config
+.deployment-config
+
+# CDK output
+infrastructure/cdk/cdk.out/
+infrastructure/cdk/.venv/
+
 # v1.0 Release - Additional ignores
 *.pyc
 __pycache__/

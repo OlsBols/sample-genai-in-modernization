@@ -74,7 +74,9 @@ def extract_exact_costs_from_excel(agent_results=None):
                 
                 # If no IT Inventory, try RVTools in case folder
                 if not excel_files:
-                    excel_files = glob.glob(os.path.join(case_output_dir, 'vm_to_ec2_mapping.xlsx'))
+                    rvtools_path = os.path.join(case_output_dir, 'vm_to_ec2_mapping.xlsx')
+                    if os.path.exists(rvtools_path):
+                        excel_files = [rvtools_path]
         
         # Fallback to root output folder if not found in case folder
         if not excel_files:
@@ -83,7 +85,9 @@ def extract_exact_costs_from_excel(agent_results=None):
             
             # If no IT Inventory, try RVTools
             if not excel_files:
-                excel_files = glob.glob(os.path.join(output_folder_dir_path, 'vm_to_ec2_mapping.xlsx'))
+                rvtools_path = os.path.join(output_folder_dir_path, 'vm_to_ec2_mapping.xlsx')
+                if os.path.exists(rvtools_path):
+                    excel_files = [rvtools_path]
         
         if not excel_files:
             return None
@@ -1590,50 +1594,59 @@ def inject_key_financial_metrics(business_case, agent_results=None):
     import re
     
     try:
-        # Get recommendation from EKS analysis
-        if not agent_results or 'eks_analysis' not in agent_results:
-            print("ℹ No EKS analysis - Key Financial Metrics not injected")
+        if not agent_results:
+            print("ℹ No agent results - Key Financial Metrics not injected")
             return business_case
         
-        eks_result = agent_results['eks_analysis']
-        if not hasattr(eks_result, 'result'):
-            return business_case
+        # Try to get cost data from multiple sources
+        monthly = 0
+        annual = 0
+        three_year = 0
+        pricing_note = "3-Year EC2 Instance Savings Plan"
+        has_rds = False
         
-        eks_data = eks_result.result
-        recommendation_data = eks_data.get('recommendation', {})
-        option1_costs = eks_data.get('option1_costs', {})
-        hybrid_costs = eks_data.get('hybrid_costs', {})
+        # Source 1: EKS analysis (preferred if available)
+        if 'eks_analysis' in agent_results:
+            eks_result = agent_results['eks_analysis']
+            if hasattr(eks_result, 'result'):
+                eks_data = eks_result.result
+                recommendation_data = eks_data.get('recommendation', {})
+                option1_costs = eks_data.get('option1_costs', {})
+                hybrid_costs = eks_data.get('hybrid_costs', {})
+                
+                recommended_option = recommendation_data.get('recommended_option_name', '')
+                
+                # Determine which costs to use
+                if 'Option 3' in recommended_option or 'Hybrid' in recommended_option:
+                    monthly = hybrid_costs.get('total_monthly', 0)
+                    annual = hybrid_costs.get('total_annual', 0)
+                    three_year = hybrid_costs.get('total_3yr', 0)
+                    pricing_note = "Hybrid approach (EC2 + EKS)"
+                    has_rds = hybrid_costs.get('has_rds', False)
+                    print(f"✓ Using Option 3 (Hybrid) costs for Key Financial Metrics")
+                else:
+                    monthly = option1_costs.get('total_monthly', 0)
+                    annual = option1_costs.get('total_annual', 0)
+                    three_year = option1_costs.get('total_3yr', 0)
+                    has_rds = option1_costs.get('has_rds', False)
+                    print(f"✓ Using Option 1 costs from EKS analysis for Key Financial Metrics")
         
-        if not recommendation_data:
-            return business_case
-        
-        recommended_option = recommendation_data.get('recommended_option_name', '')
-        
-        # Determine which costs to use
-        if 'Option 3' in recommended_option or 'Hybrid' in recommended_option:
-            monthly = hybrid_costs.get('total_monthly', 0)
-            annual = hybrid_costs.get('total_annual', 0)
-            three_year = hybrid_costs.get('total_3yr', 0)
-            pricing_note = "Hybrid approach (EC2 + EKS)"
-            print(f"✓ Using Option 3 (Hybrid) costs for Key Financial Metrics")
-        else:
-            monthly = option1_costs.get('total_monthly', 0)
-            annual = option1_costs.get('total_annual', 0)
-            three_year = option1_costs.get('total_3yr', 0)
-            pricing_note = "3-Year EC2 Instance Savings Plan"
-            print(f"✓ Using Option 1 costs for Key Financial Metrics")
+        # Source 2: Cost agent results (fallback if no EKS)
+        if monthly == 0 and 'agent_aws_cost_arr' in agent_results:
+            cost_result = agent_results['agent_aws_cost_arr']
+            if hasattr(cost_result, 'result'):
+                cost_data = cost_result.result
+                # Extract from cost agent output
+                if isinstance(cost_data, dict):
+                    monthly = cost_data.get('total_monthly', 0)
+                    annual = cost_data.get('total_annual', 0)
+                    three_year = cost_data.get('total_3yr', 0)
+                    has_rds = cost_data.get('has_rds', False)
+                    print(f"✓ Using cost agent results for Key Financial Metrics")
         
         if monthly == 0:
-            print("⚠ Costs not available for injection")
+            print("ℹ No cost data available - Key Financial Metrics not injected")
             return business_case
-        
-        # Check if RDS is present by looking at the costs data
-        # IT Inventory has RDS costs, RVTools doesn't
-        has_rds = False
-        if 'Option 3' in recommended_option or 'Hybrid' in recommended_option:
-            has_rds = hybrid_costs.get('has_rds', False)
-        else:
-            has_rds = option1_costs.get('has_rds', False)
         
         # Build the Key Financial Metrics section
         if has_rds:
@@ -1664,6 +1677,104 @@ def inject_key_financial_metrics(business_case, agent_results=None):
         
     except Exception as e:
         print(f"Warning: Could not inject Key Financial Metrics: {e}")
+        import traceback
+        traceback.print_exc()
+        return business_case
+
+
+def inject_current_state_highlights(business_case, rvtools_summary=None, it_inventory_summary=None, atx_summary=None):
+    """
+    Inject Current State Highlights into Executive Summary with deterministic data
+    
+    Replaces LLM-generated (potentially hallucinated) infrastructure details with
+    actual data from the analysis.
+    
+    Args:
+        business_case: Generated business case markdown
+        rvtools_summary: RVTools summary dict (if available)
+        it_inventory_summary: IT Inventory summary dict (if available)
+        atx_summary: ATX summary dict (if available)
+    
+    Returns:
+        Business case with injected Current State Highlights
+    """
+    import re
+    
+    try:
+        # Determine which summary to use
+        summary = rvtools_summary or it_inventory_summary or atx_summary
+        
+        if not summary:
+            print("ℹ No infrastructure summary available - Current State Highlights not injected")
+            return business_case
+        
+        # Build the Current State Highlights section based on available data
+        highlights = []
+        
+        if rvtools_summary:
+            # RVTools input
+            total_vms = rvtools_summary.get('total_vms', 0)
+            windows_vms = rvtools_summary.get('windows_vms', 0)
+            linux_vms = rvtools_summary.get('linux_vms', 0)
+            storage_tb = rvtools_summary.get('total_storage_tb', 0)
+            
+            highlights.append(f"Infrastructure spans {total_vms} virtual machines ({windows_vms} Windows, {linux_vms} Linux)")
+            if storage_tb > 0:
+                highlights.append(f"Total storage capacity: {storage_tb:.1f}TB")
+                
+        elif it_inventory_summary:
+            # IT Inventory input
+            total_servers = it_inventory_summary.get('total_vms', 0)
+            total_databases = it_inventory_summary.get('total_databases', 0)
+            windows_servers = it_inventory_summary.get('windows_vms', 0)
+            linux_servers = it_inventory_summary.get('linux_vms', 0)
+            storage_tb = it_inventory_summary.get('total_storage_tb', 0)
+            
+            highlights.append(f"Infrastructure includes {total_servers} servers and {total_databases} databases")
+            if windows_servers > 0 or linux_servers > 0:
+                highlights.append(f"Server distribution: {windows_servers} Windows, {linux_servers} Linux")
+            if storage_tb > 0:
+                highlights.append(f"Total storage capacity: {storage_tb:.1f}TB")
+                
+        elif atx_summary:
+            # ATX input
+            total_vms = atx_summary.get('total_vms', 0)
+            windows_vms = atx_summary.get('windows_vms', 0)
+            linux_vms = atx_summary.get('linux_vms', 0)
+            storage_tb = atx_summary.get('total_storage_tb', 0)
+            
+            highlights.append(f"Infrastructure spans {total_vms} virtual machines")
+            if windows_vms > 0 or linux_vms > 0:
+                highlights.append(f"OS distribution: {windows_vms} Windows, {linux_vms} Linux")
+            if storage_tb > 0:
+                highlights.append(f"Total storage capacity: {storage_tb:.1f}TB")
+        
+        if not highlights:
+            print("ℹ No infrastructure details available - Current State Highlights not injected")
+            return business_case
+        
+        # Build the replacement section
+        highlights_text = "\n".join(f"- {h}" for h in highlights)
+        highlights_section = f"""**Current State Highlights**
+
+{highlights_text}"""
+        
+        # Find and replace the Current State Highlights section
+        # Pattern matches "**Current State Highlights**" followed by content until next section
+        pattern = r'\*\*Current State Highlights\*\*\n\n.*?(?=\n\n\*\*|\n\n##|\Z)'
+        
+        if re.search(pattern, business_case, re.DOTALL):
+            business_case = re.sub(pattern, highlights_section, business_case, count=1, flags=re.DOTALL)
+            print(f"✓ Injected Current State Highlights with deterministic data")
+        else:
+            print("ℹ Could not find Current State Highlights section to replace")
+        
+        return business_case
+        
+    except Exception as e:
+        print(f"Warning: Could not inject Current State Highlights: {e}")
+        import traceback
+        traceback.print_exc()
         return business_case
 
 
@@ -1732,16 +1843,20 @@ def inject_pricing_comparison_table(business_case, agent_results=None):
                 excel_files = glob.glob(os.path.join(case_output_dir, 'it_inventory_aws_pricing_*.xlsx'))
                 if not excel_files:
                     # Try RVTools in case folder
-                    excel_files = glob.glob(os.path.join(case_output_dir, 'vm_to_ec2_mapping.xlsx'))
-                    is_rvtools = True if excel_files else False
+                    rvtools_path = os.path.join(case_output_dir, 'vm_to_ec2_mapping.xlsx')
+                    if os.path.exists(rvtools_path):
+                        excel_files = [rvtools_path]
+                        is_rvtools = True
         
         # Fallback to root output folder if not found in case folder
         if not excel_files:
             excel_files = glob.glob(os.path.join(output_folder_dir_path, 'it_inventory_aws_pricing_*.xlsx'))
             if not excel_files:
                 # Try RVTools in root folder
-                excel_files = glob.glob(os.path.join(output_folder_dir_path, 'vm_to_ec2_mapping.xlsx'))
-                is_rvtools = True if excel_files else False
+                rvtools_path = os.path.join(output_folder_dir_path, 'vm_to_ec2_mapping.xlsx')
+                if os.path.exists(rvtools_path):
+                    excel_files = [rvtools_path]
+                    is_rvtools = True
         
         if not excel_files:
             # No pricing file found, skip injection
@@ -2076,13 +2191,16 @@ def inject_pricing_comparison_table(business_case, agent_results=None):
         return business_case
 
 
-def generate_multi_stage_business_case(agent_results, project_context):
+def generate_multi_stage_business_case(agent_results, project_context, rvtools_summary=None, it_inventory_summary=None, atx_summary=None):
     """
     Generate business case in multiple stages for maximum quality
     
     Args:
         agent_results: Dictionary of results from all agents
         project_context: Project information and context
+        rvtools_summary: RVTools summary dict (if available)
+        it_inventory_summary: IT Inventory summary dict (if available)
+        atx_summary: ATX summary dict (if available)
     
     Returns:
         Complete business case document
@@ -2109,6 +2227,33 @@ def generate_multi_stage_business_case(agent_results, project_context):
                 # while keeping context size manageable
                 return result_text[:max_chars]
         return 'N/A'
+    
+    def get_mra_content():
+        """Get MRA content or recommendation to conduct MRA if not available"""
+        if 'agent_mra_analysis' in agent_results and agent_results['agent_mra_analysis'].result:
+            return str(agent_results['agent_mra_analysis'].result)
+        else:
+            return """**Migration Readiness Assessment (MRA) Not Provided**
+
+A Migration Readiness Assessment was not included in the input data. We strongly recommend conducting a comprehensive MRA to evaluate organizational readiness across the following dimensions:
+
+**Key Assessment Areas:**
+- **Business**: Strategic alignment, executive sponsorship, business case clarity
+- **People**: Skills assessment, training needs, change management readiness
+- **Process**: Governance, migration methodology, operational procedures
+- **Technology**: Current state architecture, technical debt, cloud readiness
+- **Security**: Compliance requirements, security controls, risk management
+- **Operations**: Monitoring, incident management, operational excellence
+- **Financial**: Cost management, budgeting, financial governance
+
+**Benefits of Conducting an MRA:**
+- Identifies organizational gaps and risks early
+- Provides actionable recommendations to improve readiness
+- Establishes baseline metrics for measuring progress
+- Reduces migration risks and accelerates timeline
+- Improves stakeholder alignment and buy-in
+
+**Recommendation:** Engage with AWS Professional Services or an AWS Partner to conduct a formal Migration Readiness Assessment before proceeding with large-scale migration activities."""
     
     # Determine which assessments were completed
     completed_assessments = []
@@ -2241,6 +2386,75 @@ DO NOT apply your own logic - simply use the recommendation provided below.
 **═══════════════════════════════════════════════════════════════**
 """
     
+    # BUILD INFRASTRUCTURE DATA SECTION FROM PRE-COMPUTED SUMMARIES
+    # This is the CRITICAL section that provides real VM data to the LLM
+    infrastructure_data_section = ""
+    if rvtools_summary:
+        infrastructure_data_section = f"""
+
+**═══════════════════════════════════════════════════════════════**
+**PRE-COMPUTED RVTOOLS SUMMARY** (MANDATORY - Use these exact numbers)
+**═══════════════════════════════════════════════════════════════**
+
+These numbers were calculated directly from the RVTools file in Python.
+USE ONLY THESE PRE-COMPUTED VALUES:
+
+- **Total VMs for Migration**: {rvtools_summary['total_vms']}
+- **Total vCPUs**: {rvtools_summary['total_vcpus']}
+- **Total Memory (GB)**: {rvtools_summary['total_memory_gb']:.1f}
+- **Total Storage (TB)**: {rvtools_summary['total_storage_tb']:.1f}
+- **Windows VMs**: {rvtools_summary.get('windows_vms', 0)}
+- **Linux VMs**: {rvtools_summary.get('linux_vms', 0)}
+
+**CRITICAL**: Use ONLY these numbers in ALL sections (Current State, Executive Summary, etc.)
+
+**═══════════════════════════════════════════════════════════════**
+"""
+    elif it_inventory_summary:
+        infrastructure_data_section = f"""
+
+**═══════════════════════════════════════════════════════════════**
+**PRE-COMPUTED IT INVENTORY SUMMARY** (MANDATORY - Use these exact numbers)
+**═══════════════════════════════════════════════════════════════**
+
+These numbers were calculated directly from the IT Inventory file in Python.
+USE ONLY THESE PRE-COMPUTED VALUES:
+
+- **Total Servers for Migration**: {it_inventory_summary['total_vms']}
+- **Total Databases (RDS)**: {it_inventory_summary['total_databases']}
+- **Total vCPUs (Servers + Databases)**: {it_inventory_summary['total_vcpus']}
+- **Total Memory GB (Servers + Databases)**: {it_inventory_summary['total_memory_gb']:.1f}
+- **Total Storage TB (Servers + Databases)**: {it_inventory_summary['total_storage_tb']:.1f}
+- **Windows Servers**: {it_inventory_summary['windows_vms']}
+- **Linux Servers**: {it_inventory_summary['linux_vms']}
+
+**CRITICAL**: Use ONLY these numbers in ALL sections (Current State, Executive Summary, etc.)
+
+**═══════════════════════════════════════════════════════════════**
+"""
+    elif atx_summary:
+        infrastructure_data_section = f"""
+
+**═══════════════════════════════════════════════════════════════**
+**ATX PPT PRE-COMPUTED SUMMARY** (MANDATORY - Use these exact numbers)
+**═══════════════════════════════════════════════════════════════**
+
+These numbers were extracted directly from the ATX PowerPoint presentation.
+USE ONLY THESE PRE-EXTRACTED VALUES:
+
+- **Total VMs for Migration**: {atx_summary['total_vms']}
+- **Windows VMs**: {atx_summary['windows_vms']}
+- **Linux VMs**: {atx_summary['linux_vms']}
+- **Total Databases**: {atx_summary.get('database_count', 0)}
+- **Total Storage**: {atx_summary['total_storage_tb']:.2f} TB
+- **Monthly AWS Cost**: ${atx_summary['total_monthly']:,.2f}
+- **Annual AWS Cost (ARR)**: ${atx_summary['total_arr']:,.2f}
+
+**CRITICAL**: Use ONLY these numbers in ALL sections (Current State, Executive Summary, etc.)
+
+**═══════════════════════════════════════════════════════════════**
+"""
+    
     assessments_note = f"\n**ASSESSMENTS ALREADY COMPLETED**: {', '.join(completed_assessments)}\n**DO NOT recommend these assessments again.**" if completed_assessments else ""
     
     # Get TCO configuration
@@ -2250,6 +2464,7 @@ DO NOT apply your own logic - simply use the recommendation provided below.
     # Build comprehensive context with actual analysis results
     context = f"""
 {project_context}
+{infrastructure_data_section}
 {tco_note}
 {eks_context}
 
@@ -2259,7 +2474,7 @@ DO NOT apply your own logic - simply use the recommendation provided below.
 {get_result_text('current_state_analysis')}
 
 ### Migration Readiness Assessment (MRA):
-{get_result_text('agent_mra_analysis')}
+{get_mra_content()}
 
 ### Cost Analysis:
 {get_result_text('agent_aws_cost_arr')}
@@ -2306,11 +2521,12 @@ DO NOT apply your own logic - simply use the recommendation provided below.
                 # Executive summary needs all results but condensed
                 section_context = f"""
 {project_context}
+{infrastructure_data_section}
 {tco_note}
 
 **ANALYSIS SUMMARY (condensed for Executive Summary):**
 - Current State: {get_result_text('current_state_analysis', 2000)}
-- MRA Readiness: {get_result_text('agent_mra_analysis', 1500)}
+- MRA Readiness: {get_mra_content()[:1500]}
 - Costs: {get_result_text('agent_aws_cost_arr', 2000)}
 - Strategy: {get_result_text('agent_migration_strategy', 1500)}
 {assessments_note}
@@ -2319,23 +2535,25 @@ DO NOT apply your own logic - simply use the recommendation provided below.
                 # Current state needs current state analysis AND MRA
                 section_context = f"""
 {project_context}
+{infrastructure_data_section}
 
 **CURRENT STATE ANALYSIS:**
 {get_result_text('current_state_analysis', 4000)}
 
 **MIGRATION READINESS ASSESSMENT (MRA):**
-{get_result_text('agent_mra_analysis', 2000)}
+{get_mra_content()[:2000]}
 """
             elif section_key == 'migration_strategy':
                 # Migration strategy needs strategy, current state, and MRA
                 section_context = f"""
 {project_context}
+{infrastructure_data_section}
 
 **CURRENT STATE:**
 {get_result_text('current_state_analysis', 2000)}
 
 **MRA READINESS:**
-{get_result_text('agent_mra_analysis', 1500)}
+{get_mra_content()[:1500]}
 
 **MIGRATION STRATEGY:**
 {get_result_text('agent_migration_strategy', 4000)}
@@ -2356,7 +2574,7 @@ DO NOT apply your own logic - simply use the recommendation provided below.
 {project_context}
 
 **MRA READINESS:**
-{get_result_text('agent_mra_analysis', 1500)}
+{get_mra_content()[:1500]}
 
 **MIGRATION STRATEGY:**
 {get_result_text('agent_migration_strategy', 2000)}
@@ -2376,7 +2594,7 @@ DO NOT apply your own logic - simply use the recommendation provided below.
 
 **KEY FINDINGS:**
 - Current State: {get_result_text('current_state_analysis', 1500)}
-- MRA Readiness: {get_result_text('agent_mra_analysis', 1500)}
+- MRA Readiness: {get_mra_content()[:1500]}
 - Costs: {get_result_text('agent_aws_cost_arr', 1500)}
 - Strategy: {get_result_text('agent_migration_strategy', 1500)}
 """
@@ -2440,6 +2658,9 @@ DO NOT apply your own logic - simply use the recommendation provided below.
     
     # Post-process: Inject Key Financial Metrics to match recommended option
     business_case = inject_key_financial_metrics(business_case, agent_results)
+    
+    # Post-process: Inject Current State Highlights with deterministic data
+    business_case = inject_current_state_highlights(business_case, rvtools_summary, it_inventory_summary, atx_summary)
     
     return business_case
 

@@ -2330,7 +2330,9 @@ def export_eks_analysis_to_excel(vm_categorization, cluster_config, ec2_costs, e
                 excel_files = glob.glob(os.path.join(case_output_dir, 'it_inventory_aws_pricing_*.xlsx'))
                 if not excel_files:
                     # Try RVTools
-                    excel_files = glob.glob(os.path.join(case_output_dir, 'vm_to_ec2_mapping.xlsx'))
+                    rvtools_path = os.path.join(case_output_dir, 'vm_to_ec2_mapping.xlsx')
+                    if os.path.exists(rvtools_path):
+                        excel_files = [rvtools_path]
                 if excel_files:
                     pricing_excel = excel_files[0]
                     logger.info(f"Found pricing Excel: {pricing_excel}")

@@ -1,0 +1,60 @@
+# Business Case Generator Deployment Configuration Template
+# 
+# Copy this file to .deployment-config and fill in your values
+# Or run ./deploy.sh which will prompt for these values
+#
+
+# ============================================================================
+# Domain Configuration
+# ============================================================================
+
+# Your custom domain name (must have valid SSL certificate)
+export DOMAIN_NAME="myapp.example.com"
+
+# ACM Certificate ARN (must be in us-east-1 for ALB)
+# Find in: AWS Console → Certificate Manager → Your certificate
+export CERTIFICATE_ARN="arn:aws:acm:us-east-1:123456789012:certificate/abc-123-def"
+
+# Route 53 Hosted Zone ID
+# Find in: AWS Console → Route 53 → Hosted zones → Your domain
+export HOSTED_ZONE_ID="Z1234567890ABC"
+
+# ============================================================================
+# OIDC Configuration (Amazon Federated SSO or other OIDC provider)
+# ============================================================================
+
+# OIDC Issuer URL
+# For Amazon Federated SSO:
+#   Integration: https://idp-integ.federate.amazon.com
+#   Production: https://idp.federate.amazon.com
+export OIDC_ISSUER="https://idp-integ.federate.amazon.com"
+
+# OIDC Client ID (from your OIDC provider)
+export OIDC_CLIENT_ID="YOUR_CLIENT_ID"
+
+# OIDC Client Secret (DO NOT commit this to git!)
+# This should be set as an environment variable or prompted at runtime
+# export OIDC_CLIENT_SECRET="YOUR_CLIENT_SECRET"
+
+# OIDC Endpoints (usually auto-generated from issuer)
+# For Amazon Federated SSO, these are standard:
+export OIDC_AUTHORIZATION_ENDPOINT="${OIDC_ISSUER}/api/oauth2/v1/authorize"
+export OIDC_TOKEN_ENDPOINT="${OIDC_ISSUER}/api/oauth2/v2/token"
+export OIDC_USER_INFO_ENDPOINT="${OIDC_ISSUER}/api/oauth2/v1/userinfo"
+
+# ============================================================================
+# AWS Configuration (optional - defaults to current AWS CLI config)
+# ============================================================================
+
+# AWS Region (default: us-east-1)
+# export AWS_REGION="us-east-1"
+
+# ============================================================================
+# Notes
+# ============================================================================
+#
+# 1. DO NOT commit .deployment-config with real secrets to git
+# 2. Add .deployment-config to .gitignore
+# 3. Client secret will be prompted if not set
+# 4. Run ./deploy.sh to deploy with this configuration
+#

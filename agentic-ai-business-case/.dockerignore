@@ -1,0 +1,61 @@
+# CDK build artifacts
+infrastructure/cdk/cdk.out/
+infrastructure/cdk/.venv/
+infrastructure/cdk/node_modules/
+infrastructure/cdk/.deployment-config
+
+# Python cache
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+.Python
+
+# Virtual environments
+**/venv/
+**/env/
+**/.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Documentation (not needed in container)
+docs/
+*.md
+
+# Sample files (not needed in container)
+sample-input/
+sample-output/
+
+# Input/output directories (created at runtime)
+input/
+output/
+
+# Scripts not needed in container
+*.sh
+!infrastructure/cdk/deploy.sh
+!infrastructure/cdk/cleanup.sh
+
+# Test files
+**/tests/
+**/*_test.py
+**/*test*.py
