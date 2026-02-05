@@ -1,0 +1,352 @@
+import React, { useState } from 'react';
+import {
+  Container,
+  Header,
+  SpaceBetween,
+  FormField,
+  FileUpload,
+  Textarea,
+  Button,
+  Alert,
+  ExpandableSection,
+  ProgressBar,
+  Box,
+  ColumnLayout,
+  Tabs
+} from '@cloudscape-design/components';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { getApiUrl } from '../../utils/apiConfig.js';
+
+function ModernizationOpportunity() {
+  const [inventoryFile, setInventoryFile] = useState([]);
+  const [architectureFile, setArchitectureFile] = useState([]);
+  const [scope, setScope] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [inventoryAnalysis, setInventoryAnalysis] = useState(null);
+  const [architectureAnalysis, setArchitectureAnalysis] = useState(null);
+  const [recommendations, setRecommendations] = useState(null);
+  const [inventoryData, setInventoryData] = useState(null);
+  const [activeTabId, setActiveTabId] = useState('upload');
+
+  const handleAnalyzeInventory = async () => {
+    if (inventoryFile.length === 0) {
+      setError('Please upload an IT inventory CSV file');
+      return;
+    }
+    if (!scope.trim()) {
+      setError('Please provide modernization scope details');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Step 1: Analyze inventory
+      const formData = new FormData();
+      formData.append('file', inventoryFile[0]);
+
+      const inventoryResponse = await fetch(getApiUrl('/map/modernization/analyze-inventory'), {
+        method: 'POST',
+        body: formData
+      });
+
+      const inventoryResult = await inventoryResponse.json();
+      
+      if (!inventoryResult.success) {
+        throw new Error(inventoryResult.message);
+      }
+
+      setInventoryAnalysis(inventoryResult.analysis);
+      setInventoryData(inventoryResult);
+
+      // Step 2: Analyze architecture if provided
+      if (architectureFile.length > 0) {
+        const archFormData = new FormData();
+        archFormData.append('file', architectureFile[0]);
+
+        const archResponse = await fetch(getApiUrl('/map/modernization/analyze-architecture'), {
+          method: 'POST',
+          body: archFormData
+        });
+
+        const archResult = await archResponse.json();
+        
+        if (archResult.success) {
+          setArchitectureAnalysis(archResult.analysis);
+        }
+      }
+
+      setActiveTabId('results');
+    } catch (err) {
+      setError(err.message || 'Failed to analyze inventory');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGenerateRecommendations = async () => {
+    if (!inventoryData) {
+      setError('Please analyze inventory first');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Read CSV data for recommendations
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const text = e.target.result;
+        const rows = text.split('\n').map(row => row.split(','));
+        const headers = rows[0];
+        const data = rows.slice(1).map(row => {
+          const obj = {};
+          headers.forEach((header, i) => {
+            obj[header] = row[i];
+          });
+          return obj;
+        });
+
+        const response = await fetch(getApiUrl('/map/modernization/recommend-pathways'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            inventoryData: data,
+            scope: scope,
+            architectureDescription: architectureAnalysis
+          })
+        });
+
+        const result = await response.json();
+        
+        if (!result.success) {
+          throw new Error(result.message);
+        }
+
+        setRecommendations(result.recommendations);
+        setLoading(false);
+      };
+
+      reader.readAsText(inventoryFile[0]);
+    } catch (err) {
+      setError(err.message || 'Failed to generate recommendations');
+      setLoading(false);
+    }
+  };
+
+  const downloadMarkdown = (content, filename) => {
+    const blob = new Blob([content], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <SpaceBetween size="l">
+      <Container
+        header={
+          <Header
+            variant="h1"
+            description="Using On-Premises Discovery Data"
+          >
+            Identify Modernization Opportunity
+          </Header>
+        }
+      >
+        <SpaceBetween size="m">
+          <Alert type="info">
+            You can identify AWS modernization opportunities based on your IT inventory. 
+            Upload your IT inventory as a CSV file, define the scope of modernization, 
+            and optionally provide an on-premises architecture image for comprehensive analysis.
+          </Alert>
+
+          <Tabs
+            activeTabId={activeTabId}
+            onChange={({ detail }) => setActiveTabId(detail.activeTabId)}
+            tabs={[
+              {
+                id: 'upload',
+                label: 'Upload & Configure',
+                content: (
+                  <SpaceBetween size="l">
+                    <ColumnLayout columns={2}>
+                      <FormField
+                        label="IT Inventory (CSV)"
+                        description="Upload your IT infrastructure inventory"
+                      >
+                        <FileUpload
+                          value={inventoryFile}
+                          onChange={({ detail }) => setInventoryFile(detail.value)}
+                          accept=".csv"
+                          constraintText="CSV files only"
+                        />
+                      </FormField>
+
+                      <FormField
+                        label="On-Premises Architecture (Optional)"
+                        description="Upload architecture diagram for enhanced analysis"
+                      >
+                        <FileUpload
+                          value={architectureFile}
+                          onChange={({ detail }) => setArchitectureFile(detail.value)}
+                          accept=".jpg,.jpeg,.png"
+                          constraintText="Image files only (JPG, PNG)"
+                        />
+                      </FormField>
+                    </ColumnLayout>
+
+                    <FormField
+                      label="Modernization Scope"
+                      description="Provide details about your modernization goals and scope"
+                    >
+                      <Textarea
+                        value={scope}
+                        onChange={({ detail }) => setScope(detail.value)}
+                        placeholder="Migration and Modernization"
+                        rows={6}
+                      />
+                    </FormField>
+
+                    {error && (
+                      <Alert
+                        type="error"
+                        dismissible
+                        onDismiss={() => setError(null)}
+                      >
+                        {error}
+                      </Alert>
+                    )}
+
+                    {loading && (
+                      <ProgressBar
+                        status="in-progress"
+                        label="Analyzing inventory data..."
+                      />
+                    )}
+
+                    <Box textAlign="center">
+                      <SpaceBetween direction="horizontal" size="xs">
+                        <Button
+                          variant="primary"
+                          onClick={handleAnalyzeInventory}
+                          disabled={loading || inventoryFile.length === 0 || !scope.trim()}
+                        >
+                          Analyze Inventory
+                        </Button>
+                      </SpaceBetween>
+                    </Box>
+                  </SpaceBetween>
+                )
+              },
+              {
+                id: 'results',
+                label: 'Analysis Results',
+                disabled: !inventoryAnalysis,
+                content: (
+                  <SpaceBetween size="l">
+                    {inventoryAnalysis && (
+                      <ExpandableSection
+                        headerText="Inventory Analysis"
+                        variant="container"
+                        defaultExpanded
+                      >
+                        <SpaceBetween size="m">
+                          <Box variant="p">
+                            <strong>Comprehensive IT Infrastructure Analysis</strong>
+                          </Box>
+                          <div className="markdown-content">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {inventoryAnalysis}
+                            </ReactMarkdown>
+                          </div>
+                          <Button
+                            onClick={() => downloadMarkdown(inventoryAnalysis, 'inventory_analysis.md')}
+                          >
+                            Download Analysis Report
+                          </Button>
+                        </SpaceBetween>
+                      </ExpandableSection>
+                    )}
+
+                    {architectureAnalysis && (
+                      <ExpandableSection
+                        headerText="Architecture Analysis"
+                        variant="container"
+                        defaultExpanded
+                      >
+                        <SpaceBetween size="m">
+                          <Box variant="p">
+                            <strong>On-Premises Architecture Assessment</strong>
+                          </Box>
+                          <div className="markdown-content">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {architectureAnalysis}
+                            </ReactMarkdown>
+                          </div>
+                          <Button
+                            onClick={() => downloadMarkdown(architectureAnalysis, 'onprem_architecture.md')}
+                          >
+                            Download Architecture Report
+                          </Button>
+                        </SpaceBetween>
+                      </ExpandableSection>
+                    )}
+
+                    {!recommendations && (
+                      <Box textAlign="center">
+                        <Button
+                          variant="primary"
+                          onClick={handleGenerateRecommendations}
+                          disabled={loading}
+                        >
+                          Provide Modernization Recommendations
+                        </Button>
+                      </Box>
+                    )}
+
+                    {recommendations && (
+                      <ExpandableSection
+                        headerText="Modernization Recommendations"
+                        variant="container"
+                        defaultExpanded
+                      >
+                        <SpaceBetween size="m">
+                          <Box variant="p">
+                            <strong>AWS Modernization Pathway Recommendations</strong>
+                          </Box>
+                          <div className="markdown-content">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {recommendations}
+                            </ReactMarkdown>
+                          </div>
+                          <Button
+                            onClick={() => downloadMarkdown(recommendations, 'aws_modernization_approach.md')}
+                          >
+                            Download Modernization Strategy
+                          </Button>
+                        </SpaceBetween>
+                      </ExpandableSection>
+                    )}
+                  </SpaceBetween>
+                )
+              }
+            ]}
+          />
+        </SpaceBetween>
+      </Container>
+    </SpaceBetween>
+  );
+}
+
+export default ModernizationOpportunity;

@@ -1,0 +1,209 @@
+import React, { useState } from 'react';
+import {
+  Container,
+  Header,
+  SpaceBetween,
+  FormField,
+  FileUpload,
+  Input,
+  Select,
+  Button,
+  Alert,
+  ExpandableSection,
+  ProgressBar,
+  Box,
+  ColumnLayout
+} from '@cloudscape-design/components';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { getApiUrl } from '../../utils/apiConfig.js';
+
+function LearningPathway() {
+  const [trainingFile, setTrainingFile] = useState([]);
+  const [targetRole, setTargetRole] = useState('');
+  const [experienceLevel, setExperienceLevel] = useState({ label: 'Intermediate', value: 'intermediate' });
+  const [duration, setDuration] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [learningPathway, setLearningPathway] = useState(null);
+
+  const experienceLevels = [
+    { label: 'Beginner', value: 'beginner' },
+    { label: 'Intermediate', value: 'intermediate' },
+    { label: 'Advanced', value: 'advanced' }
+  ];
+
+  const handleGeneratePathway = async () => {
+    if (trainingFile.length === 0) {
+      setError('Please upload a training data CSV file');
+      return;
+    }
+    if (!targetRole.trim()) {
+      setError('Please specify a target role');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', trainingFile[0]);
+      formData.append('targetRole', targetRole);
+      formData.append('experienceLevel', experienceLevel.value);
+      formData.append('duration', duration);
+
+      const response = await fetch(getApiUrl('/map/learning-pathway/generate'), {
+        method: 'POST',
+        body: formData
+      });
+
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.message);
+      }
+
+      setLearningPathway(result.learningPathway);
+    } catch (err) {
+      setError(err.message || 'Failed to generate learning pathway');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const downloadMarkdown = (content, filename) => {
+    const blob = new Blob([content], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <SpaceBetween size="l">
+      <Container
+        header={
+          <Header
+            variant="h1"
+            description="Personalized AWS Training Recommendations"
+          >
+            Learning Pathway Development
+          </Header>
+        }
+      >
+        <SpaceBetween size="m">
+          <Alert type="info">
+            Generate personalized learning pathways for your AWS migration team. 
+            Upload training data and specify role requirements to receive customized 
+            course recommendations and duration analysis.
+          </Alert>
+
+          <FormField
+            label="Training Data (CSV)"
+            description="Upload your training catalog or course data"
+          >
+            <FileUpload
+              value={trainingFile}
+              onChange={({ detail }) => setTrainingFile(detail.value)}
+              accept=".csv"
+              constraintText="CSV files only"
+            />
+          </FormField>
+
+          <ColumnLayout columns={3}>
+            <FormField
+              label="Target Role"
+              description="Specify the target role"
+            >
+              <Input
+                value={targetRole}
+                onChange={({ detail }) => setTargetRole(detail.value)}
+                placeholder="e.g., Cloud Architect, DevOps Engineer"
+              />
+            </FormField>
+
+            <FormField
+              label="Experience Level"
+              description="Current experience level"
+            >
+              <Select
+                selectedOption={experienceLevel}
+                onChange={({ detail }) => setExperienceLevel(detail.selectedOption)}
+                options={experienceLevels}
+              />
+            </FormField>
+
+            <FormField
+              label="Duration (Optional)"
+              description="Training duration"
+            >
+              <Input
+                value={duration}
+                onChange={({ detail }) => setDuration(detail.value)}
+                placeholder="e.g., 3 months, 6 weeks"
+              />
+            </FormField>
+          </ColumnLayout>
+
+          {error && (
+            <Alert
+              type="error"
+              dismissible
+              onDismiss={() => setError(null)}
+            >
+              {error}
+            </Alert>
+          )}
+
+          {loading && (
+            <ProgressBar
+              status="in-progress"
+              label="Generating personalized learning pathway..."
+            />
+          )}
+
+          <Box textAlign="center">
+            <Button
+              variant="primary"
+              onClick={handleGeneratePathway}
+              disabled={loading || trainingFile.length === 0 || !targetRole.trim()}
+            >
+              Generate Learning Pathway
+            </Button>
+          </Box>
+
+          {learningPathway && (
+            <ExpandableSection
+              headerText="Learning Pathway Results"
+              variant="container"
+              defaultExpanded
+            >
+              <SpaceBetween size="m">
+                <Box variant="p">
+                  <strong>Personalized AWS Training Pathway</strong>
+                </Box>
+                <div className="markdown-content">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {learningPathway}
+                  </ReactMarkdown>
+                </div>
+                <Button
+                  onClick={() => downloadMarkdown(learningPathway, 'learning_pathway.md')}
+                >
+                  Download Learning Pathway
+                </Button>
+              </SpaceBetween>
+            </ExpandableSection>
+          )}
+        </SpaceBetween>
+      </Container>
+    </SpaceBetween>
+  );
+}
+
+export default LearningPathway;

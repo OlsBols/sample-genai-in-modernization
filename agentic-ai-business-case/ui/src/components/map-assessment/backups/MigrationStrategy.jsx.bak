@@ -1,0 +1,176 @@
+import React, { useState } from 'react';
+import {
+  Container,
+  Header,
+  SpaceBetween,
+  FormField,
+  FileUpload,
+  Textarea,
+  Button,
+  Alert,
+  ExpandableSection,
+  ProgressBar,
+  Box
+} from '@cloudscape-design/components';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { getApiUrl } from '../../utils/apiConfig.js';
+
+function MigrationStrategy() {
+  const [calculatorFile, setCalculatorFile] = useState([]);
+  const [scope, setScope] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [strategy, setStrategy] = useState(null);
+  const [recordsProcessed, setRecordsProcessed] = useState(0);
+
+  const handleGenerateStrategy = async () => {
+    if (calculatorFile.length === 0) {
+      setError('Please upload an AWS Calculator CSV file');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', calculatorFile[0]);
+      formData.append('scope', scope);
+
+      const response = await fetch(getApiUrl('/map/migration-strategy/generate'), {
+        method: 'POST',
+        body: formData
+      });
+
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.message);
+      }
+
+      setStrategy(result.strategy);
+      setRecordsProcessed(result.recordsProcessed);
+    } catch (err) {
+      setError(err.message || 'Failed to generate migration strategy');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const downloadMarkdown = (content, filename) => {
+    const blob = new Blob([content], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <SpaceBetween size="l">
+      <Container
+        header={
+          <Header
+            variant="h1"
+            description="From AWS Calculator Data"
+          >
+            Develop Migration Patterns and Planning
+          </Header>
+        }
+      >
+        <SpaceBetween size="m">
+          <Alert type="info">
+            Upload your AWS Calculator CSV export to generate an optimized migration 
+            strategy with comprehensive planning and cost analysis.
+          </Alert>
+
+          <FormField
+            label="AWS Calculator CSV"
+            description="Upload your AWS Calculator export file"
+          >
+            <FileUpload
+              value={calculatorFile}
+              onChange={({ detail }) => setCalculatorFile(detail.value)}
+              accept=".csv"
+              constraintText="CSV files only"
+            />
+          </FormField>
+
+          <FormField
+            label="Migration Scope (Optional)"
+            description="Enter additional migration scope details"
+          >
+            <Textarea
+              value={scope}
+              onChange={({ detail }) => setScope(detail.value)}
+              placeholder="Enter migration scope details..."
+              rows={6}
+            />
+          </FormField>
+
+          {error && (
+            <Alert
+              type="error"
+              dismissible
+              onDismiss={() => setError(null)}
+            >
+              {error}
+            </Alert>
+          )}
+
+          {loading && (
+            <ProgressBar
+              status="in-progress"
+              label="Generating migration strategy... This may take a few minutes"
+            />
+          )}
+
+          <Box textAlign="center">
+            <Button
+              variant="primary"
+              onClick={handleGenerateStrategy}
+              disabled={loading || calculatorFile.length === 0}
+            >
+              Generate Migration Strategy
+            </Button>
+          </Box>
+
+          {strategy && (
+            <ExpandableSection
+              headerText="Migration Strategy Results"
+              variant="container"
+              defaultExpanded
+            >
+              <SpaceBetween size="m">
+                <Box variant="p">
+                  <strong>AWS Migration Strategy & Planning</strong>
+                  {recordsProcessed > 0 && (
+                    <Box variant="small" color="text-status-info">
+                      {recordsProcessed} records processed
+                    </Box>
+                  )}
+                </Box>
+                <div className="markdown-content">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {strategy}
+                  </ReactMarkdown>
+                </div>
+                <Button
+                  onClick={() => downloadMarkdown(strategy, 'aws_migration_strategy_with_plan.md')}
+                >
+                  Download Migration Strategy
+                </Button>
+              </SpaceBetween>
+            </ExpandableSection>
+          )}
+        </SpaceBetween>
+      </Container>
+    </SpaceBetween>
+  );
+}
+
+export default MigrationStrategy;

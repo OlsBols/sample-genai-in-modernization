@@ -43,6 +43,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY agents/ ./agents/
+COPY prompt_library/ ./prompt_library/
+COPY utils/ ./utils/
 COPY ui/backend/ ./ui/backend/
 
 # Copy frontend build from stage 1

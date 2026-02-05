@@ -1,0 +1,218 @@
+/* MAP Assessment Styles - Ported from Streamlit to Cloudscape */
+
+/* Markdown content styling */
+.markdown-content {
+  line-height: 1.6;
+  color: #545b64;
+}
+
+.markdown-content h1 {
+  color: #232f3e;
+  font-size: 28px;
+  margin-bottom: 20px;
+  border-bottom: 2px solid #ff9900;
+  padding-bottom: 10px;
+}
+
+.markdown-content h2 {
+  color: #232f3e;
+  font-size: 24px;
+  margin-top: 30px;
+  margin-bottom: 15px;
+}
+
+.markdown-content h3 {
+  color: #545b64;
+  font-size: 20px;
+  margin-top: 20px;
+  margin-bottom: 10px;
+}
+
+.markdown-content p {
+  color: #545b64;
+  line-height: 1.6;
+  margin-bottom: 15px;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  color: #545b64;
+  line-height: 1.6;
+  margin-bottom: 15px;
+  padding-left: 30px;
+}
+
+.markdown-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 20px 0;
+}
+
+.markdown-content table th {
+  background-color: #232f3e;
+  color: white;
+  padding: 12px;
+  text-align: left;
+  font-weight: 600;
+}
+
+.markdown-content table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e9ebed;
+}
+
+.markdown-content table tr:hover {
+  background-color: #f9f9f9;
+}
+
+.markdown-content code {
+  background-color: #f4f4f4;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+}
+
+.markdown-content pre {
+  background-color: #f4f4f4;
+  padding: 15px;
+  border-radius: 5px;
+  overflow-x: auto;
+  margin: 15px 0;
+}
+
+.markdown-content blockquote {
+  border-left: 4px solid #ff9900;
+  padding-left: 20px;
+  margin: 20px 0;
+  color: #545b64;
+  font-style: italic;
+}
+
+.markdown-content strong {
+  color: #232f3e;
+  font-weight: 600;
+}
+
+.markdown-content a {
+  color: #0073bb;
+  text-decoration: none;
+}
+
+.markdown-content a:hover {
+  text-decoration: underline;
+}
+
+/* Chat message styling */
+.chat-message {
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.chat-message-user {
+  background-color: #e8f4f8;
+  margin-left: 20%;
+}
+
+.chat-message-assistant {
+  background-color: white;
+  margin-right: 20%;
+  border: 1px solid #e0e0e0;
+}
+
+/* Gradient headers (ported from Streamlit) */
+.map-header-gradient {
+  background: linear-gradient(135deg, #001F5B 0%, #1E88A8 100%);
+  color: white;
+  padding: 2rem;
+  border-radius: 10px;
+  margin-bottom: 2rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Info card styling */
+.map-info-card {
+  background-color: #E8F4F8;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin: 1rem 0;
+}
+
+/* Upload section styling */
+.map-upload-section {
+  background-color: white;
+  border: 2px dashed #1E88A8;
+  border-radius: 10px;
+  padding: 2rem;
+  text-align: center;
+  margin: 1rem 0;
+}
+
+.map-upload-section:hover {
+  border-color: #001F5B;
+  background-color: #f8f9fa;
+}
+
+/* Results section styling */
+.map-results-section {
+  background-color: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin: 1rem 0;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .chat-message-user {
+    margin-left: 10%;
+  }
+  
+  .chat-message-assistant {
+    margin-right: 10%;
+  }
+  
+  .map-header-gradient {
+    padding: 1.5rem;
+  }
+}
+
+/* Animation for loading states */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-in;
+}
+
+/* Smooth transitions */
+.map-transition {
+  transition: all 0.3s ease;
+}
+
+/* Status indicators */
+.map-status-success {
+  color: #037f0c;
+}
+
+.map-status-error {
+  color: #d91515;
+}
+
+.map-status-info {
+  color: #0073bb;
+}
+
+.map-status-warning {
+  color: #ff9900;
+}

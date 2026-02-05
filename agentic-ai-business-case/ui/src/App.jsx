@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   AppLayout,
   TopNavigation,
+  SideNavigation,
   Container,
   Header,
   SpaceBetween,
@@ -17,11 +18,20 @@ import ReviewStep from './components/ReviewStep.jsx';
 import ResultsStep from './components/ResultsStep.jsx';
 import SavedCasesModal from './components/SavedCasesModal.jsx';
 import ConfigurationModal from './components/ConfigurationModal.jsx';
+import ModernizationOpportunity from './components/map-assessment/ModernizationOpportunity.jsx';
+import MigrationStrategy from './components/map-assessment/MigrationStrategy.jsx';
+import ResourcePlanning from './components/map-assessment/ResourcePlanning.jsx';
+import LearningPathway from './components/map-assessment/LearningPathway.jsx';
+import BusinessCaseReview from './components/map-assessment/BusinessCaseReview.jsx';
+import ArchitectureDiagram from './components/map-assessment/ArchitectureDiagram.jsx';
+import ChatAssistant from './components/map-assessment/ChatAssistant.jsx';
 import { getApiUrl } from './utils/apiConfig.js';
 import './styles/App.css';
+import './styles/MapAssessment.css';
 
 function App() {
   const [activeStepIndex, setActiveStepIndex] = useState(0);
+  const [currentView, setCurrentView] = useState('business-case'); // 'business-case' or MAP view names
   const [projectInfo, setProjectInfo] = useState({
     projectName: '',
     projectDescription: '',
@@ -241,72 +251,10 @@ function App() {
     }
   ];
 
-  return (
-    <div className="app">
-      <TopNavigation
-        identity={{
-          href: '#',
-          title: 'AWS Migration Business Case Generator',
-          logo: {
-            src: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA1MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjUwIiBoZWlnaHQ9IjQwIiBmaWxsPSIjMjMyRjNFIi8+Cjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjRkY5OTAwIiBmb250LXNpemU9IjE4IiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtd2VpZ2h0PSJib2xkIj5BV1M8L3RleHQ+Cjwvc3ZnPg==',
-            alt: 'AWS'
-          },
-          onFollow: (e) => {
-            e.preventDefault();
-            setActiveStepIndex(0);
-          }
-        }}
-        utilities={[
-          {
-            type: 'menu-dropdown',
-            text: currentUser 
-              ? `Welcome, ${currentUser.given_name || currentUser.name?.split(' ')[0] || currentUser.email?.split('@')[0] || 'User'}` 
-              : 'User',
-            iconName: 'user-profile',
-            items: [
-              {
-                id: 'user-info',
-                text: currentUser?.email || 'Not authenticated',
-                disabled: true
-              }
-            ]
-          },
-          {
-            type: 'button',
-            text: 'Configuration',
-            onClick: () => setShowConfigModal(true)
-          },
-          {
-            type: 'button',
-            text: 'Load Saved Cases',
-            onClick: () => setShowSavedCasesModal(true),
-            disabled: !dynamoDBEnabled
-          },
-          {
-            type: 'button',
-            text: 'Documentation',
-            href: '#',
-            external: true,
-            externalIconAriaLabel: ' (opens in a new tab)'
-          }
-        ]}
-      />
-
-      <SavedCasesModal
-        visible={showSavedCasesModal}
-        onDismiss={() => setShowSavedCasesModal(false)}
-        onLoadCase={loadCase}
-      />
-
-      <ConfigurationModal
-        visible={showConfigModal}
-        onDismiss={() => setShowConfigModal(false)}
-      />
-      
-      <AppLayout
-        navigationHide={true}
-        toolsHide={true}
-        content={
+  const renderContent = () => {
+    switch (currentView) {
+      case 'business-case':
+        return (
           <Container>
             <SpaceBetween size="l">
               <Header
@@ -329,7 +277,7 @@ function App() {
                   </SpaceBetween>
                 }
               >
-                AWS Migration Business Case Generator
+                AWS Migration and Modernisation
               </Header>
 
               {dynamoDBEnabled && lastUpdated && (
@@ -414,7 +362,128 @@ function App() {
               />
             </SpaceBetween>
           </Container>
+        );
+      case 'modernization':
+        return <ModernizationOpportunity />;
+      case 'migration':
+        return <MigrationStrategy />;
+      case 'resources':
+        return <ResourcePlanning />;
+      case 'learning':
+        return <LearningPathway />;
+      case 'review':
+        return <BusinessCaseReview />;
+      case 'architecture':
+        return <ArchitectureDiagram />;
+      case 'chat':
+        return <ChatAssistant />;
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="app">
+      <TopNavigation
+        identity={{
+          href: '#',
+          title: 'AWS Migration and Modernisation',
+          logo: {
+            src: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA1MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjUwIiBoZWlnaHQ9IjQwIiBmaWxsPSIjMjMyRjNFIi8+Cjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjRkY5OTAwIiBmb250LXNpemU9IjE4IiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtd2VpZ2h0PSJib2xkIj5BV1M8L3RleHQ+Cjwvc3ZnPg==',
+            alt: 'AWS'
+          },
+          onFollow: (e) => {
+            e.preventDefault();
+            setCurrentView('business-case');
+            setActiveStepIndex(0);
+          }
+        }}
+        utilities={[
+          {
+            type: 'menu-dropdown',
+            text: currentUser 
+              ? `Welcome, ${currentUser.given_name || currentUser.name?.split(' ')[0] || currentUser.email?.split('@')[0] || 'User'}` 
+              : 'User',
+            iconName: 'user-profile',
+            items: [
+              {
+                id: 'user-info',
+                text: currentUser?.email || 'Not authenticated',
+                disabled: true
+              }
+            ]
+          },
+          {
+            type: 'button',
+            text: 'Configuration',
+            onClick: () => setShowConfigModal(true)
+          },
+          {
+            type: 'button',
+            text: 'Load Saved Cases',
+            onClick: () => setShowSavedCasesModal(true),
+            disabled: !dynamoDBEnabled
+          },
+          {
+            type: 'button',
+            text: 'Documentation',
+            href: '#',
+            external: true,
+            externalIconAriaLabel: ' (opens in a new tab)'
+          }
+        ]}
+      />
+
+      <SavedCasesModal
+        visible={showSavedCasesModal}
+        onDismiss={() => setShowSavedCasesModal(false)}
+        onLoadCase={loadCase}
+      />
+
+      <ConfigurationModal
+        visible={showConfigModal}
+        onDismiss={() => setShowConfigModal(false)}
+      />
+      
+      <AppLayout
+        navigation={
+          <SideNavigation
+            activeHref={`#/${currentView}`}
+            header={{ text: 'Navigation', href: '#/' }}
+            onFollow={event => {
+              if (!event.detail.external) {
+                event.preventDefault();
+                const view = event.detail.href.replace('#/', '');
+                setCurrentView(view || 'business-case');
+              }
+            }}
+            items={[
+              {
+                type: 'section',
+                text: 'Business Case Generator',
+                items: [
+                  { type: 'link', text: 'Generate Case', href: '#/business-case' }
+                ]
+              },
+              { type: 'divider' },
+              {
+                type: 'section',
+                text: 'Quick Helpers',
+                items: [
+                  { type: 'link', text: 'Modernization Opportunity', href: '#/modernization' },
+                  { type: 'link', text: 'Migration Strategy', href: '#/migration' },
+                  { type: 'link', text: 'Resource Planning', href: '#/resources' },
+                  { type: 'link', text: 'Learning Pathway', href: '#/learning' },
+                  { type: 'link', text: 'Business Case Review', href: '#/review' },
+                  { type: 'link', text: 'Architecture Diagram', href: '#/architecture' },
+                  { type: 'link', text: 'Chat Assistant', href: '#/chat' }
+                ]
+              }
+            ]}
+          />
         }
+        toolsHide={true}
+        content={renderContent()}
       />
     </div>
   );

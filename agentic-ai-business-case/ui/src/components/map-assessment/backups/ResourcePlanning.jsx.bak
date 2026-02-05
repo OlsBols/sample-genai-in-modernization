@@ -1,0 +1,183 @@
+import React, { useState } from 'react';
+import {
+  Container,
+  Header,
+  SpaceBetween,
+  FormField,
+  FileUpload,
+  Textarea,
+  Button,
+  Alert,
+  ExpandableSection,
+  ProgressBar,
+  Box
+} from '@cloudscape-design/components';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { getApiUrl } from '../../utils/apiConfig.js';
+
+function ResourcePlanning() {
+  const [resourceFile, setResourceFile] = useState([]);
+  const [migrationStrategy, setMigrationStrategy] = useState('');
+  const [wavePlanning, setWavePlanning] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [resourcePlan, setResourcePlan] = useState(null);
+
+  const handleGeneratePlan = async () => {
+    if (resourceFile.length === 0) {
+      setError('Please upload a resource profile CSV file');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', resourceFile[0]);
+      formData.append('migrationStrategy', migrationStrategy);
+      formData.append('wavePlanning', wavePlanning);
+
+      const response = await fetch(getApiUrl('/map/resource-planning/generate'), {
+        method: 'POST',
+        body: formData
+      });
+
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.message);
+      }
+
+      setResourcePlan(result.resourcePlan);
+    } catch (err) {
+      setError(err.message || 'Failed to generate resource plan');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const downloadMarkdown = (content, filename) => {
+    const blob = new Blob([content], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <SpaceBetween size="l">
+      <Container
+        header={
+          <Header
+            variant="h1"
+            description="Team Structure and Resource Allocation"
+          >
+            Resource Planning
+          </Header>
+        }
+      >
+        <SpaceBetween size="m">
+          <Alert type="info">
+            Upload your resource profile to generate team structure recommendations, 
+            resource allocation plans, and cost projections for your migration project.
+          </Alert>
+
+          <FormField
+            label="Resource Profile (CSV)"
+            description="Upload your resource profile template"
+          >
+            <FileUpload
+              value={resourceFile}
+              onChange={({ detail }) => setResourceFile(detail.value)}
+              accept=".csv"
+              constraintText="CSV files only"
+            />
+          </FormField>
+
+          <FormField
+            label="Migration Strategy (Optional)"
+            description="Provide migration strategy context"
+          >
+            <Textarea
+              value={migrationStrategy}
+              onChange={({ detail }) => setMigrationStrategy(detail.value)}
+              placeholder="Enter migration strategy details..."
+              rows={4}
+            />
+          </FormField>
+
+          <FormField
+            label="Wave Planning (Optional)"
+            description="Provide wave planning details"
+          >
+            <Textarea
+              value={wavePlanning}
+              onChange={({ detail }) => setWavePlanning(detail.value)}
+              placeholder="Enter wave planning details..."
+              rows={4}
+            />
+          </FormField>
+
+          {error && (
+            <Alert
+              type="error"
+              dismissible
+              onDismiss={() => setError(null)}
+            >
+              {error}
+            </Alert>
+          )}
+
+          {loading && (
+            <ProgressBar
+              status="in-progress"
+              label="Generating resource plan..."
+            />
+          )}
+
+          <Box textAlign="center">
+            <Button
+              variant="primary"
+              onClick={handleGeneratePlan}
+              disabled={loading || resourceFile.length === 0}
+            >
+              Generate Resource Plan
+            </Button>
+          </Box>
+
+          {resourcePlan && (
+            <ExpandableSection
+              headerText="Resource Planning Results"
+              variant="container"
+              defaultExpanded
+            >
+              <SpaceBetween size="m">
+                <Box variant="p">
+                  <strong>Team Structure & Resource Allocation Plan</strong>
+                </Box>
+                <div className="markdown-content">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {resourcePlan}
+                  </ReactMarkdown>
+                </div>
+                <Button
+                  onClick={() => downloadMarkdown(resourcePlan, 'resource_planning.md')}
+                >
+                  Download Resource Plan
+                </Button>
+              </SpaceBetween>
+            </ExpandableSection>
+          )}
+        </SpaceBetween>
+      </Container>
+    </SpaceBetween>
+  );
+}
+
+export default ResourcePlanning;

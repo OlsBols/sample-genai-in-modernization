@@ -26,6 +26,11 @@ if not IS_PRODUCTION:
 else:
     print("✓ Running in PRODUCTION mode - serving frontend from Flask")
 
+# Register MAP Assessment routes
+from map_routes import map_bp
+app.register_blueprint(map_bp)
+print("✓ MAP Assessment routes registered")
+
 # Configuration
 UPLOAD_FOLDER = tempfile.mkdtemp()
 ALLOWED_EXTENSIONS = {'xlsx', 'xls', 'csv', 'pdf', 'pptx', 'ppt', 'md', 'docx', 'doc'}

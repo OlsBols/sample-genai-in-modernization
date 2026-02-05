@@ -20,10 +20,27 @@ if [ -f .pids/backend.pid ]; then
     fi
 fi
 
+# Check and install backend dependencies
+echo "Checking backend dependencies..."
+cd ui/backend
+
+# Check if venv exists
+if [ ! -d "venv" ]; then
+    echo "✗ Backend venv not found. Please run setup.sh first"
+    exit 1
+fi
+
+source venv/bin/activate
+
+# Check if pandas is installed (required for MAP routes)
+if ! python -c "import pandas" 2>/dev/null; then
+    echo "Installing missing dependencies (pandas, Pillow, PyMuPDF)..."
+    pip install -q pandas>=2.0.0 Pillow>=10.0.0 PyMuPDF>=1.23.0
+    echo "✓ Dependencies installed"
+fi
+
 # Start backend in background with Gunicorn
 echo "Starting backend server with Gunicorn..."
-cd ui/backend
-source venv/bin/activate
 gunicorn -c gunicorn.conf.py app:app > ../../.pids/backend.log 2>&1 &
 BACKEND_PID=$!
 echo $BACKEND_PID > ../../.pids/backend.pid
