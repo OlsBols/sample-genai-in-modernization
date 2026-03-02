@@ -13,7 +13,7 @@ export DOMAIN_NAME="myapp.example.com"
 
 # ACM Certificate ARN (must be in us-east-1 for ALB)
 # Find in: AWS Console → Certificate Manager → Your certificate
-export CERTIFICATE_ARN="arn:aws:acm:us-east-1:123456789012:certificate/abc-123-def"
+export CERTIFICATE_ARN=""
 
 # Route 53 Hosted Zone ID
 # Find in: AWS Console → Route 53 → Hosted zones → Your domain
