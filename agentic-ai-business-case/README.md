@@ -2,10 +2,11 @@
 
 **Version 1.0** | Production Ready
 
-AI-powered tool that generates comprehensive AWS migration business cases using multi-agent analysis of your infrastructure data.
+AI-powered tool that generates comprehensive AWS migration business cases using multi-agent analysis of your infrastructure data. Includes standalone GenAI use cases for migration planning and assessment.
 
 ## Key Features
 
+### Business Case Generator
 ✅ **Real-Time AWS Pricing** - AWS Price List API for EC2, RDS, EKS (all pricing models)  
 ✅ **Three Input Types** - RVTools, IT Infrastructure Inventory, or ATX assessments  
 ✅ **Dependency-Based Wave Planning** - Intelligent migration waves from IT Inventory dependencies  
@@ -15,6 +16,16 @@ AI-powered tool that generates comprehensive AWS migration business cases using 
 ✅ **Bedrock Guardrails** - PII protection, hallucination prevention (optional)  
 ✅ **Excel Exports** - Detailed cost breakdowns with VM/server-level mapping and backup costs  
 ✅ **Smart Agent Selection** - Only runs agents for available input files
+
+### GenAI Use Cases
+✅ **Modernization Opportunity** - Analyze IT inventory and architecture for modernization recommendations  
+✅ **Migration Strategy** - Generate migration patterns and planning from AWS Calculator data  
+✅ **Resource Planning** - Team structure and resource allocation recommendations  
+✅ **Learning Pathway** - Personalized AWS training and certification roadmaps  
+✅ **Business Case Review** - Validate and review business case documents  
+✅ **Architecture Diagram** - Generate AWS architecture diagrams in Draw.io format  
+✅ **Chat Assistant** - Context-aware conversations with access to all generated outputs  
+✅ **Persistent State** - Data persists across use cases with reset functionality
 
 ## Generated Outputs
 
@@ -56,6 +67,67 @@ Comprehensive markdown document with 7 sections:
 - **EC2 vs EKS Comparison** - Cost comparison across options
 - **EKS ROI Analysis** - Financial justification and benefits
 
+## GenAI Use Cases
+
+In addition to the comprehensive business case generator, the application includes standalone GenAI use cases for specific migration and modernization tasks:
+
+### 1. Modernization Opportunity
+Analyze your IT infrastructure and architecture to identify modernization opportunities:
+- **Inventory Analysis**: Upload IT inventory (Excel/CSV) for workload assessment
+- **Architecture Analysis**: Upload architecture diagrams for modernization recommendations
+- **Pathway Recommendations**: Get specific modernization strategies and approaches
+- **Output**: Detailed modernization analysis with actionable recommendations
+
+### 2. Migration Strategy
+Generate comprehensive migration strategies from AWS Calculator data:
+- **Input**: AWS Pricing Calculator CSV export
+- **Analysis**: 7Rs framework (Rehost, Replatform, Refactor, Repurchase, Retire, Retain, Relocate)
+- **Wave Planning**: Migration sequencing and timeline recommendations
+- **Output**: Detailed migration strategy with cost analysis and risk assessment
+
+### 3. Resource Planning
+Plan team structure and resource allocation for migration projects:
+- **Input**: Resource profile data and migration context
+- **Analysis**: Required roles, skills, team size, and allocation
+- **Timeline**: Phase-by-phase resource planning
+- **Output**: Comprehensive resource plan with cost projections
+
+### 4. Learning Pathway
+Generate personalized AWS training and certification roadmaps:
+- **Input**: Team profile, target roles, experience level
+- **Analysis**: Skills gap assessment and training needs
+- **Recommendations**: Customized learning paths with AWS certifications
+- **Output**: Detailed training plan with timeline and resources
+
+### 5. Business Case Review
+Validate and review existing business case documents:
+- **Input**: Business case PDF document
+- **Analysis**: Completeness, accuracy, and alignment with AWS best practices
+- **Validation**: Financial assumptions, technical feasibility, risk assessment
+- **Output**: Comprehensive review with recommendations for improvement
+
+### 6. Architecture Diagram
+Generate AWS architecture diagrams from requirements:
+- **Input**: Architecture requirements and specifications
+- **Generation**: Automated Draw.io XML diagram creation
+- **Services**: Includes AWS services, connections, and best practices
+- **Output**: Editable Draw.io diagram file
+
+### 7. Chat Assistant
+Context-aware conversational interface with access to all generated outputs:
+- **Context Selection**: Choose from any GenAI use case or general AWS knowledge
+- **Auto-Load**: Automatically loads outputs from selected use case
+- **View Context**: Preview full context before asking questions
+- **Knowledge Base**: Search AWS documentation and best practices
+- **Persistent History**: Maintains conversation context across sessions
+
+### GenAI Use Cases Features
+- **Persistent State**: Generated outputs persist when navigating between use cases
+- **Reset Functionality**: Each use case has a reset button to clear data
+- **Custom Prompts**: Customize analysis prompts for specific needs
+- **Context Integration**: Chat Assistant can access outputs from all use cases
+- **Markdown Export**: Download results in markdown format
+
 ## Quick Start
 
 ### Local Development
@@ -78,6 +150,10 @@ export S3_BUCKET_NAME=your-bucket-name
 ```
 
 Access at: `http://localhost:3000`
+
+**Navigation**:
+- Business Case Generator: Main workflow for comprehensive business case generation
+- GenAI Use Cases: Standalone tools accessible from the sidebar navigation
 
 **Prerequisites**: Python 3.8+, Node.js 16+, AWS account with Bedrock access
 
