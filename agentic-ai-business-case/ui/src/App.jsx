@@ -25,6 +25,7 @@ import LearningPathway from './components/map-assessment/LearningPathway.jsx';
 import BusinessCaseReview from './components/map-assessment/BusinessCaseReview.jsx';
 import ArchitectureDiagram from './components/map-assessment/ArchitectureDiagram.jsx';
 import ChatAssistant from './components/map-assessment/ChatAssistant.jsx';
+import { MapAssessmentProvider } from './contexts/MapAssessmentContext.jsx';
 import { getApiUrl } from './utils/apiConfig.js';
 import './styles/App.css';
 import './styles/MapAssessment.css';
@@ -383,109 +384,111 @@ function App() {
   };
 
   return (
-    <div className="app">
-      <TopNavigation
-        identity={{
-          href: '#',
-          title: 'AWS Migration and Modernisation',
-          logo: {
-            src: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA1MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjUwIiBoZWlnaHQ9IjQwIiBmaWxsPSIjMjMyRjNFIi8+Cjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjRkY5OTAwIiBmb250LXNpemU9IjE4IiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtd2VpZ2h0PSJib2xkIj5BV1M8L3RleHQ+Cjwvc3ZnPg==',
-            alt: 'AWS'
-          },
-          onFollow: (e) => {
-            e.preventDefault();
-            setCurrentView('business-case');
-            setActiveStepIndex(0);
-          }
-        }}
-        utilities={[
-          {
-            type: 'menu-dropdown',
-            text: currentUser 
-              ? `Welcome, ${currentUser.given_name || currentUser.name?.split(' ')[0] || currentUser.email?.split('@')[0] || 'User'}` 
-              : 'User',
-            iconName: 'user-profile',
-            items: [
-              {
-                id: 'user-info',
-                text: currentUser?.email || 'Not authenticated',
-                disabled: true
-              }
-            ]
-          },
-          {
-            type: 'button',
-            text: 'Configuration',
-            onClick: () => setShowConfigModal(true)
-          },
-          {
-            type: 'button',
-            text: 'Load Saved Cases',
-            onClick: () => setShowSavedCasesModal(true),
-            disabled: !dynamoDBEnabled
-          },
-          {
-            type: 'button',
-            text: 'Documentation',
+    <MapAssessmentProvider>
+      <div className="app">
+        <TopNavigation
+          identity={{
             href: '#',
-            external: true,
-            externalIconAriaLabel: ' (opens in a new tab)'
+            title: 'AWS Migration and Modernisation',
+            logo: {
+              src: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA1MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjUwIiBoZWlnaHQ9IjQwIiBmaWxsPSIjMjMyRjNFIi8+Cjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjRkY5OTAwIiBmb250LXNpemU9IjE4IiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtd2VpZ2h0PSJib2xkIj5BV1M8L3RleHQ+Cjwvc3ZnPg==',
+              alt: 'AWS'
+            },
+            onFollow: (e) => {
+              e.preventDefault();
+              setCurrentView('business-case');
+              setActiveStepIndex(0);
+            }
+          }}
+          utilities={[
+            {
+              type: 'menu-dropdown',
+              text: currentUser 
+                ? `Welcome, ${currentUser.given_name || currentUser.name?.split(' ')[0] || currentUser.email?.split('@')[0] || 'User'}` 
+                : 'User',
+              iconName: 'user-profile',
+              items: [
+                {
+                  id: 'user-info',
+                  text: currentUser?.email || 'Not authenticated',
+                  disabled: true
+                }
+              ]
+            },
+            {
+              type: 'button',
+              text: 'Configuration',
+              onClick: () => setShowConfigModal(true)
+            },
+            {
+              type: 'button',
+              text: 'Load Saved Cases',
+              onClick: () => setShowSavedCasesModal(true),
+              disabled: !dynamoDBEnabled
+            },
+            {
+              type: 'button',
+              text: 'Documentation',
+              href: 'https://github.com/aws-samples/sample-genai-in-modernization/tree/main/agentic-ai-business-case',
+              external: true,
+              externalIconAriaLabel: ' (opens in a new tab)'
+            }
+          ]}
+        />
+
+        <SavedCasesModal
+          visible={showSavedCasesModal}
+          onDismiss={() => setShowSavedCasesModal(false)}
+          onLoadCase={loadCase}
+        />
+
+        <ConfigurationModal
+          visible={showConfigModal}
+          onDismiss={() => setShowConfigModal(false)}
+        />
+        
+        <AppLayout
+          navigation={
+            <SideNavigation
+              activeHref={`#/${currentView}`}
+              header={{ text: 'Navigation', href: '#/' }}
+              onFollow={event => {
+                if (!event.detail.external) {
+                  event.preventDefault();
+                  const view = event.detail.href.replace('#/', '');
+                  setCurrentView(view || 'business-case');
+                }
+              }}
+              items={[
+                {
+                  type: 'section',
+                  text: 'Business Case Generator',
+                  items: [
+                    { type: 'link', text: 'Generate Case', href: '#/business-case' }
+                  ]
+                },
+                { type: 'divider' },
+                {
+                  type: 'section',
+                  text: 'GenAI Usecases',
+                  items: [
+                    { type: 'link', text: 'Modernization Opportunity', href: '#/modernization' },
+                    { type: 'link', text: 'Migration Strategy', href: '#/migration' },
+                    { type: 'link', text: 'Resource Planning', href: '#/resources' },
+                    { type: 'link', text: 'Learning Pathway', href: '#/learning' },
+                    { type: 'link', text: 'Business Case Review', href: '#/review' },
+                    { type: 'link', text: 'Architecture Diagram', href: '#/architecture' },
+                    { type: 'link', text: 'Chat Assistant', href: '#/chat' }
+                  ]
+                }
+              ]}
+            />
           }
-        ]}
-      />
-
-      <SavedCasesModal
-        visible={showSavedCasesModal}
-        onDismiss={() => setShowSavedCasesModal(false)}
-        onLoadCase={loadCase}
-      />
-
-      <ConfigurationModal
-        visible={showConfigModal}
-        onDismiss={() => setShowConfigModal(false)}
-      />
-      
-      <AppLayout
-        navigation={
-          <SideNavigation
-            activeHref={`#/${currentView}`}
-            header={{ text: 'Navigation', href: '#/' }}
-            onFollow={event => {
-              if (!event.detail.external) {
-                event.preventDefault();
-                const view = event.detail.href.replace('#/', '');
-                setCurrentView(view || 'business-case');
-              }
-            }}
-            items={[
-              {
-                type: 'section',
-                text: 'Business Case Generator',
-                items: [
-                  { type: 'link', text: 'Generate Case', href: '#/business-case' }
-                ]
-              },
-              { type: 'divider' },
-              {
-                type: 'section',
-                text: 'Quick Helpers',
-                items: [
-                  { type: 'link', text: 'Modernization Opportunity', href: '#/modernization' },
-                  { type: 'link', text: 'Migration Strategy', href: '#/migration' },
-                  { type: 'link', text: 'Resource Planning', href: '#/resources' },
-                  { type: 'link', text: 'Learning Pathway', href: '#/learning' },
-                  { type: 'link', text: 'Business Case Review', href: '#/review' },
-                  { type: 'link', text: 'Architecture Diagram', href: '#/architecture' },
-                  { type: 'link', text: 'Chat Assistant', href: '#/chat' }
-                ]
-              }
-            ]}
-          />
-        }
-        toolsHide={true}
-        content={renderContent()}
-      />
-    </div>
+          toolsHide={true}
+          content={renderContent()}
+        />
+      </div>
+    </MapAssessmentProvider>
   );
 }
 

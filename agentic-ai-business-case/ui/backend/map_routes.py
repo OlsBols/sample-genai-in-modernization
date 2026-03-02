@@ -11,6 +11,7 @@ import pandas as pd
 from werkzeug.utils import secure_filename
 from datetime import datetime
 import io
+import fitz  # PyMuPDF for PDF processing
 
 # Add project root to Python path
 # Get the absolute path to the agentic-ai-business-case directory (two levels up from this file)
@@ -203,13 +204,47 @@ def generate_migration_strategy():
         # Parse AWS Calculator CSV
         csv_data = file.read().decode('utf-8')
         lines = csv_data.splitlines()
+        
+        # Find the start of the detailed estimate section
+        # Look for common headers in English or German
         start_idx = 0
+        header_patterns = [
+            "Group hierarchy,Region,Description",
+            "Gruppenhierarchie,Region,Beschreibung",
+            "Group hierarchy",
+            "Gruppenhierarchie"
+        ]
+        
         for i, line in enumerate(lines):
-            if "Group hierarchy,Region,Description" in line:
+            if any(pattern in line for pattern in header_patterns):
                 start_idx = i
                 break
         
-        calc_df = pd.read_csv(io.StringIO("\n".join(lines[start_idx:])), encoding="utf-8")
+        # Read CSV with error handling for malformed lines
+        try:
+            calc_df = pd.read_csv(
+                io.StringIO("\n".join(lines[start_idx:])), 
+                encoding="utf-8",
+                on_bad_lines='skip',  # Skip malformed lines
+                quoting=1  # QUOTE_ALL to handle embedded commas
+            )
+        except Exception as e:
+            # Fallback: try with different settings
+            try:
+                calc_df = pd.read_csv(
+                    io.StringIO("\n".join(lines[start_idx:])), 
+                    encoding="utf-8",
+                    on_bad_lines='skip',
+                    error_bad_lines=False
+                )
+            except:
+                # Last resort: read with minimal parsing
+                calc_df = pd.read_csv(
+                    io.StringIO("\n".join(lines[start_idx:])), 
+                    encoding="utf-8",
+                    on_bad_lines='skip',
+                    quoting=3  # QUOTE_NONE
+                )
         
         # Get scope text
         scope_text = request.form.get('scope', '')
@@ -376,9 +411,10 @@ def validate_business_case():
         if not is_valid:
             return jsonify({'success': False, 'message': error_msg}), 400
         
-        # Process PDF
+        # Process PDF - read bytes directly from Flask file object
         max_pages = 10
-        pdf_document = process_pdf_bytes(file)
+        pdf_bytes = file.read()
+        pdf_document = fitz.open(stream=pdf_bytes, filetype="pdf")
         page_images = convert_pdf_to_images(pdf_document, max_pages)
         pdf_document.close()
         
@@ -462,28 +498,52 @@ def chat_message():
         user_message = data['message']
         context = data.get('context', {})
         chat_history = data.get('history', [])
+        context_type = context.get('type', 'general')
+        context_data = context.get('data', '')
         
-        # Build prompt with context
-        context_str = ""
-        if context:
-            context_str = "\n\nContext:\n"
-            for key, value in context.items():
-                context_str += f"- {key}: {value}\n"
+        # Build system prompt based on context type
+        system_prompts = {
+            'general': "You are an AWS migration and modernization expert. Provide clear, actionable guidance on AWS cloud migration strategies, best practices, and solutions.",
+            'modernization': "You are an AWS modernization specialist. Help analyze modernization opportunities, containerization strategies, and cloud-native transformations. Focus on practical recommendations based on the provided analysis.",
+            'migration-strategy': "You are an AWS migration strategist specializing in the 6Rs framework (Rehost, Replatform, Repurchase, Refactor, Retire, Retain). Provide strategic guidance on migration approaches and wave planning.",
+            'resource-planning': "You are an AWS resource planning expert. Help with team structure, skill requirements, timeline planning, and resource allocation for cloud migration projects.",
+            'learning-pathway': "You are an AWS training and certification advisor. Guide users through learning paths, certification roadmaps, and skill development strategies for cloud migration teams.",
+            'business-case': "You are an AWS business case analyst. Help review and discuss business case details, ROI calculations, cost analysis, and business value propositions for cloud migration.",
+            'architecture': "You are an AWS solutions architect. Provide guidance on AWS architecture patterns, service selection, design best practices, and technical implementation details.",
+            'knowledge-base': "You are an AWS documentation expert with access to comprehensive AWS knowledge. Search and provide accurate information from AWS documentation, whitepapers, best practices, and official guidance. Always cite sources when possible."
+        }
         
+        system_prompt = system_prompts.get(context_type, system_prompts['general'])
+        
+        # Build context string
+        context_str = f"System: {system_prompt}\n\n"
+        
+        if context_data:
+            context_str += f"Context Data from {context_type}:\n{context_data}\n\n"
+        
+        # Add conversation history
         history_str = ""
         if chat_history:
-            history_str = "\n\nConversation History:\n"
+            history_str = "Conversation History:\n"
             for msg in chat_history[-5:]:  # Last 5 messages
-                history_str += f"{msg['role']}: {msg['content']}\n"
+                role = "User" if msg['role'] == 'user' else "Assistant"
+                history_str += f"{role}: {msg['content']}\n"
+            history_str += "\n"
         
-        full_prompt = f"{context_str}{history_str}\n\nUser: {user_message}\n\nAssistant:"
+        # Build full prompt
+        full_prompt = f"{context_str}{history_str}User: {user_message}\n\nAssistant:"
+        
+        # For knowledge-base context, add instruction to search AWS documentation
+        if context_type == 'knowledge-base':
+            full_prompt = f"{context_str}{history_str}User Question: {user_message}\n\nPlease provide a comprehensive answer based on AWS documentation, best practices, and official guidance. Include specific AWS service recommendations and implementation details where relevant.\n\nAssistant:"
         
         # Get response
         response = invoke_bedrock_model_without_reasoning(full_prompt)
         
         return jsonify({
             'success': True,
-            'response': response
+            'response': response,
+            'contextType': context_type
         })
         
     except Exception as e:

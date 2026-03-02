@@ -17,6 +17,7 @@ import {
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getApiUrl } from '../../utils/apiConfig.js';
+import { useMapAssessment } from '../../contexts/MapAssessmentContext.jsx';
 
 // Default scope - pre-filled so user can use immediately
 const DEFAULT_SCOPE = `Migration Goals:
@@ -76,17 +77,31 @@ Perform analysis in the following structured order:
 Format your response in markdown with clear headings, bullet points, and tables where appropriate.`;
 
 function MigrationStrategy() {
+  const { 
+    migrationStrategyData, 
+    setMigrationStrategyData, 
+    resetMigrationStrategy 
+  } = useMapAssessment();
+  
   const [calculatorFile, setCalculatorFile] = useState([]);
   const [scope, setScope] = useState(DEFAULT_SCOPE);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [strategy, setStrategy] = useState(null);
+  const [strategy, setStrategy] = useState(migrationStrategyData.strategy || null);
   const [recordsProcessed, setRecordsProcessed] = useState(0);
   const [activeTabId, setActiveTabId] = useState('upload');
   
   // Prompt customization
   const [customPrompt, setCustomPrompt] = useState(DEFAULT_PROMPT);
   const [useCustomPrompt, setUseCustomPrompt] = useState(false);
+  
+  // Load existing data from context on mount
+  useEffect(() => {
+    if (migrationStrategyData.strategy) {
+      setStrategy(migrationStrategyData.strategy);
+      setActiveTabId('results');
+    }
+  }, []);
   
   // Load saved custom prompt from localStorage
   useEffect(() => {
@@ -145,6 +160,8 @@ function MigrationStrategy() {
 
       setStrategy(result.strategy);
       setRecordsProcessed(result.recordsProcessed);
+      // Save to context
+      setMigrationStrategyData({ strategy: result.strategy });
       // Switch to results tab to show the generated strategy
       setActiveTabId('results');
     } catch (err) {
@@ -152,6 +169,15 @@ function MigrationStrategy() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleReset = () => {
+    setStrategy(null);
+    setRecordsProcessed(0);
+    setCalculatorFile([]);
+    setScope(DEFAULT_SCOPE);
+    setActiveTabId('upload');
+    resetMigrationStrategy();
   };
 
   const downloadMarkdown = (content, filename) => {
@@ -173,6 +199,11 @@ function MigrationStrategy() {
           <Header
             variant="h1"
             description="From AWS Calculator Data"
+            actions={
+              <Button onClick={handleReset} disabled={!strategy}>
+                Reset
+              </Button>
+            }
           >
             Develop Migration Patterns and Planning
           </Header>

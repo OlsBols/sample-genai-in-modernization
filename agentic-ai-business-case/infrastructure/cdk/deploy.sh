@@ -221,9 +221,11 @@ if [ "$SKIP_PROMPTS" != "true" ]; then
     
     echo ""
     echo_info "--- OIDC Configuration ---"
-    echo_info "For Amazon Federated SSO, these are typically:"
-    echo_info "  Issuer: https://idp-integ.federate.amazon.com (integration)"
-    echo_info "          https://idp.federate.amazon.com (production)"
+    echo_info "Common OIDC providers and their issuer URLs:"
+    echo_info "  Okta:        https://your-domain.okta.com"
+    echo_info "  Auth0:       https://your-tenant.auth0.com"
+    echo_info "  Keycloak:    https://your-domain.com/auth/realms/your-realm"
+    echo_info "  Azure AD:    https://login.microsoftonline.com/your-tenant-id/v2.0"
     echo ""
     
     echo_prompt "Enter OIDC Issuer URL:"

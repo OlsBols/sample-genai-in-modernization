@@ -7,18 +7,41 @@ import {
   Button,
   Alert,
   Box,
-  Spinner
+  Spinner,
+  Select,
+  Textarea,
+  Modal
 } from '@cloudscape-design/components';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getApiUrl } from '../../utils/apiConfig.js';
+import { useMapAssessment } from '../../contexts/MapAssessmentContext.jsx';
 
 function ChatAssistant() {
+  const { getContextData } = useMapAssessment();
+  
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [selectedContext, setSelectedContext] = useState({ 
+    label: 'General AWS Migration', 
+    value: 'general' 
+  });
+  const [contextData, setContextData] = useState('');
+  const [showContextModal, setShowContextModal] = useState(false);
   const messagesEndRef = useRef(null);
+
+  const contextOptions = [
+    { label: 'General AWS Migration', value: 'general' },
+    { label: 'Modernization Opportunity', value: 'modernization' },
+    { label: 'Migration Strategy', value: 'migration-strategy' },
+    { label: 'Resource Planning', value: 'resource-planning' },
+    { label: 'Learning Pathway', value: 'learning-pathway' },
+    { label: 'Business Case Review', value: 'business-case' },
+    { label: 'Architecture Diagram', value: 'architecture' },
+    { label: 'AWS Knowledge Base', value: 'knowledge-base' }
+  ];
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -27,6 +50,24 @@ function ChatAssistant() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Auto-load context when selected
+  useEffect(() => {
+    if (selectedContext.value !== 'general' && selectedContext.value !== 'knowledge-base') {
+      const data = getContextData(selectedContext.value);
+      if (data) {
+        // Format the data for display
+        const formattedData = Object.values(data)
+          .filter(v => v)
+          .join('\n\n---\n\n');
+        setContextData(formattedData);
+      } else {
+        setContextData('');
+      }
+    } else {
+      setContextData('');
+    }
+  }, [selectedContext, getContextData]);
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim()) return;
@@ -51,7 +92,10 @@ function ChatAssistant() {
         body: JSON.stringify({
           message: inputMessage,
           history: messages,
-          context: {}
+          context: {
+            type: selectedContext.value,
+            data: contextData
+          }
         })
       });
 
@@ -87,6 +131,29 @@ function ChatAssistant() {
     setError(null);
   };
 
+  const getContextDescription = () => {
+    switch (selectedContext.value) {
+      case 'general':
+        return 'General AWS migration and modernization questions';
+      case 'modernization':
+        return 'Ask about modernization opportunities from your inventory analysis';
+      case 'migration-strategy':
+        return 'Discuss migration strategies and the 6Rs framework';
+      case 'resource-planning':
+        return 'Questions about resource planning and team structure';
+      case 'learning-pathway':
+        return 'Explore learning paths and skill development';
+      case 'business-case':
+        return 'Review and discuss business case details';
+      case 'architecture':
+        return 'Questions about AWS architecture and design patterns';
+      case 'knowledge-base':
+        return 'Search AWS documentation, best practices, and knowledge base';
+      default:
+        return '';
+    }
+  };
+
   return (
     <SpaceBetween size="l">
       <Container
@@ -106,8 +173,8 @@ function ChatAssistant() {
       >
         <SpaceBetween size="m">
           <Alert type="info">
-            Ask questions about your migration analysis, explore scenarios, and get 
-            context-aware recommendations based on your generated outputs.
+            Select a context to focus your conversation, or choose AWS Knowledge Base to search 
+            AWS documentation and best practices.
           </Alert>
 
           {error && (
@@ -119,6 +186,55 @@ function ChatAssistant() {
               {error}
             </Alert>
           )}
+
+          {/* Context Selection */}
+          <SpaceBetween size="s">
+            <Box variant="h3">Conversation Context</Box>
+            <SpaceBetween direction="horizontal" size="xs">
+              <div style={{ flex: 1 }}>
+                <Select
+                  selectedOption={selectedContext}
+                  onChange={({ detail }) => setSelectedContext(detail.selectedOption)}
+                  options={contextOptions}
+                  placeholder="Select conversation context"
+                />
+              </div>
+              <Button 
+                iconName="expand" 
+                onClick={() => setShowContextModal(true)}
+                disabled={!contextData || selectedContext.value === 'general' || selectedContext.value === 'knowledge-base'}
+              >
+                View Context
+              </Button>
+            </SpaceBetween>
+            <Box variant="small" color="text-body-secondary">
+              {getContextDescription()}
+            </Box>
+            
+            {/* Show context data status */}
+            {selectedContext.value !== 'general' && selectedContext.value !== 'knowledge-base' && contextData && (
+              <Alert type="success">
+                Context loaded from {selectedContext.label} ({contextData.length} characters)
+              </Alert>
+            )}
+            
+            {/* Show message if no context available */}
+            {selectedContext.value !== 'general' && selectedContext.value !== 'knowledge-base' && !contextData && (
+              <Alert type="info">
+                No saved output found for {selectedContext.label}. Generate output in that use case first, or paste context manually below.
+              </Alert>
+            )}
+            
+            {/* Optional context data input for specific use cases */}
+            {selectedContext.value !== 'general' && selectedContext.value !== 'knowledge-base' && (
+              <Textarea
+                value={contextData}
+                onChange={({ detail }) => setContextData(detail.value)}
+                placeholder={`Paste output from ${selectedContext.label} here (optional) to provide specific context for your questions...`}
+                rows={4}
+              />
+            )}
+          </SpaceBetween>
 
           <div
             style={{
@@ -137,8 +253,20 @@ function ChatAssistant() {
                   👋 Welcome to the MAP Assessment Chat
                 </Box>
                 <Box variant="p" padding={{ top: 's' }}>
-                  Start a conversation by asking questions about AWS migration, 
-                  modernization strategies, or any analysis you've generated.
+                  {selectedContext.value === 'knowledge-base' ? (
+                    <>
+                      Search AWS documentation, best practices, and knowledge base.
+                      <br />
+                      Ask questions about AWS services, migration patterns, or best practices.
+                    </>
+                  ) : (
+                    <>
+                      Start a conversation by asking questions about AWS migration, 
+                      modernization strategies, or any analysis you've generated.
+                      <br />
+                      Select a context above to focus your conversation.
+                    </>
+                  )}
                 </Box>
               </Box>
             ) : (
@@ -174,7 +302,9 @@ function ChatAssistant() {
                   <Box textAlign="center" padding="m">
                     <Spinner size="large" />
                     <Box variant="p" padding={{ top: 's' }}>
-                      Assistant is thinking...
+                      {selectedContext.value === 'knowledge-base' 
+                        ? 'Searching AWS Knowledge Base...' 
+                        : 'Assistant is thinking...'}
                     </Box>
                   </Box>
                 )}
@@ -204,6 +334,34 @@ function ChatAssistant() {
           </div>
         </SpaceBetween>
       </Container>
+
+      {/* Context View Modal */}
+      <Modal
+        visible={showContextModal}
+        onDismiss={() => setShowContextModal(false)}
+        header={`Context: ${selectedContext.label}`}
+        size="large"
+      >
+        <Box padding="m">
+          <div 
+            className="markdown-content"
+            style={{ 
+              maxHeight: '600px', 
+              overflow: 'auto',
+              whiteSpace: 'pre-wrap',
+              fontSize: '14px',
+              backgroundColor: '#f9f9f9',
+              padding: '16px',
+              borderRadius: '4px',
+              border: '1px solid #e0e0e0'
+            }}
+          >
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {contextData}
+            </ReactMarkdown>
+          </div>
+        </Box>
+      </Modal>
     </SpaceBetween>
   );
 }

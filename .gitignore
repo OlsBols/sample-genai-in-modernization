@@ -229,3 +229,5 @@ agentic-ai-business-case/STARTUP_SHUTDOWN_GUIDE.md
 agentic-ai-business-case/verify-startup.sh
 .gitignore
 agentic-ai-business-case/.backend.pid
+agentic-ai-business-case/REMAINING_IMPLEMENTATIONS.md
+agentic-ai-business-case/GENAI_PERSISTENCE_IMPLEMENTATION.md

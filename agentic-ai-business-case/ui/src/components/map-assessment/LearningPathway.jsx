@@ -20,6 +20,7 @@ import {
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getApiUrl } from '../../utils/apiConfig.js';
+import { useMapAssessment } from '../../contexts/MapAssessmentContext.jsx';
 
 // Default input - pre-filled so user can use immediately
 const DEFAULT_INPUT = {
@@ -83,18 +84,32 @@ Perform analysis in the following structured order:
 Format your response in markdown with clear headings, bullet points, and tables where appropriate.`;
 
 function LearningPathway() {
+  const { 
+    learningPathwayData, 
+    setLearningPathwayData, 
+    resetLearningPathway 
+  } = useMapAssessment();
+  
   const [trainingFile, setTrainingFile] = useState([]);
   const [targetRole, setTargetRole] = useState(DEFAULT_INPUT.targetRole);
   const [experienceLevel, setExperienceLevel] = useState({ label: 'Intermediate', value: 'intermediate' });
   const [duration, setDuration] = useState(DEFAULT_INPUT.duration);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [learningPathway, setLearningPathway] = useState(null);
+  const [learningPathway, setLearningPathway] = useState(learningPathwayData.pathway || null);
   const [activeTabId, setActiveTabId] = useState('upload');
   
   // Prompt customization
   const [customPrompt, setCustomPrompt] = useState(DEFAULT_PROMPT);
   const [useCustomPrompt, setUseCustomPrompt] = useState(false);
+  
+  // Load existing data from context on mount
+  useEffect(() => {
+    if (learningPathwayData.pathway) {
+      setLearningPathway(learningPathwayData.pathway);
+      setActiveTabId('results');
+    }
+  }, []);
   
   // Load saved custom prompt from localStorage
   useEffect(() => {
@@ -164,6 +179,8 @@ function LearningPathway() {
       }
 
       setLearningPathway(result.learningPathway);
+      // Save to context
+      setLearningPathwayData({ pathway: result.learningPathway });
       // Switch to results tab to show the generated pathway
       setActiveTabId('results');
     } catch (err) {
@@ -171,6 +188,16 @@ function LearningPathway() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleReset = () => {
+    setLearningPathway(null);
+    setTrainingFile([]);
+    setTargetRole(DEFAULT_INPUT.targetRole);
+    setExperienceLevel({ label: 'Intermediate', value: 'intermediate' });
+    setDuration(DEFAULT_INPUT.duration);
+    setActiveTabId('upload');
+    resetLearningPathway();
   };
 
   const downloadMarkdown = (content, filename) => {
@@ -192,6 +219,11 @@ function LearningPathway() {
           <Header
             variant="h1"
             description="Personalized AWS Training Recommendations"
+            actions={
+              <Button onClick={handleReset} disabled={!learningPathway}>
+                Reset
+              </Button>
+            }
           >
             Learning Pathway Development
           </Header>

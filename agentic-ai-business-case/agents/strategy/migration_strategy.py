@@ -32,7 +32,16 @@ def read_portfolio_assessment(filename: str):
     # Determine file type and read accordingly
     if filename.endswith('.csv'):
         import pandas as pd
-        df = pd.read_csv(full_path)
+        # Handle CSV with inconsistent field counts and various delimiters
+        try:
+            df = pd.read_csv(full_path, on_bad_lines='skip', encoding='utf-8')
+        except Exception as e:
+            # Try with different encoding or error handling
+            try:
+                df = pd.read_csv(full_path, on_bad_lines='skip', encoding='latin-1')
+            except:
+                # Last resort: read with error='ignore'
+                df = pd.read_csv(full_path, on_bad_lines='skip', encoding='utf-8', encoding_errors='ignore')
         return df.to_string()
     elif filename.endswith(('.xlsx', '.xls')):
         import pandas as pd

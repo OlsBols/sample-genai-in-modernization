@@ -5,7 +5,7 @@
 # ============================================================================
 # Stage 1: Build Frontend
 # ============================================================================
-FROM node:20-alpine AS frontend-build
+FROM node:20-alpine3.21 AS frontend-build
 
 WORKDIR /app/ui
 
@@ -24,15 +24,16 @@ RUN npm run build
 # ============================================================================
 # Stage 2: Build Backend with Frontend
 # ============================================================================
-FROM python:3.11-slim
+FROM python:3.11-slim-bookworm
 
 WORKDIR /app
 
-# Install system dependencies and update OpenSSL to patch CVEs
+# Install system dependencies and update all packages to patch CVEs
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
-    && apt-get upgrade -y openssl libssl3 \
+    && apt-get upgrade -y \
+    && apt-get dist-upgrade -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy Python requirements

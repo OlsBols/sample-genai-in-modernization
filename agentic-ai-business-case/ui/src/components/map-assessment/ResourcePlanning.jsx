@@ -17,6 +17,7 @@ import {
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getApiUrl } from '../../utils/apiConfig.js';
+import { useMapAssessment } from '../../contexts/MapAssessmentContext.jsx';
 
 // Default input - pre-filled so user can use immediately
 const DEFAULT_INPUT = `Migration Strategy Context:
@@ -80,17 +81,31 @@ Perform analysis in the following structured order:
 Format your response in markdown with clear headings, bullet points, and tables where appropriate.`;
 
 function ResourcePlanning() {
+  const { 
+    resourcePlanningData, 
+    setResourcePlanningData, 
+    resetResourcePlanning 
+  } = useMapAssessment();
+  
   const [resourceFile, setResourceFile] = useState([]);
   const [migrationStrategy, setMigrationStrategy] = useState(DEFAULT_INPUT);
   const [wavePlanning, setWavePlanning] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [resourcePlan, setResourcePlan] = useState(null);
+  const [resourcePlan, setResourcePlan] = useState(resourcePlanningData.plan || null);
   const [activeTabId, setActiveTabId] = useState('upload');
   
   // Prompt customization
   const [customPrompt, setCustomPrompt] = useState(DEFAULT_PROMPT);
   const [useCustomPrompt, setUseCustomPrompt] = useState(false);
+  
+  // Load existing data from context on mount
+  useEffect(() => {
+    if (resourcePlanningData.plan) {
+      setResourcePlan(resourcePlanningData.plan);
+      setActiveTabId('results');
+    }
+  }, []);
   
   // Load saved custom prompt from localStorage
   useEffect(() => {
@@ -149,6 +164,8 @@ function ResourcePlanning() {
       }
 
       setResourcePlan(result.resourcePlan);
+      // Save to context
+      setResourcePlanningData({ plan: result.resourcePlan });
       // Switch to results tab to show the generated plan
       setActiveTabId('results');
     } catch (err) {
@@ -156,6 +173,15 @@ function ResourcePlanning() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleReset = () => {
+    setResourcePlan(null);
+    setResourceFile([]);
+    setMigrationStrategy(DEFAULT_INPUT);
+    setWavePlanning('');
+    setActiveTabId('upload');
+    resetResourcePlanning();
   };
 
   const downloadMarkdown = (content, filename) => {
@@ -177,6 +203,11 @@ function ResourcePlanning() {
           <Header
             variant="h1"
             description="Team Structure and Resource Allocation"
+            actions={
+              <Button onClick={handleReset} disabled={!resourcePlan}>
+                Reset
+              </Button>
+            }
           >
             Resource Planning
           </Header>

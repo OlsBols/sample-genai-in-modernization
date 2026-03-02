@@ -85,9 +85,21 @@ Access at: `http://localhost:3000`
 
 ### AWS Deployment (Production)
 
-Single command deployment to AWS with ALB, ECS Fargate, S3, and DynamoDB:
+Two deployment options available:
+
+#### Option 1: Full Production Deployment (Recommended)
+
+**Prerequisites**: AWS CLI, Node.js, Python 3, Docker or Finch, AWS CDK CLI, custom domain name, ACM certificate, OIDC provider configured with claims (subject, email, uid, given_name)
+
+Single command deployment to AWS with ALB, OIDC authentication, custom domain, ECS Fargate, S3, and DynamoDB:
 
 ```bash
+# 1. Configure AWS credentials
+aws configure
+
+# 2. Make sure Docker or Finch is running to build container
+
+# 3. Build and Deploy application
 cd infrastructure/cdk
 ./deploy.sh
 ```
@@ -96,10 +108,47 @@ The script will:
 - ✓ Check all prerequisites (AWS CLI, Node.js, Python, Docker/Finch, CDK)
 - ✓ Prompt for configuration (domain, certificates, OIDC)
 - ✓ Build and deploy everything automatically
+- ✓ Configure OIDC authentication for secure access
+- ✓ Set up custom domain with SSL certificate
 
-**Deployment guide**: See [DEPLOY_README.md](DEPLOY_README.md)
+**Features**:
+- OIDC authentication (secure access control)
+- Custom domain with HTTPS
+- Production-ready security
+- Suitable for enterprise deployments
+
+#### Option 2: Simple Deployment (Testing/Demo)
 
 **Prerequisites**: AWS CLI, Node.js, Python 3, Docker or Finch, AWS CDK CLI
+
+Quick deployment without OIDC, custom domain, or certificates:
+
+```bash
+# 1. Configure AWS credentials
+aws configure
+
+# 2. Make sure Docker or Finch is running to build container
+
+# 3. Build and Deploy application
+cd infrastructure/cdk
+./deploy-simple.sh
+```
+
+The script will:
+- ✓ Check all prerequisites
+- ✓ Deploy with minimal configuration
+- ✓ Provide ALB DNS name for access (e.g., `http://business-case-alb-123456.us-east-1.elb.amazonaws.com`)
+
+**Features**:
+- No authentication (open access)
+- No custom domain required
+- No SSL certificate needed
+- HTTP only (no HTTPS)
+- Quick setup for testing/demos
+
+**Security Note**: Simple deployment has no authentication and is suitable for testing/demo environments only. For production use, deploy with Option 1 (full deployment with OIDC).
+
+**Upgrade Path**: You can start with simple deployment for testing, then upgrade to full deployment with OIDC when ready for production.
 
 ### Bedrock Guardrails (Optional)
 
