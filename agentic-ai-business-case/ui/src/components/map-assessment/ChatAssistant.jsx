@@ -40,6 +40,7 @@ function ChatAssistant() {
     { label: 'Learning Pathway', value: 'learning-pathway' },
     { label: 'Business Case Review', value: 'business-case' },
     { label: 'Architecture Diagram', value: 'architecture' },
+    { label: 'Hidden ARR Discovery', value: 'hidden-arr' },
     { label: 'AWS Knowledge Base', value: 'knowledge-base' }
   ];
 

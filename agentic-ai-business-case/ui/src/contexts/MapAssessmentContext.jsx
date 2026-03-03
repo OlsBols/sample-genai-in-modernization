@@ -38,6 +38,10 @@ export const MapAssessmentProvider = ({ children }) => {
     diagram: ''
   });
 
+  const [hiddenARRData, setHiddenARRData] = useState({
+    analysis: ''
+  });
+
   // Reset functions for each use case
   const resetModernization = () => {
     setModernizationData({
@@ -67,6 +71,10 @@ export const MapAssessmentProvider = ({ children }) => {
     setArchitectureDiagramData({ diagram: '' });
   };
 
+  const resetHiddenARR = () => {
+    setHiddenARRData({ analysis: '' });
+  };
+
   const resetAll = () => {
     resetModernization();
     resetMigrationStrategy();
@@ -74,6 +82,7 @@ export const MapAssessmentProvider = ({ children }) => {
     resetLearningPathway();
     resetBusinessCaseReview();
     resetArchitectureDiagram();
+    resetHiddenARR();
   };
 
   // Get context data by type for chat assistant
@@ -91,6 +100,8 @@ export const MapAssessmentProvider = ({ children }) => {
         return businessCaseReviewData;
       case 'architecture':
         return architectureDiagramData;
+      case 'hidden-arr':
+        return hiddenARRData;
       default:
         return null;
     }
@@ -126,6 +137,11 @@ export const MapAssessmentProvider = ({ children }) => {
     architectureDiagramData,
     setArchitectureDiagramData,
     resetArchitectureDiagram,
+    
+    // Hidden ARR Discovery
+    hiddenARRData,
+    setHiddenARRData,
+    resetHiddenARR,
     
     // Utilities
     resetAll,

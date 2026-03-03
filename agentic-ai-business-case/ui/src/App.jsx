@@ -25,6 +25,7 @@ import LearningPathway from './components/map-assessment/LearningPathway.jsx';
 import BusinessCaseReview from './components/map-assessment/BusinessCaseReview.jsx';
 import ArchitectureDiagram from './components/map-assessment/ArchitectureDiagram.jsx';
 import ChatAssistant from './components/map-assessment/ChatAssistant.jsx';
+import HiddenARRDiscovery from './components/map-assessment/HiddenARRDiscovery.jsx';
 import { MapAssessmentProvider } from './contexts/MapAssessmentContext.jsx';
 import { getApiUrl } from './utils/apiConfig.js';
 import './styles/App.css';
@@ -378,6 +379,8 @@ function App() {
         return <ArchitectureDiagram />;
       case 'chat':
         return <ChatAssistant />;
+      case 'hidden-arr':
+        return <HiddenARRDiscovery />;
       default:
         return null;
     }
@@ -478,6 +481,7 @@ function App() {
                     { type: 'link', text: 'Learning Pathway', href: '#/learning' },
                     { type: 'link', text: 'Business Case Review', href: '#/review' },
                     { type: 'link', text: 'Architecture Diagram', href: '#/architecture' },
+                    { type: 'link', text: 'Hidden ARR Discovery', href: '#/hidden-arr' },
                     { type: 'link', text: 'Chat Assistant', href: '#/chat' }
                   ]
                 }

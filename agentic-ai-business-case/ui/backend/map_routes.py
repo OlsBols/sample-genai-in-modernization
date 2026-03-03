@@ -510,6 +510,7 @@ def chat_message():
             'learning-pathway': "You are an AWS training and certification advisor. Guide users through learning paths, certification roadmaps, and skill development strategies for cloud migration teams.",
             'business-case': "You are an AWS business case analyst. Help review and discuss business case details, ROI calculations, cost analysis, and business value propositions for cloud migration.",
             'architecture': "You are an AWS solutions architect. Provide guidance on AWS architecture patterns, service selection, design best practices, and technical implementation details.",
+            'hidden-arr': "You are an AWS MAP ARR validation expert. Help analyze ARR estimates, identify missing services across 6 critical categories (Backup, Storage, DR/HA, Network, Observability, Security), and provide specific recommendations to uncover hidden revenue opportunities. Focus on the MAP benchmark of 56% compute / 44% non-compute infrastructure.",
             'knowledge-base': "You are an AWS documentation expert with access to comprehensive AWS knowledge. Search and provide accurate information from AWS documentation, whitepapers, best practices, and official guidance. Always cite sources when possible."
         }
         
@@ -549,6 +550,87 @@ def chat_message():
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
 
+# ============================================================================
+# HIDDEN ARR DISCOVERY ENDPOINTS
+# ============================================================================
+
+@map_bp.route('/hidden-arr/analyze', methods=['POST'])
+def analyze_hidden_arr():
+    """Analyze AWS Calculator CSV for ARR gaps and missing services"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'message': 'No file provided'}), 400
+        
+        file = request.files['file']
+        if not file or not allowed_file(file.filename):
+            return jsonify({'success': False, 'message': 'Invalid file type'}), 400
+        
+        # Validate file size
+        is_valid, error_msg = validate_file_size(file)
+        if not is_valid:
+            return jsonify({'success': False, 'message': error_msg}), 400
+        
+        # Parse AWS Calculator CSV
+        csv_data = file.read().decode('utf-8')
+        lines = csv_data.splitlines()
+        
+        # Find the start of the detailed estimate section
+        start_idx = 0
+        header_patterns = [
+            "Group hierarchy,Region,Description",
+            "Gruppenhierarchie,Region,Beschreibung",
+            "Group hierarchy",
+            "Gruppenhierarchie"
+        ]
+        
+        for i, line in enumerate(lines):
+            if any(pattern in line for pattern in header_patterns):
+                start_idx = i
+                break
+        
+        # Read CSV with error handling
+        try:
+            calc_df = pd.read_csv(
+                io.StringIO("\n".join(lines[start_idx:])), 
+                encoding="utf-8",
+                on_bad_lines='skip',
+                quoting=1
+            )
+        except Exception as e:
+            try:
+                calc_df = pd.read_csv(
+                    io.StringIO("\n".join(lines[start_idx:])), 
+                    encoding="utf-8",
+                    on_bad_lines='skip',
+                    quoting=3
+                )
+            except:
+                return jsonify({'success': False, 'message': 'Failed to parse CSV file'}), 400
+        
+        # Get custom prompt (the comprehensive ARR validation prompt)
+        custom_prompt = request.form.get('custom_prompt')
+        
+        if not custom_prompt:
+            return jsonify({'success': False, 'message': 'Analysis prompt required'}), 400
+        
+        # Prepare the data summary for analysis
+        services_summary = calc_df.to_string()
+        
+        # Build the full prompt with CSV data
+        full_prompt = f"{custom_prompt}\n\n**AWS Calculator CSV Data:**\n\n{services_summary}"
+        
+        # Generate analysis using Bedrock
+        analysis_result = invoke_bedrock_model_without_reasoning(full_prompt)
+        
+        return jsonify({
+            'success': True,
+            'analysis': analysis_result,
+            'recordsProcessed': len(calc_df)
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
 # Health check endpoint
 @map_bp.route('/health', methods=['GET'])
 def health_check():
@@ -563,6 +645,8 @@ def health_check():
             'learning_pathway': 1,
             'business_validation': 1,
             'architecture_diagram': 1,
-            'chat': 1
+            'chat': 1,
+            'hidden_arr': 1
         }
     })
+
