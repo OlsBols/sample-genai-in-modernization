@@ -24,6 +24,7 @@ AI-powered tool that generates comprehensive AWS migration business cases using 
 ✅ **Learning Pathway** - Personalized AWS training and certification roadmaps  
 ✅ **Business Case Review** - Validate and review business case documents  
 ✅ **Architecture Diagram** - Generate AWS architecture diagrams in Draw.io format  
+✅ **Hidden ARR Discovery** - Identify missing AWS services and revenue opportunities from calculator data  
 ✅ **Chat Assistant** - Context-aware conversations with access to all generated outputs  
 ✅ **Persistent State** - Data persists across use cases with reset functionality
 
@@ -113,7 +114,16 @@ Generate AWS architecture diagrams from requirements:
 - **Services**: Includes AWS services, connections, and best practices
 - **Output**: Editable Draw.io diagram file
 
-### 7. Chat Assistant
+### 7. Hidden ARR Discovery
+Identify missing AWS services and additional revenue opportunities from AWS Calculator exports:
+- **Input**: AWS Pricing Calculator CSV export
+- **Analysis**: Examines 6 critical categories (Backup & Recovery, Storage, DR/HA, Network, Observability, Security)
+- **Gap Identification**: Identifies missing services and underutilized capabilities
+- **ARR Estimation**: Provides estimated additional ARR ($100K-$500K+) with SMART recommendations
+- **Custom Prompts**: Customize analysis focus and depth
+- **Output**: Comprehensive gap analysis with actionable recommendations and business justification
+
+### 8. Chat Assistant
 Context-aware conversational interface with access to all generated outputs:
 - **Context Selection**: Choose from any GenAI use case or general AWS knowledge
 - **Auto-Load**: Automatically loads outputs from selected use case
