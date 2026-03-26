@@ -38,8 +38,12 @@ export const MapAssessmentProvider = ({ children }) => {
     diagram: ''
   });
 
-  const [hiddenARRData, setHiddenARRData] = useState({
+  const [serviceAnalysisData, setServiceAnalysisData] = useState({
     analysis: ''
+  });
+
+  const [olaData, setOLAData] = useState({
+    results: null
   });
 
   // Reset functions for each use case
@@ -71,8 +75,14 @@ export const MapAssessmentProvider = ({ children }) => {
     setArchitectureDiagramData({ diagram: '' });
   };
 
-  const resetHiddenARR = () => {
-    setHiddenARRData({ analysis: '' });
+  const resetServiceAnalysis = () => {
+    setServiceAnalysisData({ analysis: '' });
+  };
+
+  const resetOLA = () => {
+    setOLAData({
+      results: null
+    });
   };
 
   const resetAll = () => {
@@ -82,7 +92,8 @@ export const MapAssessmentProvider = ({ children }) => {
     resetLearningPathway();
     resetBusinessCaseReview();
     resetArchitectureDiagram();
-    resetHiddenARR();
+    resetServiceAnalysis();
+    resetOLA();
   };
 
   // Get context data by type for chat assistant
@@ -100,8 +111,10 @@ export const MapAssessmentProvider = ({ children }) => {
         return businessCaseReviewData;
       case 'architecture':
         return architectureDiagramData;
-      case 'hidden-arr':
-        return hiddenARRData;
+      case 'service-analysis':
+        return serviceAnalysisData;
+      case 'ola-analysis':
+        return olaData;
       default:
         return null;
     }
@@ -138,10 +151,15 @@ export const MapAssessmentProvider = ({ children }) => {
     setArchitectureDiagramData,
     resetArchitectureDiagram,
     
-    // Hidden ARR Discovery
-    hiddenARRData,
-    setHiddenARRData,
-    resetHiddenARR,
+    // Service Analysis
+    serviceAnalysisData,
+    setServiceAnalysisData,
+    resetServiceAnalysis,
+    
+    // OLA Analysis
+    olaData,
+    setOLAData,
+    resetOLA,
     
     // Utilities
     resetAll,

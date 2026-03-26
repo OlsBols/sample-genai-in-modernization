@@ -8,6 +8,7 @@ import os
 import sys
 import tempfile
 import pandas as pd
+import json
 from werkzeug.utils import secure_filename
 from datetime import datetime
 import io
@@ -510,7 +511,8 @@ def chat_message():
             'learning-pathway': "You are an AWS training and certification advisor. Guide users through learning paths, certification roadmaps, and skill development strategies for cloud migration teams.",
             'business-case': "You are an AWS business case analyst. Help review and discuss business case details, ROI calculations, cost analysis, and business value propositions for cloud migration.",
             'architecture': "You are an AWS solutions architect. Provide guidance on AWS architecture patterns, service selection, design best practices, and technical implementation details.",
-            'hidden-arr': "You are an AWS MAP ARR validation expert. Help analyze ARR estimates, identify missing services across 6 critical categories (Backup, Storage, DR/HA, Network, Observability, Security), and provide specific recommendations to uncover hidden revenue opportunities. Focus on the MAP benchmark of 56% compute / 44% non-compute infrastructure.",
+            'service-analysis': "You are an AWS infrastructure completeness expert. Help analyze service gaps, identify missing infrastructure components across 6 critical categories (Backup, Storage, DR/HA, Network, Observability, Security), and provide specific recommendations to ensure production-ready, well-architected solutions. Focus on the production-ready benchmark of 56% compute / 44% non-compute infrastructure.",
+            'ola-analysis': "You are an AWS licensing optimization expert. Help analyze Windows Server, SQL Server, and Oracle licensing strategies. Explain BYOL vs License Included options, Software Assurance requirements, Microsoft October 2019 licensing changes, Dedicated Hosts vs shared EC2, RDS alternatives, and Oracle Database@AWS (Exadata). Provide ARR impact analysis and OLA engagement recommendations. Focus on cost optimization while ensuring license compliance.",
             'knowledge-base': "You are an AWS documentation expert with access to comprehensive AWS knowledge. Search and provide accurate information from AWS documentation, whitepapers, best practices, and official guidance. Always cite sources when possible."
         }
         
@@ -551,12 +553,12 @@ def chat_message():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 # ============================================================================
-# HIDDEN ARR DISCOVERY ENDPOINTS
+# SERVICE ANALYSIS ENDPOINTS
 # ============================================================================
 
-@map_bp.route('/hidden-arr/analyze', methods=['POST'])
-def analyze_hidden_arr():
-    """Analyze AWS Calculator CSV for ARR gaps and missing services"""
+@map_bp.route('/service-analysis/analyze', methods=['POST'])
+def analyze_service_completeness():
+    """Analyze AWS Calculator CSV for service completeness and infrastructure gaps"""
     try:
         if 'file' not in request.files:
             return jsonify({'success': False, 'message': 'No file provided'}), 400
@@ -607,7 +609,7 @@ def analyze_hidden_arr():
             except:
                 return jsonify({'success': False, 'message': 'Failed to parse CSV file'}), 400
         
-        # Get custom prompt (the comprehensive ARR validation prompt)
+        # Get custom prompt (the comprehensive service analysis prompt)
         custom_prompt = request.form.get('custom_prompt')
         
         if not custom_prompt:
@@ -631,6 +633,8 @@ def analyze_hidden_arr():
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
 
+
+# ============================================================================
 # Health check endpoint
 @map_bp.route('/health', methods=['GET'])
 def health_check():
@@ -646,7 +650,8 @@ def health_check():
             'business_validation': 1,
             'architecture_diagram': 1,
             'chat': 1,
-            'hidden_arr': 1
+            'service_analysis': 1,
+            'ola_analysis': 1
         }
     })
 

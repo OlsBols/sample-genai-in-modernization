@@ -24,16 +24,22 @@ RUN npm run build
 # ============================================================================
 # Stage 2: Build Backend with Frontend
 # ============================================================================
-FROM python:3.11-slim-bookworm
+FROM python:3.11-slim-bookworm AS base
+
+# Force fresh package index and upgrade all packages to latest patched versions
+# Addresses linux kernel CVEs (6.1.162 -> 6.1.164+): CVE-2025-37786, CVE-2025-37822,
+# CVE-2025-38201, CVE-2025-40082, CVE-2025-71089, CVE-2024-26822, and others
+RUN echo "Package cache bust: 2026-03-17" > /dev/null
 
 WORKDIR /app
 
-# Install system dependencies and update all packages to patch CVEs
-RUN apt-get update && apt-get install -y \
+# Install system dependencies and upgrade all packages to patch CVEs
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     && apt-get upgrade -y \
     && apt-get dist-upgrade -y \
+    && apt-get install -y --only-upgrade linux-libc-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy Python requirements
