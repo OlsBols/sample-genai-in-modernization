@@ -10,7 +10,7 @@ Description: >
 Parameters:
   GitHubRepoUrl:
     Type: String
-    Default: https://gitlab.aws.dev/prgneshs/map-genai-use-cases.git
+    Default: https://github.com/aws-samples/sample-genai-in-modernization.git
     Description: Git repository URL to clone and build
   GitHubBranch:
     Type: String
