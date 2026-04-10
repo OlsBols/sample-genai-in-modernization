@@ -10,8 +10,8 @@ Description: >
 Parameters:
   GitHubRepoUrl:
     Type: String
-    Default: https://github.com/aws-samples/sample-genai-in-modernization.git
-    Description: GitHub repository URL to clone and build
+    Default: https://gitlab.aws.dev/prgneshs/map-genai-use-cases.git
+    Description: Git repository URL to clone and build
   GitHubBranch:
     Type: String
     Default: main
@@ -780,7 +780,7 @@ Resources:
                 - echo Navigating to project directory...
                 - cd repo/$PROJECT_SUBDIR
                 - echo Building Docker image from $(pwd)...
-                - docker build -t business-case-generator:latest -f infrastructure/Dockerfile .
+                - DOCKER_BUILDKIT=1 docker build -t business-case-generator:latest -f infrastructure/Dockerfile .
                 - docker tag business-case-generator:latest $ECR_REPO_URI:latest
             post_build:
               commands:

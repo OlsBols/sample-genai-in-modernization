@@ -1,18 +1,18 @@
 # Multi-stage Dockerfile for Business Case Generator
-# Stage 1: Build React frontend
-# Stage 2: Build Python backend with frontend
+# Stage 1: Build React frontend (on native platform to avoid esbuild QEMU crashes)
+# Stage 2: Build Python backend with frontend (target platform)
 
 # ============================================================================
-# Stage 1: Build Frontend
+# Stage 1: Build Frontend (native platform - avoids esbuild Go binary QEMU crash)
 # ============================================================================
-FROM node:20-alpine3.21 AS frontend-build
+FROM --platform=$BUILDPLATFORM node:20-alpine3.21 AS frontend-build
 
 WORKDIR /app/ui
 
 # Copy package files
 COPY ui/package*.json ./
 
-# Install dependencies (including optional dependencies for rollup)
+# Install dependencies
 RUN npm ci
 
 # Copy frontend source
@@ -24,12 +24,15 @@ RUN npm run build
 # ============================================================================
 # Stage 2: Build Backend with Frontend
 # ============================================================================
+
 FROM python:3.11-slim-bookworm AS base
 
 # Force fresh package index and upgrade all packages to latest patched versions
-# Addresses linux kernel CVEs (6.1.162 -> 6.1.164+): CVE-2025-37786, CVE-2025-37822,
+# Addresses openssl CVEs (3.0.18 -> 3.0.19): CVE-2026-31790, CVE-2026-28387,
+# CVE-2026-28389, CVE-2026-31789, CVE-2026-28390, CVE-2026-28388
+# Previously: linux kernel CVEs (6.1.162 -> 6.1.164+): CVE-2025-37786, CVE-2025-37822,
 # CVE-2025-38201, CVE-2025-40082, CVE-2025-71089, CVE-2024-26822, and others
-RUN echo "Package cache bust: 2026-03-17" > /dev/null
+RUN echo "Package cache bust: 2026-04-10" > /dev/null
 
 WORKDIR /app
 

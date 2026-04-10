@@ -6,9 +6,9 @@ AI-powered tool that generates comprehensive AWS migration business cases using 
 
 ## 🚀 Quick Deploy to AWS
 
-[![Launch Stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=BusinessCaseGenerator&templateURL=https://raw.githubusercontent.com/aws-samples/sample-genai-in-modernization/main/infrastructure/cloudformation-launch.yaml)
+[![Launch Stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home#/stacks/create)
 
-One-click deployment with Cognito authentication. See [Deployment Options](#aws-deployment) for details.
+Download **[cloudformation-launch.yaml](https://gitlab.aws.dev/prgneshs/map-genai-use-cases/-/blob/main/agentic-ai-business-case/infrastructure/cloudformation-launch.yaml?ref_type=heads)** and upload it when prompted. Provide stack name as `BusinessCaseGenerator`. See [Deployment Options](#aws-deployment) for details.
 
 ## Key Features
 
@@ -189,18 +189,21 @@ Access at: `http://localhost:3000`
 
 Three deployment options available:
 
-#### Option 1: One-Click Launch Stack with Cognito (Recommended)
+#### Option 1: CloudFormation Deploy with Cognito (Recommended)
 
-[![Launch Stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=BusinessCaseGenerator&templateURL=https://raw.githubusercontent.com/aws-samples/sample-genai-in-modernization/main/infrastructure/cloudformation-launch.yaml)
+[![Launch Stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home#/stacks/create)
+
+Click the button above, then select "Upload a template file" and upload **[cloudformation-launch.yaml](https://gitlab.aws.dev/prgneshs/map-genai-use-cases/-/blob/main/agentic-ai-business-case/infrastructure/cloudformation-launch.yaml?ref_type=heads)** from this repo. Use `BusinessCaseGenerator` as the stack name.
 
 **Prerequisites**: AWS account with Bedrock model access enabled. No local tools required.
 
 Deploys everything automatically via CloudFormation: VPC, ALB, ECS Fargate, S3, DynamoDB, Cognito User Pool, and CodeBuild (clones repo and builds Docker image).
 
 You'll be prompted for:
-- Admin email (receives temporary password via email)
-- Cognito domain prefix (globally unique, e.g. `my-company-business-case`)
-- GitHub repo URL, branch, and project subdirectory (defaults pre-filled)
+- Stack name (use `BusinessCaseGenerator`)
+- Admin email — initial Cognito user, receives temporary password via email
+- Cognito domain prefix — globally unique (e.g. `my-company-business-case`)
+- Git repo URL, branch, and project subdirectory (defaults pre-filled)
 - Container CPU/Memory (defaults: 1024/2048)
 
 Stack creation takes ~10-15 minutes. After completion, access the app at the ALB URL shown in stack outputs.
