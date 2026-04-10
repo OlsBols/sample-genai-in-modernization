@@ -356,7 +356,7 @@ Resources:
         - openid
         - email
         - profile
-      AllowedOAuthFlowsUserPoolClientExplicit: true
+      AllowedOAuthFlowsUserPoolClient: true
       SupportedIdentityProviders:
         - COGNITO
       CallbackURLs:
