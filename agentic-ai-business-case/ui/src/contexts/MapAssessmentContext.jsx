@@ -39,7 +39,8 @@ export const MapAssessmentProvider = ({ children }) => {
   });
 
   const [serviceAnalysisData, setServiceAnalysisData] = useState({
-    analysis: ''
+    analysis: '',
+    calculatorData: null
   });
 
   const [olaData, setOLAData] = useState({
@@ -76,7 +77,7 @@ export const MapAssessmentProvider = ({ children }) => {
   };
 
   const resetServiceAnalysis = () => {
-    setServiceAnalysisData({ analysis: '' });
+    setServiceAnalysisData({ analysis: '', calculatorData: null });
   };
 
   const resetOLA = () => {

@@ -25,7 +25,7 @@ import LearningPathway from './components/map-assessment/LearningPathway.jsx';
 import BusinessCaseReview from './components/map-assessment/BusinessCaseReview.jsx';
 import ArchitectureDiagram from './components/map-assessment/ArchitectureDiagram.jsx';
 import ChatAssistant from './components/map-assessment/ChatAssistant.jsx';
-import ServiceAnalysis from './components/map-assessment/ServiceAnalysis.jsx';
+import ServiceCompletenessAnalysis from './components/map-assessment/ServiceCompletenessAnalysis.jsx';
 import OLAAnalysis from './components/map-assessment/OLAAnalysis.jsx';
 import { MapAssessmentProvider } from './contexts/MapAssessmentContext.jsx';
 import { getApiUrl } from './utils/apiConfig.js';
@@ -390,7 +390,7 @@ function App() {
       case 'chat':
         return <ChatAssistant />;
       case 'service-analysis':
-        return <ServiceAnalysis />;
+        return <ServiceCompletenessAnalysis />;
       case 'ola-analysis':
         return <OLAAnalysis />;
       default:
@@ -493,7 +493,7 @@ function App() {
                     { type: 'link', text: 'Learning Pathway', href: '#/learning' },
                     { type: 'link', text: 'Business Case Review', href: '#/review' },
                     { type: 'link', text: 'Architecture Diagram', href: '#/architecture' },
-                    { type: 'link', text: 'Service Analysis', href: '#/service-analysis' },
+                    { type: 'link', text: 'Service Completeness Analysis', href: '#/service-analysis' },
                     { type: 'link', text: 'OLA Analysis', href: '#/ola-analysis' },
                     { type: 'link', text: 'Chat Assistant', href: '#/chat' }
                   ]
