@@ -1,0 +1,4 @@
+strands-agents
+fastapi
+uvicorn[standard]
+requests
