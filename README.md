@@ -1,162 +1,148 @@
-# AWS Migration Acceleration Program (MAP) - Gen AI Use Cases
+# MAP Agentic Accelerator
 
 ## Overview
-This sample repository illustrates the application of Generative AI (Gen AI) during the AWS Migration Acceleration Program (MAP) assessment phase, after the completion of on-premises discovery. It showcases capabilities that enhance migration planning, cost optimization, identification of modernization opportunities, and resource planning—processes which were previously both time-consuming and complex.This repository showcases seven integrated capabilities that address the most challenging aspects during the migration strategy and execution.
 
+An AI-powered AWS cloud migration assessment and execution planning platform built with [Strands Agents SDK](https://github.com/strands-agents/sdk-python). It uses multi-agent orchestration patterns — parallel graphs, sequential graphs, and standalone agents — to guide users through the full migration lifecycle, from portfolio discovery through dependency analysis, strategy recommendation, AWS cost estimation, landing zone design, task breakdown, resource planning, and project management integration.
 
+All agents use Claude Sonnet 4 via Amazon Bedrock with real-time streaming through Server-Sent Events (SSE).
 
 ## Features
 
-### 1. Modernization Opportunity Analysis
+### 1. Portfolio Discovery & Dependency Analysis
 
-- Analyzes on-premises architecture and infrastructure data
-- Identifies [modernization pathways](https://aws.amazon.com/blogs/migration-and-modernization/move-to-ai-pathway/) with corresponding AWS cost projections
-- Supports CSV inventory data and architecture image analysis
-- Provides AWS service recommendations
+- Parallel AI analysis of application and infrastructure CSV inventories
+- Application classification (Legacy, Home Grown, SaaS, Third Party) with EOL risk identification
+- Deterministic dependency graph construction with cluster detection, circular dependency identification, and migration complexity scoring
+- AI-enriched executive summary with migration rationale
 
-### 2. Migration Strategy Development
+### 2. Migration & Modernisation Strategy
 
-- Processes AWS Calculator CSV exports
-- Creates data-driven migration patterns and wave planning
-- Generates cumulative spend forecasts and $50k milestone predictions
-- Accelerates migration timeline development
+- Evaluates five wave planning strategies (WP1–WP5) with velocity pattern recommendation
+- R-type classification (Rehost, Replatform, Refactor, Retire, Retain, Repurchase)
+- Gantt chart visualisation for wave timelines
 
-### 3. Resource Planning
+### 3. AWS Cost Estimation & MAP Milestone Prediction
 
-- Develops detailed team structures and resource allocation plans
-- Provides five key outputs:
-  - Executive summary
-  - Team structure evaluation (Hub-and-Spoke and Wave-Based team)
-  - Resource summary
-  - Wave-based planning
-  - Role-based resource allocation
+- Modernisation pathway analysis with AWS service recommendations
+- Monthly and annual run-rate cost projections
+- Cumulative spend forecasting with $50K MAP milestone prediction
+- Acceleration recommendations for milestone achievement
 
-### 4. Learning Pathway Development
+### 4. Landing Zone Design
 
-- Creates personalized training and skill development plans for AWS migration teams
-- Provides role-based learning recommendations (Solution Architect, Software Developer, Delivery Manager, Alliance Lead, Sales and Marketing)
-- Generates experience-level specific pathways (Junior, Senior, Principal levels)
-- Integrates with training catalog CSV files to provide direct course links
-- Provides customizable learning duration planning
+- Multi-agent graph producing architecture design, IaC templates (CloudFormation), and Draw.io diagrams
+- Region, account strategy, and connectivity configuration inputs
 
-### 5. Business Case Review
+### 5. Task Breakdown & Integration with Project Management Platform (Taiga Integration)
 
-- Comprehensive AWS TCO (Total Cost of Ownership) analysis and validation
-- PDF document processing for business case evaluation
-- Reviews seven critical elements for accurate cost modeling:
-  - Input collection and infrastructure assessment
-  - Multi-year cost modeling with various scenarios
-  - Business value quantification (tangible and intangible benefits)
-  - Optimization strategies and right-sizing recommendations
-  - Comparative analysis between on-premises and AWS costs
-  - Ongoing cost management and governance frameworks
-  - Holistic cloud value assessment
-- Supports up to 10 pages of PDF analysis
+- Structured hierarchy: Waves → Epics → Stories → Tasks with Gantt chart
+- Integrates with [Taiga](https://taiga.io/), an open-source agile project management platform, to push the generated task breakdown directly into a Taiga project
+- Taiga agent authenticates via REST API, creates epics, user stories, and tasks, and links stories to epics automatically
+- Enables Kanban board sync so migration teams can track execution progress directly in Taiga without manual data entry
 
-### 6. Architecture Diagram Generator
+### 6. Wave Runbook Generation
 
-- AWS architecture diagram generation using text-based descriptions in Draw.io XML format
-- Creates diagrams with proper AWS service icons and styling
-- Generates editable .drawio files compatible with [draw.io](https://app.diagrams.net/)
-- Includes AWS resource icon patterns with standardized styling
+- Pre-migration checklist, cutover steps, rollback plan, and communication templates
 
+### 7. Resource Planning
 
-### 7. Interactive Analysis Chat & Scenario Exploration
+- Team structure evaluation (Hub-and-Spoke vs Wave-Based models)
+- Wave-based resource allocation with role-based costing
+- Customisable resource profile template
 
-- Context-aware conversational and scenario exploration with generated output:
-  - Inventory Analysis discussions and what-if scenarios
-  - Modernization Recommendations exploration
-  - On-Premises Architecture insights and transformation options
-  - Migration Strategy clarifications and timeline adjustments
-  - Resource Planning consultations and capacity modeling
-- Integrates with [Mem0](https://docs.mem0.ai/integrations/aws-bedrock) for persistent conversation memory with intelligent context retrieval using default vector store configuration. Memory persists during the session with local storage (resets when application restarts)
-- Requires processing output of use cases before context becomes available
+### 8. What-If Scenario Chat
 
-### 8. Prompt Library
+- Context-aware multi-turn conversation across any combination of generated outputs
+- Selective context chip toggles — choose which outputs to include as chat context
+- Mermaid diagram and table rendering in responses
 
-The Prompt Library is a collection of prompts designed to accelerate their Gen AI adoption across migration and modernization phase. It includes a structured prompt library with pre-built templates for each use case. These templates are designed to be reviewed and tailored to your specific requirements.
+### 9. Reports & Artifacts Download
 
-#### Modernization Cost and Analysis Prompts
+- Centralised download page for all generated outputs (JSON, Markdown, YAML, Draw.io XML)
+- Session-based status tracking with one-click download
 
-- **Inventory Analysis Template**: High level IT inventory analysis across multiple technology domains
-- **Modernization Pathways Template**: AWS Cost inline with modernization pathways approaches with customizable AWS service preferences and cost estimation parameters
-- **Architecture Analysis Template**: Processes on-premises architecture diagrams and provide analysis across key domains (compute, network, database, security and monitoring)
+### 10. Prompt Library
 
-#### Migration Strategy Prompts
+Per-agent system prompts stored in `prompt_library/` — review and tailor these templates to your specific migration methodology before use.
 
-- Generates three migration approaches, compares patterns to identify consistent strategic elements and synthesizes optimal final strategy from cross-pattern analysis
-- Creates structured migration waves and cost projection methodology
-- Predicts $50,000 USD milestone achievement with adjustable acceleration strategies
+| Domain | Prompt File | Purpose |
+| ------ | ----------- | ------- |
+| Discovery | `discovery/discovery_prompt.py` | Application, infrastructure, and summary analysis prompts |
+| Strategy | `strategy/strategy_prompt.py` | Wave planning and R-type classification |
+| AWS Cost | `aws_cost/aws_cost_prompt.py` | Modernisation pathway cost estimation |
+| MAP Milestone | `partner_50k_milestone/partner_50k_milestone.py` | $50K milestone prediction and acceleration |
+| Landing Zone | `landing_zone/landing_zone_prompt.py` | Landing zone architecture design |
+| Architecture Diagram | `architecture_diagram/architecture_diagram_prompt.py` | Draw.io XML diagram generation |
+| Landing Zone Diagram | `architecture_diagram/landing_zone_diagram_prompt.py` | Landing zone diagram generation |
+| Task Breakdown | `task_breakdown/task_breakdown_prompt.py` | Wave-based task hierarchy |
+| Wave Runbook | `wave_runbook/wave_runbook_prompt.py` | Runbook generation (cutover, rollback) |
+| Resource Planning | `resource_planning/resource_planning_prompt.py` | Team structure and resource allocation |
+| Taiga | `taiga/taiga_prompt.py` | Project management integration |
+| Chat | `chat/chat_prompt.py` | What-if scenario conversation |
 
-#### Resource Planning Prompts
+> 💡 **Prompt Customisation:** Review each prompt file to understand default assumptions and tailor them to your organisational requirements.
 
-- Evaluates Hub-and-Spoke vs Wave-Based team models, calculates effort estimates using customizable utilization rates and team pod sizes, generates role-based resource allocation with adjustable contingency factors
+## High-Level Process
 
-#### Learning Pathway Prompts
+```text
+Upload CSVs → Discovery → Strategy → Cost → Landing Zone → Tasks → Runbook → Chat
+```
 
-- Role-specific training recommendations with experience level customization
-- Integration with training catalogs for personalized learning paths
-- Duration-based planning with skill progression tracking
+![High-Level Process](backend/sample_data/high_level_process.png)
 
-#### Business Case Validation Prompts
+> 📐 **Architecture Diagram:** A Draw.io version of this process flow is available at [`architecture.drawio`](backend/sample_data/architecture.drawio) — open in [draw.io](https://app.diagrams.net/) for editing.
 
-- Comprehensive TCO analysis framework with seven critical evaluation elements
-- Financial modeling templates for multi-year projections
-- Business value quantification methodologies
-
-#### Architecture Diagram Prompts
-
-- AWS service icon pattern generation for Draw.io compatibility
-- Standardized styling and connection templates
-- Professional diagram layout optimization
-
-> 💡 **Prompt Customization**: Review the README files in each `prompt_library/` subdirectory to understand default assumptions and learn how to customize prompts for your specific organizational requirements.
-
-## High level process
-
-![High level process](sampledata/highlevel_process.png)
-
-**Input** → **Processing** → **Output Deliverables** → **Interactive Chat**
-
-| **Process Stage** | **Components** |
-|-------------------|----------------|
-| **Input (Data Sources)** | • CSV: On-Premises IT Inventory<br>• Images: Architecture Diagrams<br>• CSV: AWS Calculator Export<br>• PDF: Business Case Documents<br>• MD: Migration Strategy<br>• CSV: Training Catalog |
-| **Processing** | • Streamlit Web Interface (Landing Page & Chat)<br>• Prompt Library Templates<br>• Amazon Bedrock Models (Claude 3.7 Sonnet)<br>• Mem0 Memory Management (Context and Chat history) |
-| **Output Deliverables** | **1. Modernization Opportunity** - Analysis & Pathways<br>• Inventory Analysis and on premises architecture analysis Report (.md)<br>• Modernization Strategy (.md)<br><br>**2. Migration Strategy** - Wave Planning & Costs<br>• Migration Strategy & Waves (.md)<br><br>**3. Resource Planning** - Team Structure, Allocation and Cost<br>• Resource Planning Document (.md)<br><br>**4. Business Case Review** - TCO Analysis & Validation<br>• Business Case Review Report (.md)<br><br>**5. Architecture Diagram** - Draw.io XML Generation<br>• Architecture Diagram (.drawio)<br><br>**6. Learning Pathway** - Role-based Training<br>• Learning Pathway Plan (.md) |
-| **Interactive Chat Interface** | • Scenario Planning & Analysis<br>• Context-aware conversations with all generated outputs |
+| Stage | Components |
+| ----- | ---------- |
+| **Input** | Application inventory CSV, Infrastructure inventory CSV |
+| **Processing** | Strands Agents SDK (multi-agent graphs + standalone agents), Claude Sonnet 4 via Amazon Bedrock, Prompt Library templates |
+| **Output Deliverables** | Portfolio Assessment (JSON), Migration Strategy (MD), AWS Cost Estimation (MD), MAP Milestone Prediction (MD), Landing Zone Design (MD), IaC Templates (YAML), Architecture Diagram (.drawio), Task Breakdown (JSON), Wave Runbook (MD), Resource Plan (MD) |
+| **Interactive Chat** | What-if scenario exploration across any combination of generated outputs |
 
 ## Technology Stack
 
-- **Frontend**: Streamlit for interactive web interface and conversation with generated outputs
-- **LLM Model**: Amazon Bedrock with Claude 3.7 Sonnet for primary analysis and memory operations
-- **Data and Image Processing**: Pandas, PyMuPDF for document processing
-- **Memory Management**: Mem0 for persistent chat memory with default vector store configuration
+| Layer | Technology |
+| ----- | ---------- |
+| **Frontend** | React 18, TypeScript, Cloudscape Design System (AWS UI), Mermaid.js |
+| **Backend** | Python, FastAPI, Uvicorn |
+| **AI/ML** | Strands Agents SDK, Claude Sonnet 4 (Amazon Bedrock) |
+| **Communication** | Server-Sent Events (SSE) for real-time agent streaming |
+| **External Services** | Amazon Bedrock, Taiga (project management), Draw.io (diagram rendering) |
 
-## Utils Folder Structure
+## Folder Structure
 
-The `utils/` folder contains essential utility modules that provide core functionality across the application:
+```text
+├── backend/
+│   ├── app.py                  # FastAPI API endpoints
+│   ├── *_agent.py              # One agent file per capability (12 agents)
+│   ├── requirements.txt        # Python dependencies
+│   ├── sample_data/            # Sample CSV files, high-level process PNG, architecture.drawio
+│   └── utils/                  # Config, Taiga credentials, resource profile template
+├── prompt_library/             # Per-agent system prompts (12 domains — see Features §10)
+├── frontend/                   # React + Cloudscape UI
+└── sample_output/              # Example generated outputs
+```
 
-- **`config.py`**: Central configuration management with model settings, AWS region configuration, and specialized functions for chat and memory operations (`get_chat_model_config()`, `get_memory_model_config()`)
-- **`file_handler.py`**: File processing utilities including CSV file reading (`read_csv_file()`), file size validation (`validate_file_size()`), and path management (`get_file_path()`)
-- **`bedrock_client.py`**: Amazon Bedrock integration for AI model interactions (referenced in chat functionality)
-- **`image_processor.py`**: Image processing utilities for architecture diagram analysis
-- **`pdf_processor.py`**: PDF document processing for business case review functionality
-- **`styles.css`**: External CSS styling loaded via `load_css()` function for consistent UI appearance
+## Utils Folder
+
+| File | Purpose |
+| ---- | ------- |
+| `config.py` | Central configuration — AWS region (default `us-east-1`), model IDs (Claude Sonnet 4 default, 3.7 and 3.5 available), max tokens (65,536), temperature (0.7), CORS origins |
+| `taiga_config.json` | Taiga API URL, credentials, and project slug for project management integration |
+| `resource_profile_template.csv` | Resource roles, experience levels, and daily rates used by the Resource Planning agent |
 
 ## Prerequisites
 
-### AWS Requirements
-
-- An [AWS account](https://aws.amazon.com/)
-- Amazon Bedrock access with Claude model permissions in AWS region US East (N. Virginia) *us-east-1* for this code.
-- [AWS Command Line Interface (AWS CLI)](https://aws.amazon.com/cli/)
-- Python (version 3.8 or later)
-- [AWS CLI configured](https://docs.aws.amazon.com/cli/v1/userguide/cli-chap-configure.html) to interact with AWS services using commands in command-line shell
-
-### Additional Requirements for Chat Functionality
-
-- Mem0 library for conversation memory management with default vector store configuration
-- Enhanced memory processing using Claude 3.7 Sonnet for consistent context retrieval
+- **AWS Account** with Amazon Bedrock access in `us-east-1`
+- **Claude Sonnet 4** model enabled in Amazon Bedrock (`us.anthropic.claude-sonnet-4-20250514-v1:0`)
+- **Python** 3.8 or later
+- **Node.js** 18 or later (with npm)
+- **AWS CLI** configured with valid credentials
+- **Taiga Account** (optional — required only for Task Breakdown → Taiga push feature)
+  - Sign up for a free account at [tree.taiga.io](https://tree.taiga.io/) or self-host using [Taiga Docker setup](https://docs.taiga.io/)
+  - Create a project with **Kanban** template enabled
+  - Enable **Epics** and **Backlog** modules in Project → Settings → Modules
+  - Note your project slug (visible in the project URL: `tree.taiga.io/project/<your-project-slug>`)
 
 ## Quick Start
 
@@ -164,207 +150,139 @@ The `utils/` folder contains essential utility modules that provide core functio
 
 ```bash
 git clone <repository-url>
-cd map-genai-usecases-aws-sample
+cd migration-assessment-tool
 ```
 
-### 2. Install Dependencies
+### 2. Install Backend Dependencies
 
 ```bash
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 ```
 
-### 3. Configure AWS Credentials
+### 3. Install Frontend Dependencies
+
+```bash
+cd frontend
+npm install
+cd ..
+```
+
+### 4. Configure AWS Credentials
 
 ```bash
 # Option 1: AWS CLI
 aws configure
 
-# Option 2: Environment Variables
+# Option 2: Environment variables
 export AWS_ACCESS_KEY_ID=your_access_key
 export AWS_SECRET_ACCESS_KEY=your_secret_key
 export AWS_DEFAULT_REGION=us-east-1
 ```
 
-### 4. Amazon Bedrock Models
+### 5. Review Configuration
 
-Ensure you have access to the following models in [Amazon Bedrock](https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html):
+Review `backend/utils/config.py` for model IDs, region, and parameters. Key defaults:
 
-- Anthropic Claude 3.7 Sonnet (`us.anthropic.claude-3-7-sonnet-20250219-v1:0`) - primary analysis model
-- Amazon Titan Embed Text v2 (`amazon.titan-embed-text-v2:0`) - for embeddings and search
+- **Model:** Claude Sonnet 4 (`us.anthropic.claude-sonnet-4-20250514-v1:0`)
+- **Region:** `us-east-1` (override via `AWS_REGION` environment variable)
+- **Max Tokens:** 65,536
 
-### 5. Review Configuration in utils/config.py
+### 6. Configure Taiga (Optional)
 
-Before running the application, review the configuration settings in `utils/config.py`:
+If you plan to use the "Push to Taiga" feature, update `backend/utils/taiga_config.json` with your Taiga credentials:
 
-- **AWS Region**: Defaults to `us-east-1` (can be overridden via `AWS_REGION` environment variable)
-- **Primary Model**: Claude 3.7 Sonnet (`us.anthropic.claude-3-7-sonnet-20250219-v1:0`) for main analysis tasks
-- **Chat Model**: Dedicated chat configuration with optimized temperature (0.3) for consistent responses with real-time user interactions.
-- **Memory Model**: Claude 3.7 Sonnet (`us.anthropic.claude-3-7-sonnet-20250219-v1:0`) for memory operations (background memory extraction, storage, and retrieval operations requiring high precision and deterministic behavior). The lower temperature (0.2) for precise memory extraction and factual information processing.
-- **Timeout Settings**: 5-minute read timeout, 60-second connection timeout
-- **File Processing**: Supports PNG images and CSV data files
-- **Sample Data**: Resource profile template available at `sampledata/resource_profile_template.csv`
-
-**Chat Configuration & Memory Management**:
-- **Mem0 Integration**: The mem0ai package automatically includes qdrant-client as a dependency, eliminating the need for separate installation. The qdrant-client library runs in local embedded mode by default, allowing vector storage operations without requiring a separate Qdrant server setup. This embedded approach is ideal for prototyping scenarios to test vector database functionality without infrastructure overhead. For [production scenario](https://docs.mem0.ai/cookbooks/integrations/aws-bedrock) use Amazon OpenSearch Service and Amazon Neptune for a managed stack
-- **Vector Store Configuration**: The current Mem0 configuration with `"path": "/tmp/qdrant_mem0"` and `"on_disk": False` correctly leverages this embedded mode for session-based memory storage.
-- **Embedder Configuration**: Uses Amazon Titan Embed Text v2 (`amazon.titan-embed-text-v2:0`) for vector embeddings with 1024 dimensions
-
-Key configuration functions:
-
-- `get_aws_region()`: Returns configured AWS region
-- `get_model_config()`: Returns model parameters for Claude 3.7
-- `get_chat_model_config()`: Returns optimized chat configuration
-- `get_memory_model_config()`: Returns Claude 3.7 Sonnet configuration for memory operations
-- `get_embedder_config_to_initialize_mem0()`: Returns AWS Bedrock embedder configuration for Mem0
-- `get_vector_store_config_initialize_mem0()`: Returns Qdrant vector store configuration for embedded mode
-
-### 6. Review Prompt Library
-
-Before running the application, review the default prompt templates in the `prompt_library/` directory to ensure they align with your specific requirements:
-
-**Modernization Opportunity Prompts** (`prompt_library/modernization_opportunity/`):
-
-- `inventory_analysis_prompt.py` - High level inventory analysis
-- `modernization_pathways_prompt.py` - The modernization pathways and cost estimation parameters
-- `onprem_architecture_prompt.py` - Architecture analysis across different domains
-
-**Migration Strategy Prompts** (`prompt_library/migration_patterns/`):
-
-- `migration_patterns_prompt.py` - The migration pattern approaches and wave planning methodology
-
-**Resource Planning Prompts** (`prompt_library/resource_planning/`):
-
-- `resource_planning_prompt.py` - Resource planning, team structure and delivery cost
-
-**Learning Pathway Prompts** (`prompt_library/learning_pathway/`):
-
-- `learning_pathway_prompt.py` - Role-based training recommendations and skill development planning
-
-**Business Case Validation Prompts** (`prompt_library/business_case_validation/`):
-
-- `business_case_validation_prompt.py` - Comprehensive TCO analysis and financial validation
-
-**Architecture Diagram Prompts** (`prompt_library/architecture_diagram/`):
-
-- `architecture_diagram_prompt.py` - AWS diagram generation with Draw.io compatibility
-
-> 💡 **Prompt Customization Tip**: Each prompt library includes detailed README files explaining input parameters, expected outputs, and customization options. Review these files to understand how to tailor prompts for your specific migration methodology, cost models, and resource planning approaches.
-
-### 7. Run the Application
-
-```bash
-streamlit run home_page.py
+```json
+{
+  "taiga": {
+    "base_url": "https://api.taiga.io/api/v1",
+    "username": "<your-taiga-username>",
+    "password": "<your-taiga-password>",
+    "project_slug": "<your-project-slug>"
+  },
+  "settings": {
+    "timeout": 30,
+    "verify_ssl": true,
+    "retry_attempts": 3
+  }
+}
 ```
 
-The application will be available at `http://localhost:8501`
+**Taiga project setup checklist:**
+
+1. Create a new project at [tree.taiga.io](https://tree.taiga.io/) using the **Kanban** template
+2. Go to **Settings → Modules** and enable **Epics** and **Backlog**
+3. Copy your project slug from the URL (e.g., `my-org-aws-migration`)
+4. Update the config file with your username, password, and project slug
+
+> ⚠️ **Security:** For production use, migrate Taiga credentials to AWS Secrets Manager or environment variables. Do not commit credentials to version control.
+
+For more details, refer to the [Taiga API documentation](https://docs.taiga.io/api.html).
+
+### 7. Run the Backend
+
+```bash
+uvicorn backend.app:app --host 0.0.0.0 --port 8000
+```
+
+### 8. Run the Frontend
+
+```bash
+cd frontend
+npm run dev
+```
+
+The application will be available at `http://localhost:3000`.
 
 ## Usage Guide
 
-### Modernization Opportunity Analysis
-
-1. **Review Default Prompts**: Check `prompt_library/modernization_opportunity/README.md` for customization options
-2. Navigate to the "Modernization Opportunity" page
-3. Upload your IT inventory CSV file
-4. Define the scope of modernization
-5. Optionally upload an on-premises architecture image (JPG, JPEG, PNG formats)
-6. Review modernization recommendations
-
-### Migration Strategy Development
-
-1. **Review Default Prompts**: Check `prompt_library/migration_patterns/README.md` for wave planning and cost projection customization
-2. Go to the "Migration Strategy" page
-3. Upload AWS Calculator CSV export
-4. Define migration parameters and constraints
-5. Generate comprehensive migration wave planning
-6. Review cost projections and milestone predictions
-7. (optionally) Download the migration strategy document which is useful for the use case 'Resource Planning'
-
-### Resource Planning
-
-1. **Review Default Prompts**: Check `prompt_library/resource_planning/README.md` for team structure and utilization customization
-2. Access the "Resource Planning" page
-3. Upload migration strategy document with wave planning generated using "Migration Strategy" page
-4. Review resource profile template (see /sampledata/resource_profile_template.csv) and include resource profile data
-5. Generate detailed team structure recommendations
-6. Analyze resource allocation and planning outputs
-
-### Learning Pathway Development
-
-1. **Review Default Prompts**: Check `prompt_library/learning_pathway/README.md` for role and experience customization
-2. Navigate to the "Learning Pathway" page
-3. Upload your training catalog CSV file with course information
-4. Select target role (Solution Architect, Software Developer, Delivery Manager, Alliance Lead, Sales and Marketing)
-5. Choose experience level (Junior, Senior, Principal)
-6. Define learning duration (e.g., 8 hours, 1 week)
-7. Generate personalized learning pathway with direct course links
-8. Download the training plan as markdown
-
-### Business Case Review
-
-1. **Review Default Prompts**: Check `prompt_library/business_case_validation/README.md` for TCO analysis customization
-2. Go to the "Business Case Review" page
-3. Upload your business case PDF document (up to 10 pages)
-4. Review the seven critical elements framework
-5. Generate comprehensive business case analysis
-6. Download the review report for stakeholder presentation
-
-### Architecture Diagram Generator
-
-1. **Review Default Prompts**: Check `prompt_library/architecture_diagram/README.md` for diagram customization
-2. Access the "Architecture Diagram Generator" page
-3. Provide a text description of your AWS architecture
-4. Generate professional Draw.io XML diagram
-5. Download the .drawio file
-6. Open and edit in [draw.io](https://app.diagrams.net/) or Draw.io Desktop application
-
-### Interactive Analysis Chat & Scenario Planning
-
-1. Complete relevant analysis pages first (Modernization, Migration Strategy, Resource Planning, etc.)
-2. Navigate to the "Interactive Analysis Chat" page
-3. Select the analysis context you want to discuss from available scenarios
-4. **Scenario Planning Capabilities**:
-   - **What-if Analysis**: Explore alternative migration approaches and their implications
-   - **Timeline Scenarios**: Discuss different migration wave timelines and resource impacts
-   - **Cost Modeling**: Analyze various cost scenarios and optimization strategies
-   - **Risk Assessment**: Evaluate different risk mitigation approaches and contingency planning
-   - **Technology Alternatives**: Compare different AWS service options and modernization paths
-5. Clear chat history when switching contexts or starting fresh analysis
-
-**Note**: Memory is maintained during your session using Mem0's default vector store configuration. Conversation history will be lost when you restart the application.
+1. **Upload Inventory** — Navigate to Migration Assessment → Upload tab. Upload application CSV and infrastructure CSV (see `backend/sample_data/` for format).
+2. **Review Discovery** — Switch to IT Discovery tab. Review application classifications, infrastructure mapping, and risk signals.
+3. **Review Dependencies** — Switch to Application Dependencies tab. Review dependency graph, clusters, circular dependencies, and complexity scores.
+4. **Generate Strategy** — Switch to Strategy tab. Enter migration drivers, timeline, and start date. Generate strategy report.
+5. **Estimate Costs** — Navigate to Modernisation & Cost. Generate AWS cost estimation and MAP milestone prediction.
+6. **Plan Resources** — Navigate to Resource Planning. Generate team structure and role-based allocation.
+7. **Design Landing Zone** — Navigate to Execution Planning → Landing Zone tab. Enter region, account strategy, and connectivity. Generate design, IaC templates, and architecture diagram.
+8. **Break Down Tasks** — Switch to Task Management tab. Generate wave-based task hierarchy. Optionally push to Taiga.
+9. **Generate Runbook** — Switch to Wave Runbooks tab. Generate pre-migration, cutover, and rollback plans.
+10. **Explore Scenarios** — Navigate to What-If Scenario. Toggle context chips and ask what-if questions.
+11. **Download Artefacts** — Navigate to Reports & Artifacts. Download any generated output.
 
 ## Important Notes
 
-> 💡 **AI Accuracy Disclaimer**: Whilst GenAI provides valuable insights, it might occasionally produce non-deterministic outcomes due to its probabilistic nature. Always validate and double-check AI-generated recommendations before implementation.
+> 💡 **AI Accuracy Disclaimer:** Whilst GenAI provides valuable insights, it may occasionally produce non-deterministic outcomes due to its probabilistic nature. Always validate AI-generated recommendations before implementation.
 
-> 💡 **This solution is explicitly designed for proof-of-concept purposes** only to explore the art of possibility with Generative AI for MAP assessments. Please adhere to your company's enhanced security and compliance policies
+> 💡 **Proof of Concept:** This solution is designed for proof-of-concept purposes to explore the art of possibility with Generative AI for MAP assessments. Adhere to your organisation's security and compliance policies.
 
-### Best Practices
+> ⚠️ **Session Storage:** All data is stored in browser `sessionStorage`. Data is lost when the browser tab is closed. No server-side persistence is implemented.
 
-- Validate all Generative AI-generated recommendations with domain experts
-- Test with your specific data like IT inventory data (e.g., server lists, application catalogs), On-premises architecture diagrams, AWS Calculator and Resource profile data
-- Monitor AWS costs and Bedrock usage across multiple models (Claude 3.7 Sonnet)
-- Optionally, use the following guidance to containerise the Streamlit App using Amazon Elastic Kubernetes Service (Amazon EKS)
-  - Build the Docker image and push this Docker image to Amazon Elastic Container Registry (Amazon ECR)
-  - Define Kubernetes deployment and service manifests
-  - Set up Amazon Elastic Kubernetes Service (EKS) cluster and Fargate profile
-  - Configure Amazon CloudFront and Application Load Balancer
-  - Set up an AWS CodePipeline with AWS CodeBuild (i.e build the Docker image, push it to ECR, and apply the Kubernetes manifests.) to automate the deployment process
-  - **Set up Amazon Virtual Private Cloud (Amazon VPC) with enhanced security features and configure subnets, route tables, and security groups. Implement IAM roles using principle of the least privilege, encryption, network policies, and VPC flow logs to enhance security. Use CloudWatch for comprehensive logging, metrics, alarms, and dashboards to ensure your application runs smoothly and efficiently.**
+> ⚠️ **Taiga Credentials:** Taiga API credentials are stored in `backend/utils/taiga_config.json`. For production use, migrate to AWS Secrets Manager or environment variables.
+
+## Best Practices
+
+- Validate all AI-generated recommendations with domain experts
+- Test with your specific IT inventory data (application catalogues, server lists)
+- Review and customise prompt templates in `prompt_library/` before use
+- Monitor Amazon Bedrock usage and costs
+- Use sample data in `backend/sample_data/` to familiarise yourself with expected CSV formats
+- Store sensitive credentials (Taiga API credentials, AWS keys) in [AWS Secrets Manager](https://docs.aws.amazon.com/secretsmanager/) or [AWS Systems Manager Parameter Store](https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-parameter-store.html) rather than in configuration files
+- Review Amazon Bedrock IAM policies to ensure `bedrock:InvokeModel` permissions are scoped appropriately for your deployment — refer to the [Amazon Bedrock security documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/security-iam.html)
+- For SSE-based agent streaming, review Application Load Balancer idle timeout settings to accommodate long-running agent graph executions — the FastAPI + EKS + CloudFront architecture supports this pattern well
+- Optionally, use the following guidance to containerise the application using Amazon Elastic Kubernetes Service (Amazon EKS):
+  - Build Docker images for the FastAPI backend and the React frontend (static build via `npm run build` served by Nginx or similar)
+  - Push Docker images to Amazon Elastic Container Registry (Amazon ECR)
+  - Define Kubernetes deployment and service manifests for both backend and frontend containers
+  - Set up an Amazon EKS cluster with Fargate profile
+  - Configure Amazon CloudFront and Application Load Balancer for frontend distribution and API routing
+  - Set up an AWS CodePipeline with AWS CodeBuild to automate the build, push to ECR, and Kubernetes manifest deployment
+  - Set up Amazon Virtual Private Cloud (Amazon VPC) with enhanced security features — configure subnets, route tables, and security groups. Implement IAM roles using the principle of least privilege, encryption, network policies, and VPC flow logs. Use Amazon CloudWatch for comprehensive logging, metrics, alarms, and dashboards
 
 ## Cost Considerations
 
-- [Amazon CloudWatch](https://docs.aws.amazon.com/bedrock/latest/userguide/monitoring.html) to monitor runtime metrics for Bedrock applications, providing additional insights into performance and cost management
-- Implement caching for repeated analyses
-- **Multi-Model Cost Management**:
-  - Claude 3.7 Sonnet for primary analysis tasks and memory operations (higher cost, superior reasoning)
-  - Amazon Titan Embed Text v2 for embeddings (cost-effective vector generation)
-- Amazon Bedrock [supports foundation models (FMs)](https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html) from providers like Anthropic, Amazon, AI21 Labs, Cohere, DeepSeek, Luma AI, Meta, Mistral AI, OpenAI, Stability AI and others. Use appropriate model sizes for different use cases
-- Consider compute reserved capacity for high-volume usage
-- **Memory and Storage Costs**:
-  - Mem0 uses default vector store configuration with local storage (no external server costs)
-  - Local storage during sessions (resets on application restart)
-  - Use scenario planning efficiently to minimize redundant memory operations
-  - Consider session-based memory management for optimal performance
+- **Amazon Bedrock:** Claude Sonnet 4 usage is billed per input/output token — monitor via Amazon CloudWatch
+- **Multi-Agent Graphs:** Discovery, landing zone, and cost agents run multiple LLM calls per request
+- **Session-Based:** No external database or vector store costs — all state is in browser session storage
+- **Taiga:** Self-hosted or cloud instance costs apply if using project management integration
+- Implement caching for repeated analyses to reduce token consumption
 
 ## Contributing
 
@@ -374,15 +292,13 @@ The application will be available at `http://localhost:8501`
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## License
+## Licence
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT Licence. See the [LICENCE](LICENCE) file for details.
 
 ## Support
 
-For support and questions:
-
 - Create an issue in the GitHub repository
-- Review the AWS Bedrock documentation
-- Check Streamlit documentation for UI-related issues
-- Consult Mem0 documentation for chat functionality issues
+- Review [Amazon Bedrock documentation](https://docs.aws.amazon.com/bedrock/)
+- Review [Strands Agents SDK documentation](https://github.com/strands-agents/sdk-python)
+- Review [Cloudscape Design System documentation](https://cloudscape.design/)
