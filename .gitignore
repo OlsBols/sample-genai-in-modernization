@@ -1,10 +1,28 @@
-__pycache__
-.vscode
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+venv/
+.venv/
+
+# Node
+node_modules/
+
+# IDE
+.vscode/
+
+# OS
 .DS_Store
+
+# Misc
 output.txt
-.git
-.ruff_cache
 ~*
+
+# Uploads (user data)
+backend/uploads/
 
 # Log files
 *.log
