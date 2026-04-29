@@ -65,6 +65,14 @@ agents/
 - Excel export integration with backup cost column and Backup Summary sheet
 - **Implementation**: `agents/pricing/backup_pricing.py`, `agents/pricing/aws_pricing_calculator.py`, `agents/pricing/it_inventory_pricing.py`, `agents/export/excel_export.py`
 
+### Calculator Review (✅ NEW - April 2026)
+- **Calculator review dashboard** from AWS Pricing Calculator URL (standard AWS + European Sovereign Cloud)
+- ARR qualification, excluded services breakdown, modernization index with 6 pathway classifications
+- **Optimization engine**: EC2 Savings Plans, RDS/Redshift/ElastiCache/OpenSearch Reserved Instances (with Graviton+RI combined), Fargate Compute SP, EBS gp2→gp3 and io1→io2 migration — all using real-time AWS pricing data
+- **Missing Services Analysis**: AI-powered gap identification across 6 critical categories
+- Two-tab UI with downloadable optimization report (CSV)
+- **Implementation**: `ui/backend/map_routes.py` (backend endpoint + optimization logic), `ui/src/components/map-assessment/ServiceCompletenessAnalysis.jsx` (frontend)
+
 ### Dependency-Based Wave Planning (✅ NEW - January 2026)
 - **Intelligent migration waves** from IT Infrastructure Inventory dependencies
 - Parses Application dependency, Server to application, Database to application sheets
@@ -838,24 +846,6 @@ Output: Backup costs integrated into all reports
 **Core Documentation**
 - `README.md` - Project overview
 - `SETUP_GUIDE.md` - Installation and setup
-- `BEDROCK_GUARDRAILS_GUIDE.md` - Guardrails setup
-
-**EKS Implementation**
-- `EKS_PRICING_DESIGN.md` - Complete design specification
-- `WHY_EKS_REQUIRES_LINUX.md` - Technical explanation
-- `docs/history/PYTHON_BASED_RECOMMENDATION_IMPLEMENTED.md` - Implementation details
-
-**Wave Planning & IT Inventory Enhancements (NEW - January 2026)**
-- `WAVE_PLANNING_IMPLEMENTATION.md` - Complete wave planning implementation guide
-- `DEPENDENCY_WAVE_PLANNING_COMPLETE.md` - Quick reference for wave planning
-- `IT_INVENTORY_DEPENDENCY_GAP.md` - Gap analysis (resolved)
-- `IT_INVENTORY_EKS_ENHANCEMENT.md` - IT Inventory EKS enhancement guide
-- `IT_INVENTORY_ARR_VERIFICATION.md` - IT Inventory ARR verification
-- `IMPLEMENTATION_SUMMARY.md` - Summary of all recent implementations
-
-**Additional Resources**
-- `docs/history/` - Implementation history and detailed guides
-- `tests/README.md` - Testing documentation
 
 ## Production Deployment Checklist
 
@@ -902,8 +892,8 @@ Output: Backup costs integrated into all reports
 ### v1.0 (January 2026) - Production Release
 - ✅ AWS Price List API integration (EC2 + RDS + EKS)
 - ✅ Three infrastructure input types (RVTools, IT Inventory, ATX)
-- ✅ **Dependency-based wave planning** from IT Infrastructure Inventory (NEW)
-- ✅ **IT Inventory EKS enhancement** - Uses actual server specs (NEW)
+- ✅ Dependency-based wave planning from IT Infrastructure Inventory
+- ✅ IT Inventory EKS enhancement — Uses actual server specs
 - ✅ Python-based EKS recommendation engine (4-tier decision tree)
 - ✅ Bedrock Guardrails integration (optional)
 - ✅ Smart agent selection (only runs agents for available files)
@@ -911,8 +901,19 @@ Output: Backup costs integrated into all reports
 - ✅ Excel exports with detailed cost breakdowns
 - ✅ Multi-stage business case generation
 
+### v1.1 (April 2026) - Calculator Review
+- ✅ Calculator Review with calculator review dashboard
+- ✅ EC2 Savings Plans, RDS/Redshift/ElastiCache/OpenSearch RI optimization (Graviton+RI combined)
+- ✅ Fargate Compute Savings Plans optimization
+- ✅ EBS gp2→gp3 and io1→io2 storage optimization
+- ✅ European Sovereign Cloud (ESC) support with EUR pricing
+- ✅ Missing Services AI-powered gap analysis
+- ✅ Security hardening (path traversal, information exposure fixes)
+- ✅ HTTPS support for CloudFormation deployment (self-signed cert)
+- ✅ Admin-only user creation (no self-registration)
+
 ---
 
-**Last Updated**: January 2, 2026  
-**Version**: 1.0  
+**Last Updated**: April 12, 2026  
+**Version**: 1.1  
 **Status**: Active

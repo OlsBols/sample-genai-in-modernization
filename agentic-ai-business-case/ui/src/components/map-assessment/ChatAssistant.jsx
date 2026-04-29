@@ -40,7 +40,7 @@ function ChatAssistant() {
     { label: 'Learning Pathway', value: 'learning-pathway' },
     { label: 'Business Case Review', value: 'business-case' },
     { label: 'Architecture Diagram', value: 'architecture' },
-    { label: 'Service Completeness Analysis', value: 'service-analysis' },
+    { label: 'Calculator Review', value: 'service-analysis' },
     { label: 'OLA Analysis', value: 'ola-analysis' },
     { label: 'AWS Knowledge Base', value: 'knowledge-base' }
   ];
@@ -58,11 +58,22 @@ function ChatAssistant() {
     if (selectedContext.value !== 'general' && selectedContext.value !== 'knowledge-base') {
       const data = getContextData(selectedContext.value);
       if (data) {
-        // Format the data for display
-        const formattedData = Object.values(data)
-          .filter(v => v)
-          .join('\n\n---\n\n');
-        setContextData(formattedData);
+        // Format the data for display - only include string values, stringify objects
+        const formattedParts = [];
+        for (const [key, value] of Object.entries(data)) {
+          if (!value) continue;
+          if (typeof value === 'string') {
+            formattedParts.push(value);
+          } else if (typeof value === 'object') {
+            // For complex objects, create a readable summary
+            try {
+              formattedParts.push(`### ${key}\n\`\`\`json\n${JSON.stringify(value, null, 2)}\n\`\`\``);
+            } catch {
+              // Skip values that can't be serialized
+            }
+          }
+        }
+        setContextData(formattedParts.join('\n\n---\n\n'));
       } else {
         setContextData('');
       }

@@ -13,6 +13,7 @@ import json
 import re
 import gzip
 import requests as http_requests
+import urllib.parse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from werkzeug.utils import secure_filename
 from datetime import datetime
@@ -44,7 +45,8 @@ from utils.bedrock_client import (
     invoke_bedrock_model_with_reasoning,
     invoke_bedrock_model_for_image_analysis,
     invoke_bedrock_model_without_reasoning,
-    invoke_bedrock_model_claude_3_5
+    invoke_bedrock_model_claude_3_5,
+    invoke_bedrock_haiku
 )
 from utils.image_processor import resize_image, convert_image_to_base64, get_image_type
 from utils.pdf_processor import convert_pdf_to_images, prepare_content_for_claude
@@ -181,6 +183,7 @@ REGION_CODE_TO_NAME = {
     'eu-west-3': 'EU (Paris)',
     'eu-north-1': 'EU (Stockholm)',
     'eu-south-1': 'EU (Milan)',
+    'eu-south-2': 'EU (Spain)',
     'ap-south-1': 'Asia Pacific (Mumbai)',
     'ap-south-2': 'Asia Pacific (Hyderabad)',
     'ap-northeast-1': 'Asia Pacific (Tokyo)',
@@ -190,6 +193,8 @@ REGION_CODE_TO_NAME = {
     'ap-southeast-2': 'Asia Pacific (Sydney)',
     'ap-southeast-3': 'Asia Pacific (Jakarta)',
     'ap-southeast-4': 'Asia Pacific (Melbourne)',
+    'ap-southeast-5': 'Asia Pacific (Malaysia)',
+    'ap-southeast-7': 'Asia Pacific (Thailand)',
     'ca-central-1': 'Canada (Central)',
     'ca-west-1': 'Canada West (Calgary)',
     'sa-east-1': 'South America (Sao Paulo)',
@@ -198,6 +203,8 @@ REGION_CODE_TO_NAME = {
     'me-central-1': 'Middle East (UAE)',
     'af-south-1': 'Africa (Cape Town)',
     'il-central-1': 'Israel (Tel Aviv)',
+    'mx-central-1': 'Mexico (Central)',
+    'ap-southeast-6': 'Asia Pacific (Taipei)',
     'eusc-de-east-1': 'AWS European Sovereign Cloud (Germany)',
 }
 
@@ -308,6 +315,1011 @@ def get_ec2_sp_savings(region_code, instance_type, os_type, quantity, od_cache, 
     except Exception as e:
         logging.warning(f"EC2 SP lookup failed for {instance_type} in {region_code}: {e}")
         return None
+
+
+# ============================================================================
+# SERVICE RI/SP OPTIMIZATION HELPERS (RDS, Redshift, ElastiCache, OpenSearch)
+# ============================================================================
+_service_od_cache = {}  # {cache_key: {instance_type: price}}
+_service_ri_cache = {}  # {cache_key: {instance_type: price}}
+
+
+def _fetch_pricing_json(url):
+    """Fetch and decompress pricing JSON from AWS endpoint."""
+    try:
+        resp = http_requests.get(url, timeout=15)
+        resp.raise_for_status()
+        try:
+            return json.loads(gzip.decompress(resp.content))
+        except Exception:
+            return resp.json()
+    except Exception as e:
+        logging.warning(f"Failed to fetch pricing from {url}: {e}")
+        return None
+
+
+def _get_od_rates(url, region_name, cache_key):
+    """Get on-demand rates for a service. Returns {instance_type: hourly_price}."""
+    if cache_key in _service_od_cache:
+        return _service_od_cache[cache_key]
+    data = _fetch_pricing_json(url)
+    if not data:
+        return {}
+    region_data = data.get('regions', {}).get(region_name, {})
+    rates = {}
+    for k, v in region_data.items():
+        inst = v.get('Instance Type') or v.get('instanceType') or v.get('Instance type')
+        price = v.get('price')
+        if inst and price:
+            try:
+                rates[inst] = float(price)
+            except (ValueError, TypeError):
+                pass
+    _service_od_cache[cache_key] = rates
+    return rates
+
+
+def _get_ri_rates(url, region_name, cache_key):
+    """Get RI rates for a service. Returns {instance_type: hourly_price}."""
+    if cache_key in _service_ri_cache:
+        return _service_ri_cache[cache_key]
+    data = _fetch_pricing_json(url)
+    if not data:
+        return {}
+    region_data = data.get('regions', {}).get(region_name, {})
+    rates = {}
+    for k, v in region_data.items():
+        inst = v.get('Instance Type') or v.get('instanceType') or v.get('Instance type')
+        price = v.get('price')
+        if inst and price:
+            try:
+                rates[inst] = float(price)
+            except (ValueError, TypeError):
+                pass
+    _service_ri_cache[cache_key] = rates
+    return rates
+
+
+def get_rds_ri_savings(region_code, instance_type, svc_code, quantity, deployment='single'):
+    """Calculate RDS Reserved Instance savings."""
+    region_name = REGION_CODE_TO_NAME.get(region_code)
+    if not region_name:
+        return None
+
+    is_esc = (region_code == ESC_REGION_CODE)
+    base = ESC_PRICING_BASE_URL if is_esc else EC2_PRICING_BASE_URL
+    currency = ESC_CURRENCY if is_esc else 'USD'
+
+    engine_map = {
+        'amazonRDSMySQLDB': 'mysql',
+        'amazonRDSPostgreSQLDB': 'postgresql',
+        'amazonRDSMariaDB': 'mariadb',
+        'amazonRDSForSQLServer': 'sqlserver',
+        'amazonAuroraMySQLCompatible': 'mysql',
+        'amazonRDSAuroraPostgreSQLCompatibleDB': 'postgresql',
+    }
+    engine = engine_map.get(svc_code)
+    if not engine:
+        return None
+
+    try:
+        od_url = f"{base}/rds/{currency}/current/rds-{engine}-ondemand.json"
+        # RDS on-demand has separate entries for Single-AZ and Multi-AZ
+        # Filter by deployment option in the key name
+        od_cache_key = f"rds_{engine}_od_{deployment}"
+        if od_cache_key not in _service_od_cache:
+            od_data = _fetch_pricing_json(od_url)
+            if not od_data:
+                return None
+            region_data = od_data.get('regions', {}).get(region_name, {})
+            rates = {}
+            deploy_filter = 'Multi' if deployment == 'multi' else 'Single'
+            for k, v in region_data.items():
+                inst = v.get('Instance Type', '')
+                price = v.get('price')
+                if inst and price:
+                    # Match deployment option in key name, or accept if no deployment info in key
+                    if deploy_filter in k or ('Single' not in k and 'Multi' not in k):
+                        try:
+                            rates[inst] = float(price)
+                        except (ValueError, TypeError):
+                            pass
+            _service_od_cache[od_cache_key] = rates
+        od_rates = _service_od_cache[od_cache_key]
+        od_rate = od_rates.get(instance_type)
+        if not od_rate:
+            return None
+
+        az = 'singleaz' if deployment == 'single' else 'multiaz'
+        enc_rn = urllib.parse.quote(region_name, safe='')
+        if engine == 'mysql':
+            ri_url = f"{base}/rds/{currency}/current/rds-mysql-reservedinstance-{az}/{enc_rn}/1%20year/No%20Upfront/index.json"
+        elif engine == 'postgresql':
+            az_label = 'Single-AZ' if deployment == 'single' else 'Multi-AZ'
+            ri_url = f"{base}/rds/{currency}/current/rds-postgresql-reservedinstance/{az_label}/1%20year/No%20Upfront/{enc_rn}/index.json"
+        elif engine == 'mariadb':
+            ri_url = f"{base}/rds/{currency}/current/rds-mariadb-reservedinstance-{az}/{enc_rn}/index.json"
+        elif engine == 'sqlserver':
+            az_label = 'Single-AZ' if deployment == 'single' else 'Multi-AZ'
+            ri_url = f"{base}/rds/{currency}/current/rds-sqlserver-reservedinstance/{az_label}/1%20year/No%20Upfront/Standard/{enc_rn}/index.json"
+        else:
+            return None
+
+        ri_rates = _get_ri_rates(ri_url, region_name, f"rds_{engine}_ri_{region_code}_{az}")
+        ri_rate, best_instance = _find_best_ri_rate(ri_rates, instance_type, prefix='db.')
+        if not ri_rate or ri_rate >= od_rate:
+            return None
+
+        monthly_savings = (od_rate - ri_rate) * HOURS_PER_MONTH * quantity
+        if monthly_savings <= 0:
+            return None
+
+        plan_note = ''
+        if best_instance and best_instance != instance_type:
+            plan_note = f' (migrate to {best_instance})'
+
+        return {
+            'sp_hourly_rate': round(ri_rate, 5),
+            'annual_savings': round(monthly_savings * 12, 2),
+            'plan_type': f'RDS Reserved Instance (1yr/No Upfront){plan_note}',
+        }
+    except Exception as e:
+        logging.warning(f"RDS RI lookup failed for {instance_type} in {region_code}: {e}")
+        return None
+
+
+def get_redshift_ri_savings(region_code, instance_type, quantity):
+    """Calculate Redshift Reserved Node savings."""
+    region_name = REGION_CODE_TO_NAME.get(region_code)
+    if not region_name:
+        return None
+
+    is_esc = (region_code == ESC_REGION_CODE)
+    base = ESC_PRICING_BASE_URL if is_esc else EC2_PRICING_BASE_URL
+    currency = ESC_CURRENCY if is_esc else 'USD'
+
+    try:
+        od_url = f"{base}/redshift/{currency}/current/redshift.json"
+        od_rates = _get_od_rates(od_url, region_name, "redshift_od")
+        od_rate = od_rates.get(instance_type)
+        if not od_rate:
+            return None
+
+        # ESC uses /Yes/ which returns all instance types — can find Graviton equivalents
+        if is_esc:
+            enc_rn = urllib.parse.quote(region_name, safe='')
+            ri_url = f"{base}/redshift/{currency}/current/redshift-reservedinstance/{enc_rn}/1%20year/No%20Upfront/Yes/index.json"
+            ri_rates = _get_ri_rates(ri_url, region_name, f"redshift_ri_{region_code}_all")
+            ri_rate, best_instance = _find_best_ri_rate(ri_rates, instance_type, prefix='')
+        else:
+            # Standard AWS: try Graviton equivalent first, then current instance
+            ri_rate = None
+            best_instance = instance_type
+            # Try Graviton equivalent
+            fam_match = re.match(r'^([a-z]+)(\d+)([a-z]*)\.(.+)$', instance_type, re.IGNORECASE)
+            if fam_match:
+                fam_letter, fam_gen, fam_spec, size = fam_match.groups()
+                if fam_spec != 'g':
+                    graviton_inst = f"{fam_letter}{fam_gen}g.{size}"
+                    grav_ri_url = f"{base}/redshift/{currency}/current/redshift-reservedinstance/{region_name}/1%20year/No%20Upfront/{graviton_inst}/index.json"
+                    grav_ri_rates = _get_ri_rates(grav_ri_url, region_name, f"redshift_ri_{region_code}_{graviton_inst}")
+                    grav_rate = grav_ri_rates.get(graviton_inst)
+                    if grav_rate:
+                        ri_rate = grav_rate
+                        best_instance = graviton_inst
+            # Try current instance if Graviton not found
+            if not ri_rate:
+                ri_url = f"{base}/redshift/{currency}/current/redshift-reservedinstance/{region_name}/1%20year/No%20Upfront/{instance_type}/index.json"
+                ri_rates = _get_ri_rates(ri_url, region_name, f"redshift_ri_{region_code}_{instance_type}")
+                ri_rate = ri_rates.get(instance_type)
+                best_instance = instance_type
+
+        if not ri_rate or ri_rate >= od_rate:
+            return None
+
+        monthly_savings = (od_rate - ri_rate) * HOURS_PER_MONTH * quantity
+        if monthly_savings <= 0:
+            return None
+
+        plan_note = ''
+        if best_instance and best_instance != instance_type:
+            plan_note = f' (migrate to {best_instance})'
+
+        return {
+            'sp_hourly_rate': round(ri_rate, 5),
+            'annual_savings': round(monthly_savings * 12, 2),
+            'plan_type': f'Redshift Reserved Node (1yr/No Upfront){plan_note}',
+        }
+    except Exception as e:
+        logging.warning(f"Redshift RI lookup failed for {instance_type} in {region_code}: {e}")
+        return None
+
+
+def get_elasticache_ri_savings(region_code, instance_type, quantity, engine='Redis'):
+    """Calculate ElastiCache Reserved Node savings."""
+    region_name = REGION_CODE_TO_NAME.get(region_code)
+    if not region_name:
+        return None
+
+    is_esc = (region_code == ESC_REGION_CODE)
+    base = ESC_PRICING_BASE_URL if is_esc else EC2_PRICING_BASE_URL
+    currency = ESC_CURRENCY if is_esc else 'USD'
+
+    try:
+        # ElastiCache on-demand has multiple entries per instance type (one per engine)
+        # Need to filter by engine in the key name
+        od_url = f"{base}/elasticache/{currency}/current/elasticache.json"
+        od_cache_key = f"elasticache_od_{engine}"
+        if od_cache_key not in _service_od_cache:
+            od_data = _fetch_pricing_json(od_url)
+            if not od_data:
+                return None
+            region_data = od_data.get('regions', {}).get(region_name, {})
+            rates = {}
+            engine_lower = engine.lower()
+            for k, v in region_data.items():
+                inst = v.get('Instance Type', '')
+                price = v.get('price')
+                # Filter by engine in the key name
+                if inst and price and engine_lower in k.lower():
+                    try:
+                        rates[inst] = float(price)
+                    except (ValueError, TypeError):
+                        pass
+            _service_od_cache[od_cache_key] = rates
+        od_rates = _service_od_cache[od_cache_key]
+        od_rate = od_rates.get(instance_type)
+        if not od_rate:
+            return None
+            return None
+
+        enc_rn = urllib.parse.quote(region_name, safe='')
+        ri_url = f"{base}/elasticache/{currency}/current/elasticache-reservedinstance/1%20year/No%20Upfront/{enc_rn}/Standard/{engine}/index.json"
+        ri_rates = _get_ri_rates(ri_url, region_name, f"elasticache_ri_{region_code}_{engine}")
+        ri_rate, best_instance = _find_best_ri_rate(ri_rates, instance_type, prefix='cache.')
+        if not ri_rate or ri_rate >= od_rate:
+            return None
+
+        monthly_savings = (od_rate - ri_rate) * HOURS_PER_MONTH * quantity
+        if monthly_savings <= 0:
+            return None
+
+        plan_note = ''
+        if best_instance and best_instance != instance_type:
+            plan_note = f' (migrate to {best_instance})'
+
+        return {
+            'sp_hourly_rate': round(ri_rate, 5),
+            'annual_savings': round(monthly_savings * 12, 2),
+            'plan_type': f'ElastiCache Reserved Node (1yr/No Upfront){plan_note}',
+        }
+    except Exception as e:
+        logging.warning(f"ElastiCache RI lookup failed for {instance_type} in {region_code}: {e}")
+        return None
+
+
+def get_opensearch_ri_savings(region_code, instance_type, quantity):
+    """Calculate OpenSearch Reserved Instance savings."""
+    region_name = REGION_CODE_TO_NAME.get(region_code)
+    if not region_name:
+        return None
+
+    is_esc = (region_code == ESC_REGION_CODE)
+    base = ESC_PRICING_BASE_URL if is_esc else EC2_PRICING_BASE_URL
+    currency = ESC_CURRENCY if is_esc else 'USD'
+
+    try:
+        if is_esc:
+            # ESC uses es.json combined file — no Instance Type field, pricing info in key names
+            # On-demand: key contains "OnDemand" and instance type with spaces (e.g. "c7g 12xlarge.search")
+            # RI: key contains "No Upfront - 1yr - Hourly Cost"
+            combined_url = f"{base}/es/{currency}/current/es.json"
+            combined_cache_key = f"opensearch_esc_combined_{region_code}"
+            if combined_cache_key not in _service_od_cache:
+                combined_data = _fetch_pricing_json(combined_url)
+                if not combined_data:
+                    return None
+                region_data = combined_data.get('regions', {}).get(region_name, {})
+                od = {}
+                ri = {}
+                for k, v in region_data.items():
+                    price = v.get('price', '0')
+                    try:
+                        price_f = float(price)
+                    except (ValueError, TypeError):
+                        continue
+                    if price_f <= 0:
+                        continue
+                    # Extract instance type from key: "c7g 12xlarge.search - ..."
+                    # Convert spaces to dots for matching: "c7g 12xlarge.search" -> "c7g.12xlarge.search"
+                    parts = k.split(' - ')
+                    if len(parts) >= 2:
+                        raw_inst = parts[0].strip().replace(' ', '.')
+                        if 'OnDemand' in k and 'Hourly Cost' in k:
+                            od[raw_inst] = price_f
+                        elif 'No Upfront' in k and '1yr' in k and 'Hourly Cost' in k:
+                            ri[raw_inst] = price_f
+                _service_od_cache[combined_cache_key] = {'od': od, 'ri': ri}
+
+            cached = _service_od_cache[combined_cache_key]
+            od_rate = cached['od'].get(instance_type)
+            # Find best Graviton RI rate from combined file
+            ri_rate, best_instance = _find_best_ri_rate(cached['ri'], instance_type, prefix='')
+            if not od_rate or not ri_rate or ri_rate >= od_rate:
+                return None
+        else:
+            od_url = f"{base}/es/{currency}/current/es-ondemand.json"
+            od_rates = _get_od_rates(od_url, region_name, "opensearch_od")
+            od_rate = od_rates.get(instance_type)
+            if not od_rate:
+                return None
+
+            enc_rn = urllib.parse.quote(region_name, safe='')
+            ri_url = f"{base}/es/{currency}/current/es-reservedinstance/1%20year/No%20Upfront/{enc_rn}/Standard/index.json"
+            ri_rates = _get_ri_rates(ri_url, region_name, f"opensearch_ri_{region_code}")
+            ri_rate, best_instance = _find_best_ri_rate(ri_rates, instance_type, prefix='')
+            if not ri_rate or ri_rate >= od_rate:
+                return None
+
+        monthly_savings = (od_rate - ri_rate) * HOURS_PER_MONTH * quantity
+        if monthly_savings <= 0:
+            return None
+
+        plan_note = ''
+        if best_instance and best_instance != instance_type:
+            plan_note = f' (migrate to {best_instance})'
+
+        return {
+            'sp_hourly_rate': round(ri_rate, 5),
+            'annual_savings': round(monthly_savings * 12, 2),
+            'plan_type': f'OpenSearch Reserved Instance (1yr/No Upfront){plan_note}',
+        }
+    except Exception as e:
+        logging.warning(f"OpenSearch RI lookup failed for {instance_type} in {region_code}: {e}")
+        return None
+
+
+# Service codes eligible for RI optimization lookup
+SERVICE_RI_LOOKUP = {
+    'amazonRDSMySQLDB': get_rds_ri_savings,
+    'amazonRDSPostgreSQLDB': get_rds_ri_savings,
+    'amazonRDSMariaDB': get_rds_ri_savings,
+    'amazonRDSForSQLServer': get_rds_ri_savings,
+    'amazonAuroraMySQLCompatible': get_rds_ri_savings,
+    'amazonRDSAuroraPostgreSQLCompatibleDB': get_rds_ri_savings,
+    'amazonRedshift': get_redshift_ri_savings,
+    'amazonElastiCache': get_elasticache_ri_savings,
+    'amazonElasticsearchService': get_opensearch_ri_savings,
+}
+
+# RDS service codes that need the engine parameter
+RDS_SERVICE_CODES = {
+    'amazonRDSMySQLDB', 'amazonRDSPostgreSQLDB', 'amazonRDSMariaDB',
+    'amazonRDSForSQLServer', 'amazonAuroraMySQLCompatible',
+    'amazonRDSAuroraPostgreSQLCompatibleDB',
+}
+
+# EBS pricing URLs
+EBS_PRICING_URL = 'https://b0.p.awsstatic.com/pricing/2.0/meteredUnitMaps/ec2/USD/current/ebs.json'
+ESC_EBS_PRICING_URL = 'https://artifacts.eusc-de-east-1.prod.plc.billing.a2z.eu/pricing/2.0/meteredUnitMaps/aws-eusc/ec2/EUR/current/ebs-calculator.json'
+
+# io2 supported regions
+IO2_SUPPORTED_REGIONS = {
+    'US East (Ohio)', 'US East (N. Virginia)', 'US West (N. California)', 'US West (Oregon)',
+    'Asia Pacific (Hong Kong)', 'Asia Pacific (Mumbai)', 'Asia Pacific (Seoul)',
+    'Asia Pacific (Singapore)', 'Asia Pacific (Sydney)', 'Asia Pacific (Tokyo)',
+    'Canada (Central)', 'Europe (Frankfurt)', 'Europe (Ireland)', 'Europe (London)',
+    'Europe (Stockholm)', 'Middle East (Bahrain)', 'AWS European Sovereign Cloud (Germany)',
+}
+
+_ebs_pricing_cache = {}
+
+
+def _get_ebs_prices(region_code):
+    """Fetch EBS pricing for a region. Returns dict of price keys to prices."""
+    if region_code in _ebs_pricing_cache:
+        return _ebs_pricing_cache[region_code]
+
+    is_esc = (region_code == ESC_REGION_CODE)
+    url = ESC_EBS_PRICING_URL if is_esc else EBS_PRICING_URL
+    region_name = REGION_CODE_TO_NAME.get(region_code)
+    if not region_name:
+        return {}
+
+    data = _fetch_pricing_json(url)
+    if not data:
+        return {}
+
+    region_data = data.get('regions', {}).get(region_name, {})
+    prices = {}
+    for k, v in region_data.items():
+        price = v.get('price')
+        if price:
+            try:
+                prices[k] = float(price)
+            except (ValueError, TypeError):
+                pass
+    _ebs_pricing_cache[region_code] = prices
+    return prices
+
+
+def calculate_ebs_savings(storage_amount, storage_type, iops, region_code, quantity, svc_code):
+    """Calculate EBS storage optimization savings (gp2→gp3, io1→io2).
+    
+    Returns dict with savings info or None.
+    """
+    region_name = REGION_CODE_TO_NAME.get(region_code, '')
+    prices = _get_ebs_prices(region_code)
+    if not prices:
+        return None
+
+    try:
+        if 'gp2' in storage_type.lower():
+            gp2_price = prices.get('Storage General Purpose gp2 GB Mo')
+            gp3_price = prices.get('Storage General Purpose gp3 GB Mo')
+            gp3_iops_price = prices.get('Provisioned EBS IOPS gp3 Volumes per IOPS Mo')
+            gp3_thr_price = prices.get('Provisioned Throughput gp3 per GiBps mo')
+
+            if not all([gp2_price, gp3_price, gp3_iops_price, gp3_thr_price]):
+                return None
+
+            # gp2 baseline IOPS: min(max(100, storage*3), 16000)
+            gp2_baseline_iops = min(max(100, storage_amount * 3), 16000)
+            # gp2 baseline throughput: min(gp2_iops * 256/1024, 250) MB/s
+            gp2_baseline_thr = round(min(gp2_baseline_iops * (256 / 1024), 250))
+
+            # gp3 provisioned IOPS above 3000 baseline
+            gp3_extra_iops = max(3000, gp2_baseline_iops) - 3000
+            # gp3 provisioned throughput above 125 MB/s baseline
+            gp3_extra_thr = max(125, gp2_baseline_thr) - 125
+
+            # For RDS, gp3 minimum IOPS is 12000 and throughput is 500
+            if svc_code in RDS_SERVICE_CODES:
+                gp3_extra_iops = max(12000, gp3_extra_iops)
+                gp3_extra_thr = max(500, gp3_extra_thr)
+
+            gp2_cost = storage_amount * gp2_price
+            gp3_cost = (storage_amount * gp3_price +
+                        gp3_extra_iops * gp3_iops_price +
+                        (gp3_extra_thr / 1024) * gp3_thr_price)
+
+            monthly_savings = max(0, quantity * (gp2_cost - gp3_cost))
+            if monthly_savings <= 0:
+                return None
+
+            return {
+                'annual_savings': round(monthly_savings * 12, 2),
+                'plan_type': 'EBS gp2 → gp3 migration',
+                'detail': f'{storage_amount} GB gp2 → gp3 (saves {round(monthly_savings, 2)}/mo)',
+            }
+
+        elif 'io1' in storage_type.lower():
+            # io1→io2 only in supported regions and for EC2 only
+            if region_name not in IO2_SUPPORTED_REGIONS:
+                return None
+            if svc_code not in ('ec2Enhancement',):
+                return None
+
+            storage_price = prices.get('Storage Provisioned IOPS GB Mo') or prices.get('Storage Provisioned IOPS io1 GB Mo')
+            io1_iops_price = prices.get('Provisioned EBS IOPS io1 Volumes per IOPS Mo')
+            io2_tier1_price = prices.get('Provisioned EBS IOPS io2 Volumes per IOPS Mo')
+            io2_tier2_price = prices.get('Provisioned EBS IOPS Tier 2 io2 Volumes per IOPS Mo')
+            io2_tier3_price = prices.get('Provisioned EBS IOPS Tier 3 io2 Volumes per IOPS Mo')
+
+            if not all([storage_price, io1_iops_price, io2_tier1_price, io2_tier2_price, io2_tier3_price]):
+                return None
+
+            if not iops or iops <= 0:
+                return None
+
+            io1_cost = storage_price * storage_amount + iops * io1_iops_price
+
+            # io2 tiered IOPS pricing
+            tier1_limit = 32000
+            tier2_limit = 64000
+            io2_iops_cost = (min(iops, tier1_limit) * io2_tier1_price +
+                             max(0, min(iops, tier2_limit) - tier1_limit) * io2_tier2_price +
+                             max(0, iops - tier2_limit) * io2_tier3_price)
+            io2_cost = storage_price * storage_amount + io2_iops_cost
+
+            monthly_savings = max(0, quantity * (io1_cost - io2_cost))
+            if monthly_savings <= 0:
+                return None
+
+            return {
+                'annual_savings': round(monthly_savings * 12, 2),
+                'plan_type': 'EBS io1 → io2 migration',
+                'detail': f'{storage_amount} GB io1 → io2, {iops} IOPS (saves {round(monthly_savings, 2)}/mo)',
+            }
+    except Exception as e:
+        logging.warning(f"EBS savings calculation failed: {e}")
+
+    return None
+
+
+def _run_ebs_optimization(raw_services):
+    """Check all services for EBS storage optimization opportunities (gp2→gp3, io1→io2)."""
+    ebs_found = 0
+    for svc in raw_services:
+        cfg = svc.get('config_summary', '')
+        region_code = svc.get('_ec2_region', '') or svc.get('region', '')
+
+        # Try _ebs_* fields first (from URL endpoint's calculationComponents)
+        ebs_type = svc.get('_ebs_storage_type', '')
+        ebs_amount = svc.get('_ebs_storage_amount', 0)
+        ebs_iops = svc.get('_ebs_storage_iops', 0)
+
+        # Detect storage type
+        storage_type = ''
+        if ebs_type:
+            if 'general purpose' in ebs_type.lower() and 'gp3' not in ebs_type.lower():
+                storage_type = 'gp2'
+            elif 'io1' in ebs_type.lower() or 'provisioned iops' in ebs_type.lower():
+                storage_type = 'io1'
+        
+        # Fallback: check configSummary
+        if not storage_type:
+            if 'gp2' in cfg.lower():
+                storage_type = 'gp2'
+            elif 'io1' in cfg.lower():
+                storage_type = 'io1'
+
+        if not storage_type:
+            continue
+
+        # Get storage amount
+        storage_amount = int(ebs_amount) if ebs_amount else 0
+        if not storage_amount:
+            storage_match = re.search(r'(?:Storage amount|EBS Storage amount|Storage for each.*instance) \((\d+)', cfg)
+            if not storage_match:
+                storage_match = re.search(r'(\d+)\s*GB', cfg)
+            if storage_match:
+                storage_amount = int(storage_match.group(1))
+        if storage_amount <= 0:
+            continue
+
+        # Get IOPS for io1
+        iops = int(ebs_iops) if ebs_iops else 0
+        if not iops and storage_type == 'io1':
+            iops_match = re.search(r'(?:IOPS|Provisioned IOPS) \((\d+)', cfg)
+            if iops_match:
+                iops = int(iops_match.group(1))
+
+        if not region_code or not REGION_CODE_TO_NAME.get(region_code):
+            continue
+
+        # Get quantity
+        qty_match = re.search(r'(?:Nodes|Number of instances|Quantity) \((\d+)\)', cfg)
+        quantity = int(qty_match.group(1)) if qty_match else 1
+
+        result = calculate_ebs_savings(storage_amount, storage_type, iops, region_code, quantity, svc['service_code'])
+        if result:
+            svc['ebs_savings'] = result['annual_savings']
+            svc['ebs_plan_type'] = result['plan_type']
+            svc['ebs_detail'] = result['detail']
+
+
+def _run_ri_optimization(raw_services, use_region_code=True):
+    """Run RI optimization for RDS, Redshift, ElastiCache, OpenSearch services."""
+    ri_tasks = []
+    for idx, svc in enumerate(raw_services):
+        sc = svc['service_code']
+        if sc not in SERVICE_RI_LOOKUP:
+            continue
+        if svc.get('ec2_sp_annual_savings', 0) > 0:
+            continue
+
+        cfg = svc.get('config_summary', '')
+        inst_match = re.search(r'Instance [Tt]ype \(([^)]+)\)', cfg)
+        if not inst_match:
+            inst_match = re.search(r'Node [Tt]ype \(([^)]+)\)', cfg)
+        if not inst_match:
+            continue
+
+        instance_type = inst_match.group(1).strip()
+
+        # Check if on-demand — multiple patterns in configSummary
+        # IMPORTANT: Check Pricing strategy/Pricing Model FIRST — if Reserved/SP, skip
+        pricing_match = re.search(r'Pricing strategy \(([^)]+)\)', cfg)
+        pricing_model_match = re.search(r'Pricing Model \(([^)]+)\)', cfg)
+        
+        is_ondemand = True  # default assumption
+        
+        # If Pricing Model is set (Aurora, etc.), check it first
+        if pricing_model_match:
+            model = pricing_model_match.group(1).strip().lower()
+            if 'reserved' in model or 'savings' in model:
+                is_ondemand = False
+        
+        # If Pricing strategy is set (RDS, Redshift, etc.), check it
+        if pricing_match:
+            strategy = pricing_match.group(1).strip().lower()
+            if 'reserved' in strategy or 'savings' in strategy:
+                is_ondemand = False
+            elif 'on-demand' in strategy or 'ondemand' in strategy:
+                is_ondemand = True
+        
+        # Utilization field can say "On-Demand only" even when pricing is Reserved
+        # Only use it as a fallback if no pricing strategy/model was found
+        if not pricing_match and not pricing_model_match:
+            util_match = re.search(r'Utilization \(([^)]+)\)', cfg)
+            if util_match and 'on-demand' in util_match.group(1).lower():
+                is_ondemand = True
+        
+        if not is_ondemand:
+            continue
+
+        # Extract quantity — try Nodes first (for Redshift/ElastiCache/OpenSearch), then others
+        qty_match = re.search(r'Nodes \((\d+)\)', cfg)
+        if not qty_match:
+            qty_match = re.search(r'(?:Quantity|Number of nodes|Number of instances) \((\d+)\)', cfg)
+        quantity = int(qty_match.group(1)) if qty_match else 1
+
+        # Extract engine for ElastiCache
+        engine = 'Redis'
+        engine_match = re.search(r'Cache Engine \(([^)]+)\)', cfg)
+        if engine_match:
+            engine = engine_match.group(1).strip()
+
+        # Extract deployment option for RDS (Multi-AZ vs Single-AZ)
+        deployment = 'single'
+        deploy_match = re.search(r'Deployment option \(([^)]+)\)', cfg)
+        if deploy_match and 'multi' in deploy_match.group(1).lower():
+            deployment = 'multi'
+
+        if use_region_code:
+            region_code = svc.get('_ec2_region', '') or svc.get('region', '')
+        else:
+            region_display = svc.get('region', '')
+            region_code = REGION_NAME_TO_CODE.get(region_display, '')
+            if not region_code:
+                for rname, rcode in REGION_NAME_TO_CODE.items():
+                    if rname in region_display or region_display in rname:
+                        region_code = rcode
+                        break
+
+        if not region_code or not REGION_CODE_TO_NAME.get(region_code):
+            continue
+
+        ri_tasks.append((idx, sc, region_code, instance_type, quantity, engine, deployment))
+
+    def _lookup_ri(task):
+        idx, sc, region_code, instance_type, quantity, engine, deployment = task
+        lookup_fn = SERVICE_RI_LOOKUP[sc]
+        if sc in RDS_SERVICE_CODES:
+            result = lookup_fn(region_code, instance_type, sc, quantity, deployment)
+        elif sc == 'amazonElastiCache':
+            result = lookup_fn(region_code, instance_type, quantity, engine)
+        else:
+            result = lookup_fn(region_code, instance_type, quantity)
+        return idx, result
+
+    if ri_tasks:
+        with ThreadPoolExecutor(max_workers=min(len(ri_tasks), 10)) as executor:
+            futures = {executor.submit(_lookup_ri, t): t for t in ri_tasks}
+            for future in as_completed(futures):
+                try:
+                    idx, ri_result = future.result()
+                    if ri_result:
+                        raw_services[idx]['ec2_sp_annual_savings'] = ri_result['annual_savings']
+                        raw_services[idx]['ec2_sp_hourly_rate'] = ri_result['sp_hourly_rate']
+                        raw_services[idx]['ec2_sp_plan_type'] = ri_result['plan_type']
+                except Exception as e:
+                    logging.warning(f"RI lookup failed: {e}", exc_info=True)
+
+
+def _get_fargate_sp_savings(svc, is_esc=False):
+    """Calculate Fargate Compute Savings Plan savings for a single service.
+
+    Fetches on-demand and 1yr/No Upfront Compute SP rates from AWS pricing
+    endpoints, then computes the annual savings.
+
+    Returns dict with savings info or None on failure / no savings.
+    """
+    region_code = svc.get('_fargate_region', '')
+    region_name = REGION_CODE_TO_NAME.get(region_code)
+    if not region_name:
+        return None
+
+    os_raw = svc.get('_fargate_os', 'linux')
+    arch_raw = svc.get('_fargate_arch', 'x86')
+    duration = svc.get('_fargate_duration', 730)
+    vcpu = svc.get('_fargate_vcpu', 1)
+    tasks = svc.get('_fargate_tasks', 1)
+    memory = svc.get('_fargate_memory', 2)
+
+    os_name = 'Windows' if 'windows' in str(os_raw).lower() else 'Linux'
+    arch_name = 'ARM' if 'arm' in str(arch_raw).lower() else 'X86'
+
+    base_url = ESC_PRICING_BASE_URL if is_esc else EC2_PRICING_BASE_URL
+    currency = ESC_CURRENCY if is_esc else 'USD'
+
+    try:
+        # --- On-demand rates ---
+        od_cache_key = f"fargate_od_{region_code}"
+        if od_cache_key not in _service_od_cache:
+            od_url = f"{base_url}/ecs/{currency}/current/ecs.json"
+            od_data = _fetch_pricing_json(od_url)
+            if not od_data:
+                return None
+            region_data = od_data.get('regions', {}).get(region_name, {})
+            _service_od_cache[od_cache_key] = region_data
+        region_data = _service_od_cache[od_cache_key]
+
+        # Find on-demand CPU and memory rates
+        od_cpu_rate = None
+        od_gb_rate = None
+        for k, v in region_data.items():
+            price = v.get('price')
+            if not price:
+                continue
+            kl = k.lower()
+            if arch_name == 'ARM':
+                if 'arm percpu per hour' in kl and 'windows' not in kl:
+                    od_cpu_rate = float(price)
+                elif 'arm pergb per hour' in kl and 'windows' not in kl:
+                    od_gb_rate = float(price)
+            elif os_name == 'Windows':
+                if 'percpu per hour windows' in kl and 'arm' not in kl and 'license' not in kl:
+                    od_cpu_rate = float(price)
+                elif 'pergb per hour windows' in kl and 'arm' not in kl:
+                    od_gb_rate = float(price)
+            else:
+                # x86 Linux: match entries WITHOUT 'arm', 'windows', 'license'
+                if 'percpu per hour' in kl and 'arm' not in kl and 'windows' not in kl and 'license' not in kl:
+                    od_cpu_rate = float(price)
+                elif 'pergb per hour' in kl and 'arm' not in kl and 'windows' not in kl:
+                    od_gb_rate = float(price)
+                    od_gb_rate = float(price)
+
+        if od_cpu_rate is None or od_gb_rate is None:
+            logging.warning(f"Fargate OD rates not found for {region_code}, OS={os_name}, Arch={arch_name}. od_cpu={od_cpu_rate}, od_gb={od_gb_rate}")
+            return None
+
+        # --- Compute SP rates (1yr / No Upfront) ---
+        arch_path = 'ARM' if arch_name == 'ARM' else 'X86'
+        sp_cache_key = f"fargate_sp_{region_code}_{os_name}_{arch_path}"
+        if sp_cache_key not in _service_od_cache:
+            sp_url = (
+                f"{base_url}/computesavingsplan/{currency}/current/"
+                f"compute-savings-plan-fargate-with-arm/1%20year/No%20Upfront/"
+                f"{region_name}/{os_name}/{arch_path}/index.json"
+            )
+            sp_data = _fetch_pricing_json(sp_url)
+            if not sp_data:
+                logging.warning(f"Fargate SP pricing fetch failed. URL: {sp_url}")
+                return None
+            sp_region_data = sp_data.get('regions', {}).get(region_name, {})
+            _service_od_cache[sp_cache_key] = sp_region_data
+        sp_region_data = _service_od_cache[sp_cache_key]
+
+        sp_cpu_rate = None
+        sp_gb_rate = None
+        for k, v in sp_region_data.items():
+            price = v.get('price')
+            if not price:
+                continue
+            kl = k.lower()
+            if 'percpu' in kl:
+                sp_cpu_rate = float(price)
+            elif 'pergb' in kl:
+                sp_gb_rate = float(price)
+
+        if sp_cpu_rate is None or sp_gb_rate is None:
+            logging.warning(f"Fargate SP rates not found for {region_code}, OS={os_name}, Arch={arch_path}. sp_cpu={sp_cpu_rate}, sp_gb={sp_gb_rate}")
+            return None
+
+        # --- Calculate savings ---
+        od_cost = (od_cpu_rate * vcpu * duration + od_gb_rate * memory * duration) * tasks
+        sp_cost = (sp_cpu_rate * vcpu * duration + sp_gb_rate * memory * duration) * tasks
+        monthly_savings = od_cost - sp_cost
+
+        if monthly_savings <= 0:
+            return None
+
+        return {
+            'annual_savings': round(monthly_savings * 12, 2),
+            'plan_type': 'Compute Savings Plan (1yr/No Upfront)',
+            'od_cpu_rate': od_cpu_rate,
+            'od_gb_rate': od_gb_rate,
+            'sp_cpu_rate': sp_cpu_rate,
+            'sp_gb_rate': sp_gb_rate,
+            'od_monthly': round(od_cost, 2),
+            'sp_monthly': round(sp_cost, 2),
+            'vcpu': vcpu,
+            'memory': memory,
+            'tasks': tasks,
+            'duration': duration,
+        }
+    except Exception as e:
+        logging.warning(f"Fargate SP lookup failed for {region_code}: {e}")
+        return None
+
+
+def _get_graviton_savings(svc, od_cache):
+    """Calculate Graviton savings for an EC2 instance by comparing on-demand rates.
+
+    Looks up the Graviton equivalent instance type and computes the annual
+    cost difference.  Uses the same od_cache populated by EC2 SP optimization.
+
+    Returns dict with savings info or None on failure / no savings.
+    """
+    instance_type = svc.get('_graviton_instance_type')
+    region_code = svc.get('_graviton_region', '')
+    current_instance = svc.get('_graviton_current_instance', '')
+    if not instance_type or not region_code or not current_instance:
+        return None
+
+    region_name = REGION_CODE_TO_NAME.get(region_code)
+    if not region_name:
+        return None
+
+    is_esc = (region_code == ESC_REGION_CODE)
+    base_url = ESC_PRICING_BASE_URL if is_esc else EC2_PRICING_BASE_URL
+    currency = ESC_CURRENCY if is_esc else 'USD'
+
+    # Determine OS from the service
+    os_type = svc.get('_ec2_os', 'linux')
+    os_map = {'linux': 'Linux', 'windows': 'Windows'}
+    os_name = os_map.get(os_type.lower(), 'Linux')
+
+    try:
+        od_cache_key = f"{region_code}_{os_name}"
+        if od_cache_key not in od_cache:
+            od_url = f"{base_url}/ec2/{currency}/current/ec2-ondemand-without-sec-sel/{region_name}/{os_name}/index.json"
+            od_data = _fetch_pricing_json(od_url)
+            if not od_data:
+                return None
+            od_cache[od_cache_key] = {
+                v['Instance Type']: float(v['price'])
+                for v in od_data.get('regions', {}).get(region_name, {}).values()
+                if 'Instance Type' in v and v.get('price')
+            }
+
+        rates = od_cache[od_cache_key]
+        current_rate = rates.get(current_instance)
+        graviton_rate = rates.get(instance_type)
+
+        if current_rate is None or graviton_rate is None:
+            return None
+        if graviton_rate >= current_rate:
+            return None
+
+        quantity = svc.get('_ec2_quantity', 1)
+        annual_savings = round((current_rate - graviton_rate) * HOURS_PER_MONTH * quantity * 12, 2)
+
+        if annual_savings <= 0:
+            return None
+
+        return {
+            'annual_savings': annual_savings,
+            'graviton_instance': instance_type,
+        }
+    except Exception as e:
+        logging.warning(f"Graviton lookup failed for {current_instance}->{instance_type} in {region_code}: {e}")
+        return None
+
+
+def _add_advisory_notes(raw_services, od_cache=None, is_esc=False):
+    """Add Fargate Compute SP savings and Graviton savings to services.
+
+    For Fargate services: fetches real on-demand and Compute SP pricing to
+    calculate exact annual savings.
+
+    For EC2 services with non-Graviton instances: looks up the Graviton
+    equivalent on-demand rate and calculates the annual savings.
+
+    Advisory notes are always set regardless of whether pricing lookups succeed.
+    """
+    if od_cache is None:
+        od_cache = {}
+
+    fargate_tasks = []
+    graviton_tasks = []
+
+    for idx, svc in enumerate(raw_services):
+        sc = svc['service_code']
+        cfg = svc.get('config_summary', '')
+
+        # --- Fargate: calculate Compute SP savings ---
+        if sc == 'awsFargate':
+            # Default note — will be enriched with calculation details after SP lookup
+            svc['optimization_note'] = (
+                'Fargate Spot and Compute Savings Plans are currently not supported on the AWS Pricing Calculator. '
+                'Please calculate baseline Fargate costs first, then manually apply the appropriate Savings Plan '
+                'discount rates and adjust the usage quantities in the calculator to reflect the net costs after savings.'
+            )
+            # Only attempt pricing if we have Fargate fields
+            if svc.get('_fargate_region'):
+                fargate_tasks.append(idx)
+
+        # --- Graviton: calculate actual savings ---
+        inst_match = re.search(r'(?:Instance type|Advance EC2 instance|Node type) \(([^)]+)\)', cfg)
+        if inst_match:
+            inst = inst_match.group(1).strip()
+            if inst and '.' in inst:
+                family = inst.split('.')[0]
+                size = inst.split('.', 1)[1]
+                # Skip if already Graviton (family ends with 'g' or 'gd' or 'gn')
+                if family.endswith('g') or family.endswith('gd') or family.endswith('gn'):
+                    continue
+                # Extract numeric generation from family
+                # e.g. m6i -> prefix='m', gen='6', suffix='i' -> graviton: m6g
+                # e.g. r5 -> prefix='r', gen='5', suffix='' -> graviton: r5g
+                # e.g. c5a -> prefix='c', gen='5', suffix='a' -> graviton: c5g
+                gen_match = re.match(r'^([a-z]+)(\d+)([a-z]*)$', family, re.IGNORECASE)
+                if gen_match:
+                    fam_prefix = gen_match.group(1)
+                    fam_gen = gen_match.group(2)
+                    graviton_family = f"{fam_prefix}{fam_gen}g"
+                    graviton_instance = f"{graviton_family}.{size}"
+                    svc['_graviton_instance_type'] = graviton_instance
+                    svc['_graviton_current_instance'] = inst
+                    svc['_graviton_region'] = svc.get('_ec2_region', '') or svc.get('region', '')
+                    # Always set advisory note
+                    svc['graviton_note'] = (
+                        f'Consider migrating from {inst} to Graviton-based {graviton_family} family '
+                        f'for up to 20% better price-performance.'
+                    )
+                    if svc.get('_graviton_region'):
+                        graviton_tasks.append(idx)
+
+    # --- Parallel Fargate SP lookups ---
+    def _lookup_fargate(idx):
+        return idx, _get_fargate_sp_savings(raw_services[idx], is_esc=is_esc)
+
+    if fargate_tasks:
+        with ThreadPoolExecutor(max_workers=min(len(fargate_tasks), 10)) as executor:
+            futures = {executor.submit(_lookup_fargate, i): i for i in fargate_tasks}
+            for future in as_completed(futures):
+                try:
+                    idx, result = future.result()
+                    if result:
+                        raw_services[idx]['ec2_sp_annual_savings'] = result['annual_savings']
+                        raw_services[idx]['ec2_sp_plan_type'] = result['plan_type']
+                        # Enrich the note with calculation example
+                        r = result
+                        currency_sym = '€' if is_esc else '$'
+                        raw_services[idx]['optimization_note'] = (
+                            'Fargate Spot and Compute Savings Plans are currently not supported on the AWS Pricing Calculator. '
+                            'Please calculate baseline Fargate costs first, then manually apply the appropriate Savings Plan '
+                            'discount rates and adjust the usage quantities in the calculator to reflect the net costs after savings.\n\n'
+                            'Calculation example for this service:\n'
+                            f'  On-Demand rates: {currency_sym}{r["od_cpu_rate"]:.4f}/vCPU-hr, {currency_sym}{r["od_gb_rate"]:.6f}/GB-hr\n'
+                            f'  Compute SP rates (1yr No Upfront): {currency_sym}{r["sp_cpu_rate"]:.4f}/vCPU-hr, {currency_sym}{r["sp_gb_rate"]:.6f}/GB-hr\n'
+                            f'  Configuration: {r["vcpu"]:.0f} vCPU, {r["memory"]:.0f} GB memory, {r["tasks"]:.0f} tasks, {r["duration"]:.0f} hrs/month\n\n'
+                            f'  On-Demand monthly cost: {currency_sym}{r["od_monthly"]:,.2f}\n'
+                            f'  Compute SP monthly cost: {currency_sym}{r["sp_monthly"]:,.2f}\n'
+                            f'  Annual savings: {currency_sym}{r["annual_savings"]:,.2f}\n\n'
+                            'How to reflect this in the calculator:\n'
+                            f'  Discount factor: {currency_sym}{r["sp_monthly"]:,.2f} / {currency_sym}{r["od_monthly"]:,.2f} = {r["sp_monthly"] / r["od_monthly"]:.4f}\n'
+                            f'  Adjusted tasks: {r["tasks"]:.0f} tasks x {r["sp_monthly"] / r["od_monthly"]:.4f} = {r["tasks"] * r["sp_monthly"] / r["od_monthly"]:.2f} tasks\n'
+                            f'  Or adjusted duration: {r["duration"]:.0f} hrs x {r["sp_monthly"] / r["od_monthly"]:.4f} = {r["duration"] * r["sp_monthly"] / r["od_monthly"]:.0f} hrs/month\n\n'
+                            f'  Update the calculator with either the adjusted task count or duration to show the effective SP cost of {currency_sym}{r["sp_monthly"]:,.2f}/month '
+                            f'instead of the on-demand cost of {currency_sym}{r["od_monthly"]:,.2f}/month.'
+                        )
+                except Exception as e:
+                    logging.warning(f"Fargate SP future failed: {e}")
+
+    # --- Parallel Graviton lookups ---
+    def _lookup_graviton(idx):
+        return idx, _get_graviton_savings(raw_services[idx], od_cache)
+
+    if graviton_tasks:
+        with ThreadPoolExecutor(max_workers=min(len(graviton_tasks), 10)) as executor:
+            futures = {executor.submit(_lookup_graviton, i): i for i in graviton_tasks}
+            for future in as_completed(futures):
+                try:
+                    idx, result = future.result()
+                    if result:
+                        raw_services[idx]['graviton_savings'] = result['annual_savings']
+                        raw_services[idx]['graviton_note'] = (
+                            f'Consider migrating from {raw_services[idx]["_graviton_current_instance"]} '
+                            f'to Graviton-based {result["graviton_instance"]} — '
+                            f'estimated annual savings: ${result["annual_savings"]:,.2f}.'
+                        )
+                except Exception as e:
+                    logging.warning(f"Graviton future failed: {e}")
 
 
 # ============================================================================
@@ -799,6 +1811,9 @@ def chat_message():
         # Get response
         response = invoke_bedrock_model_without_reasoning(full_prompt)
         
+        if not response:
+            return jsonify({'success': False, 'message': 'No response from model. Please try again.'}), 500
+        
         return jsonify({
             'success': True,
             'response': response,
@@ -815,7 +1830,7 @@ def chat_message():
 
 @map_bp.route('/service-analysis/analyze', methods=['POST'])
 def analyze_service_completeness():
-    """Analyze AWS Calculator CSV for service completeness and infrastructure gaps"""
+    """Analyze AWS Calculator CSV for calculator review and infrastructure gaps"""
     try:
         if 'file' not in request.files:
             return jsonify({'success': False, 'message': 'No file provided'}), 400
@@ -878,8 +1893,15 @@ def analyze_service_completeness():
         # Build the full prompt with CSV data
         full_prompt = f"{custom_prompt}\n\n**AWS Calculator CSV Data:**\n\n{services_summary}"
         
-        # Generate analysis using Bedrock
-        analysis_result = invoke_bedrock_model_without_reasoning(full_prompt)
+        # Generate analysis using Bedrock (Haiku for speed)
+        try:
+            analysis_result = invoke_bedrock_haiku(full_prompt)
+        except Exception as bedrock_err:
+            logging.error(f"Bedrock call failed: {bedrock_err}")
+            return jsonify({'success': False, 'message': 'AI analysis failed. Check backend logs for details.'}), 500
+        
+        if not analysis_result:
+            return jsonify({'success': False, 'message': 'AI analysis failed. Please try again.'}), 500
         
         return jsonify({
             'success': True,
@@ -1076,7 +2098,85 @@ def _get_service_name(service_code, manifest):
             return svc.get('name', service_code)
     return service_code
 
-def _find_outbound_entries(obj):
+def _find_best_ri_rate(ri_rates, instance_type, prefix='db.'):
+    """Find the best (cheapest) RI rate for an instance type, including Graviton equivalents.
+    
+    For managed services, Graviton instances offer better price-performance with no
+    application changes needed. This function finds the cheapest matching instance
+    across same family letter, same size, same or newer generation.
+    
+    e.g. db.m5.4xlarge matches: db.m5.4xlarge, db.m6g.4xlarge, db.m7g.4xlarge
+    e.g. cache.r6g.xlarge matches: cache.r6g.xlarge, cache.r7g.xlarge
+    """
+    # Parse the current instance type
+    clean = instance_type.replace(prefix, '')
+    parts = clean.split('.')
+    if len(parts) != 2:
+        # Try without prefix (for OpenSearch: c7g.12xlarge.search)
+        parts = instance_type.split('.')
+        if len(parts) < 2:
+            return ri_rates.get(instance_type), instance_type
+    
+    family = parts[0]
+    size = '.'.join(parts[1:])  # Handle multi-dot sizes like "12xlarge.search"
+    
+    # Extract family letter, generation, spec from family
+    # e.g. m5 -> letter=m, gen=5, spec=''
+    # e.g. m6g -> letter=m, gen=6, spec='g'
+    # e.g. r6i -> letter=r, gen=6, spec='i'
+    fam_match = re.match(r'^([a-z]+)(\d+)([a-z]*)$', family, re.IGNORECASE)
+    if not fam_match:
+        return ri_rates.get(instance_type), instance_type
+    
+    fam_letter = fam_match.group(1)
+    fam_gen = int(fam_match.group(2))
+    fam_spec = fam_match.group(3)
+    
+    # Find all matching instances in RI rates
+    best_rate = None
+    best_instance = None
+    
+    for ri_inst, ri_price in ri_rates.items():
+        ri_clean = ri_inst.replace(prefix, '')
+        ri_parts = ri_clean.split('.')
+        if len(ri_parts) < 2:
+            ri_parts = ri_inst.split('.')
+            if len(ri_parts) < 2:
+                continue
+        
+        ri_family = ri_parts[0]
+        ri_size = '.'.join(ri_parts[1:])
+        
+        # Size must match exactly
+        if ri_size != size:
+            continue
+        
+        ri_fam_match = re.match(r'^([a-z]+)(\d+)([a-z]*)$', ri_family, re.IGNORECASE)
+        if not ri_fam_match:
+            continue
+        
+        ri_letter = ri_fam_match.group(1)
+        ri_gen = int(ri_fam_match.group(2))
+        ri_spec = ri_fam_match.group(3)
+        
+        # Family letter must match
+        if ri_letter != fam_letter:
+            continue
+        
+        # Generation must be same or newer
+        if ri_gen < fam_gen:
+            continue
+        
+        # Accept: same spec, or Graviton (spec='g') when current has no spec or different spec
+        if ri_spec == fam_spec or ri_spec == 'g' or (ri_spec == '' and fam_spec == ''):
+            if best_rate is None or ri_price < best_rate:
+                best_rate = ri_price
+                best_instance = ri_inst
+    
+    return best_rate, best_instance
+
+
+
     """Recursively find all OUTBOUND data transfer entries."""
     results = []
     if isinstance(obj, list):
@@ -1097,13 +2197,36 @@ DT_REGION_TO_LOCATION = {
     'eu-central-1': 'EU (Frankfurt)', 'eu-central-2': 'EU (Zurich)',
     'eu-west-1': 'EU (Ireland)', 'eu-west-2': 'EU (London)',
     'eu-west-3': 'EU (Paris)', 'eu-north-1': 'EU (Stockholm)',
-    'eu-south-1': 'EU (Milan)', 'ap-south-1': 'Asia Pacific (Mumbai)',
+    'eu-south-1': 'EU (Milan)', 'eu-south-2': 'EU (Spain)',
+    'ap-south-1': 'Asia Pacific (Mumbai)', 'ap-south-2': 'Asia Pacific (Hyderabad)',
     'ap-northeast-1': 'Asia Pacific (Tokyo)', 'ap-northeast-2': 'Asia Pacific (Seoul)',
+    'ap-northeast-3': 'Asia Pacific (Osaka)',
     'ap-southeast-1': 'Asia Pacific (Singapore)', 'ap-southeast-2': 'Asia Pacific (Sydney)',
-    'ca-central-1': 'Canada (Central)', 'sa-east-1': 'South America (Sao Paulo)',
+    'ap-southeast-3': 'Asia Pacific (Jakarta)', 'ap-southeast-4': 'Asia Pacific (Melbourne)',
+    'ap-southeast-5': 'Asia Pacific (Malaysia)', 'ap-southeast-7': 'Asia Pacific (Thailand)',
+    'ca-central-1': 'Canada (Central)', 'ca-west-1': 'Canada West (Calgary)',
+    'sa-east-1': 'South America (Sao Paulo)',
     'ap-east-1': 'Asia Pacific (Hong Kong)', 'me-south-1': 'Middle East (Bahrain)',
-    'af-south-1': 'Africa (Cape Town)', 'eusc-de-east-1': 'AWS European Sovereign Cloud (Germany)',
+    'me-central-1': 'Middle East (UAE)',
+    'af-south-1': 'Africa (Cape Town)', 'il-central-1': 'Israel (Tel Aviv)',
+    'mx-central-1': 'Mexico (Central)', 'ap-southeast-6': 'Asia Pacific (Taipei)',
+    'eusc-de-east-1': 'AWS European Sovereign Cloud (Germany)',
 }
+
+def _find_outbound_entries(obj):
+    """Recursively find all OUTBOUND data transfer entries."""
+    results = []
+    if isinstance(obj, list):
+        for item in obj:
+            if isinstance(item, dict) and item.get('entryType') == 'OUTBOUND':
+                results.append(item)
+            else:
+                results.extend(_find_outbound_entries(item))
+    elif isinstance(obj, dict):
+        for v in obj.values():
+            results.extend(_find_outbound_entries(v))
+    return results
+
 
 def _calculate_outbound_dt_cost(service_data):
     """Calculate outbound data transfer cost using real AWS pricing data."""
@@ -1331,6 +2454,25 @@ def analyze_calculator_url():
                                     'arr': excluded * 12
                                 })
 
+                            # Fargate details from calculationComponents
+                            fargate_os = None
+                            fargate_arch = None
+                            fargate_duration = 0
+                            fargate_vcpu = 0
+                            fargate_tasks = 0
+                            fargate_memory = 0
+                            fargate_region = ''
+
+                            if svc_code == 'awsFargate':
+                                cc = sub.get('calculationComponents', {})
+                                fargate_os = cc.get('operatingSystem', {}).get('value', 'linux')
+                                fargate_arch = cc.get('selectArchitecture', {}).get('value', 'x86')
+                                fargate_duration = float(cc.get('taskDuration', {}).get('value', 730))
+                                fargate_vcpu = float(cc.get('vcpuPerTask', {}).get('value', 1))
+                                fargate_tasks = float(cc.get('numberOfTasks', {}).get('value', 1))
+                                fargate_memory = float(cc.get('memoryStandardFargateOnDemand', {}).get('value', 2))
+                                fargate_region = region
+
                             raw_services.append({
                                 'service_name': parent_name or svc_code,
                                 'service_code': svc_code,
@@ -1350,6 +2492,16 @@ def analyze_calculator_url():
                                 '_ec2_is_ondemand': ec2_is_ondemand,
                                 '_ec2_full_util': ec2_full_util,
                                 '_ec2_region': region,
+                                '_ebs_storage_type': sub.get('calculationComponents', {}).get('storageType', {}).get('value', ''),
+                                '_ebs_storage_amount': float(sub.get('calculationComponents', {}).get('storageAmount', {}).get('value', 0) or 0),
+                                '_ebs_storage_iops': float(sub.get('calculationComponents', {}).get('storageIOPS', {}).get('value', 0) or 0),
+                                '_fargate_os': fargate_os,
+                                '_fargate_arch': fargate_arch,
+                                '_fargate_duration': fargate_duration,
+                                '_fargate_vcpu': fargate_vcpu,
+                                '_fargate_tasks': fargate_tasks,
+                                '_fargate_memory': fargate_memory,
+                                '_fargate_region': fargate_region,
                             })
                     else:
                         # Single service
@@ -1408,6 +2560,25 @@ def analyze_calculator_url():
                                 'arr': excluded * 12
                             })
 
+                        # Fargate details from calculationComponents
+                        fargate_os = None
+                        fargate_arch = None
+                        fargate_duration = 0
+                        fargate_vcpu = 0
+                        fargate_tasks = 0
+                        fargate_memory = 0
+                        fargate_region = ''
+
+                        if svc_code == 'awsFargate':
+                            cc = service_data.get('calculationComponents', {})
+                            fargate_os = cc.get('operatingSystem', {}).get('value', 'linux')
+                            fargate_arch = cc.get('selectArchitecture', {}).get('value', 'x86')
+                            fargate_duration = float(cc.get('taskDuration', {}).get('value', 730))
+                            fargate_vcpu = float(cc.get('vcpuPerTask', {}).get('value', 1))
+                            fargate_tasks = float(cc.get('numberOfTasks', {}).get('value', 1))
+                            fargate_memory = float(cc.get('memoryStandardFargateOnDemand', {}).get('value', 2))
+                            fargate_region = region
+
                         raw_services.append({
                             'service_name': svc_name,
                             'service_code': svc_code,
@@ -1427,6 +2598,16 @@ def analyze_calculator_url():
                             '_ec2_is_ondemand': ec2_is_ondemand,
                             '_ec2_full_util': ec2_full_util,
                             '_ec2_region': region,
+                            '_ebs_storage_type': service_data.get('calculationComponents', {}).get('storageType', {}).get('value', ''),
+                            '_ebs_storage_amount': float(service_data.get('calculationComponents', {}).get('storageAmount', {}).get('value', 0) or 0),
+                            '_ebs_storage_iops': float(service_data.get('calculationComponents', {}).get('storageIOPS', {}).get('value', 0) or 0),
+                            '_fargate_os': fargate_os,
+                            '_fargate_arch': fargate_arch,
+                            '_fargate_duration': fargate_duration,
+                            '_fargate_vcpu': fargate_vcpu,
+                            '_fargate_tasks': fargate_tasks,
+                            '_fargate_memory': fargate_memory,
+                            '_fargate_region': fargate_region,
                         })
                 except Exception as e:
                     logging.warning(f"Error processing service {resource_id}: {e}")
@@ -1470,13 +2651,26 @@ def analyze_calculator_url():
                     except Exception as e:
                         logging.warning(f"EC2 SP future failed: {e}")
 
+        # RI optimization for RDS, Redshift, ElastiCache, OpenSearch
+        _run_ri_optimization(raw_services, use_region_code=True)
+
+        # EBS storage optimization (gp2→gp3, io1→io2)
+        _run_ebs_optimization(raw_services)
+
+        # Fargate and Graviton advisory notes
+        _add_advisory_notes(raw_services, od_cache=od_cache, is_esc=is_esc)
+
         # Set defaults and clean up internal fields
         for svc in raw_services:
             svc.setdefault('ec2_sp_annual_savings', 0)
             svc.setdefault('ec2_sp_hourly_rate', 0)
             svc.setdefault('ec2_sp_plan_type', '')
+            svc.setdefault('graviton_savings', 0)
+            svc.setdefault('ebs_savings', 0)
+            svc.setdefault('ebs_plan_type', '')
+            svc.setdefault('ebs_detail', '')
             for key in list(svc.keys()):
-                if key.startswith('_ec2_'):
+                if key.startswith('_ec2_') or key.startswith('_fargate_') or key.startswith('_graviton_') or key.startswith('_ebs_'):
                     del svc[key]
 
         # Aggregate by service_code
@@ -1492,19 +2686,47 @@ def analyze_calculator_url():
                 aggregated[key]['monthly_always_excluded'] = 0
                 aggregated[key]['ec2_sp_annual_savings'] = 0
                 aggregated[key]['ec2_sp_hourly_rate'] = 0
+                aggregated[key]['optimization_details'] = []
+                aggregated[key]['graviton_savings'] = 0
+                aggregated[key]['ebs_savings'] = 0
+                aggregated[key]['ebs_plan_type'] = ''
+                aggregated[key]['ebs_detail'] = ''
             agg = aggregated[key]
             agg['monthly_cost'] += svc['monthly_cost']
             agg['upfront_cost'] += svc['upfront_cost']
             agg['map_qualified_mrr'] += svc['map_qualified_mrr']
             agg['monthly_always_excluded'] += svc['monthly_always_excluded']
             agg['ec2_sp_annual_savings'] += svc['ec2_sp_annual_savings']
+            agg['graviton_savings'] += svc.get('graviton_savings', 0)
+            agg['ebs_savings'] = agg.get('ebs_savings', 0) + svc.get('ebs_savings', 0)
+            if svc.get('ebs_detail') and svc.get('ebs_savings', 0) > 0:
+                existing = agg.get('ebs_detail', '')
+                agg['ebs_detail'] = (existing + '; ' + svc['ebs_detail']) if existing else svc['ebs_detail']
+                if not agg.get('ebs_plan_type'):
+                    agg['ebs_plan_type'] = svc.get('ebs_plan_type', '')
             if svc['ec2_sp_hourly_rate'] > agg['ec2_sp_hourly_rate']:
                 agg['ec2_sp_hourly_rate'] = svc['ec2_sp_hourly_rate']
             if svc['ec2_sp_plan_type'] and not agg['ec2_sp_plan_type']:
                 agg['ec2_sp_plan_type'] = svc['ec2_sp_plan_type']
+            # Collect per-instance optimization details for the report
+            if svc.get('ec2_sp_annual_savings', 0) > 0:
+                agg['optimization_details'].append({
+                    'service_name': svc['service_name'],
+                    'description': svc.get('description', ''),
+                    'region': svc.get('region', ''),
+                    'config_summary': svc.get('config_summary', ''),
+                    'monthly_cost': svc['monthly_cost'],
+                    'ec2_sp_annual_savings': svc['ec2_sp_annual_savings'],
+                    'ec2_sp_hourly_rate': svc.get('ec2_sp_hourly_rate', 0),
+                    'ec2_sp_plan_type': svc.get('ec2_sp_plan_type', ''),
+                })
             agg['line_item_count'] += 1
             if not agg.get('config_summary') and svc.get('config_summary'):
                 agg['config_summary'] = svc['config_summary']
+            if svc.get('optimization_note') and not agg.get('optimization_note'):
+                agg['optimization_note'] = svc['optimization_note']
+            if svc.get('graviton_note') and not agg.get('graviton_note'):
+                agg['graviton_note'] = svc['graviton_note']
 
         services = list(aggregated.values())
 
@@ -1571,7 +2793,7 @@ def analyze_calculator_url():
 
 
 # ============================================================================
-# SERVICE COMPLETENESS ANALYSIS ENDPOINTS
+# CALCULATOR REVIEW ENDPOINTS
 # ============================================================================
 
 @map_bp.route('/service-completeness/analyze-calculator', methods=['POST'])
@@ -1844,11 +3066,27 @@ def analyze_calculator_csv():
                     except Exception as e:
                         logging.warning(f"EC2 SP future failed: {e}")
 
-        # Ensure all raw services have SP fields
+        # RI optimization for RDS, Redshift, ElastiCache, OpenSearch
+        _run_ri_optimization(raw_services, use_region_code=False)
+
+        # EBS storage optimization (gp2→gp3, io1→io2)
+        _run_ebs_optimization(raw_services)
+
+        # Fargate and Graviton advisory notes
+        _add_advisory_notes(raw_services, od_cache=od_cache)
+
+        # Ensure all raw services have SP fields and clean up internal fields
         for svc in raw_services:
             svc.setdefault('ec2_sp_annual_savings', 0)
             svc.setdefault('ec2_sp_hourly_rate', 0)
             svc.setdefault('ec2_sp_plan_type', '')
+            svc.setdefault('graviton_savings', 0)
+            svc.setdefault('ebs_savings', 0)
+            svc.setdefault('ebs_plan_type', '')
+            svc.setdefault('ebs_detail', '')
+            for key in list(svc.keys()):
+                if key.startswith('_ec2_') or key.startswith('_fargate_') or key.startswith('_graviton_') or key.startswith('_ebs_'):
+                    del svc[key]
 
         # ----------------------------------------------------------------
         # Aggregate services by service_code (case-insensitive)
@@ -1868,6 +3106,10 @@ def analyze_calculator_csv():
                     'ec2_sp_annual_savings': 0,
                     'ec2_sp_hourly_rate': 0,
                     'ec2_sp_plan_type': '',
+                    'graviton_savings': 0,
+                    'ebs_savings': 0,
+                    'ebs_plan_type': '',
+                    'ebs_detail': '',
                     'region': svc['region'],
                     'group': svc['group'],
                     'modernization_pathway': svc['modernization_pathway'],
@@ -1875,6 +3117,7 @@ def analyze_calculator_csv():
                     'config_summary': svc['config_summary'],
                     'description': svc['description'],
                     'line_item_count': 0,
+                    'optimization_details': [],
                 }
             agg = aggregated[key]
             agg['monthly_cost'] += svc['monthly_cost']
@@ -1882,14 +3125,36 @@ def analyze_calculator_csv():
             agg['map_qualified_mrr'] += svc['map_qualified_mrr']
             agg['monthly_always_excluded'] += svc['monthly_always_excluded']
             agg['ec2_sp_annual_savings'] += svc['ec2_sp_annual_savings']
+            agg['graviton_savings'] += svc.get('graviton_savings', 0)
+            agg['ebs_savings'] = agg.get('ebs_savings', 0) + svc.get('ebs_savings', 0)
+            if svc.get('ebs_detail') and svc.get('ebs_savings', 0) > 0:
+                existing = agg.get('ebs_detail', '')
+                agg['ebs_detail'] = (existing + '; ' + svc['ebs_detail']) if existing else svc['ebs_detail']
+                if not agg.get('ebs_plan_type'):
+                    agg['ebs_plan_type'] = svc.get('ebs_plan_type', '')
             # Keep highest SP hourly rate for display
             if svc['ec2_sp_hourly_rate'] > agg['ec2_sp_hourly_rate']:
                 agg['ec2_sp_hourly_rate'] = svc['ec2_sp_hourly_rate']
             if svc['ec2_sp_plan_type'] and not agg['ec2_sp_plan_type']:
                 agg['ec2_sp_plan_type'] = svc['ec2_sp_plan_type']
+            if svc.get('ec2_sp_annual_savings', 0) > 0:
+                agg['optimization_details'].append({
+                    'service_name': svc['service_name'],
+                    'description': svc.get('description', ''),
+                    'region': svc.get('region', ''),
+                    'config_summary': svc.get('config_summary', ''),
+                    'monthly_cost': svc['monthly_cost'],
+                    'ec2_sp_annual_savings': svc['ec2_sp_annual_savings'],
+                    'ec2_sp_hourly_rate': svc.get('ec2_sp_hourly_rate', 0),
+                    'ec2_sp_plan_type': svc.get('ec2_sp_plan_type', ''),
+                })
             agg['line_item_count'] += 1
             if not agg['config_summary'] and svc['config_summary']:
                 agg['config_summary'] = svc['config_summary']
+            if svc.get('optimization_note') and not agg.get('optimization_note'):
+                agg['optimization_note'] = svc['optimization_note']
+            if svc.get('graviton_note') and not agg.get('graviton_note'):
+                agg['graviton_note'] = svc['graviton_note']
 
         services = list(aggregated.values())
         # ----------------------------------------------------------------

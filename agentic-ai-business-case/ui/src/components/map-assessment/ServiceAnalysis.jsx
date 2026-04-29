@@ -22,7 +22,7 @@ import { getApiUrl } from '../../utils/apiConfig.js';
 import { useMapAssessment } from '../../contexts/MapAssessmentContext.jsx';
 
 // The comprehensive service analysis prompt
-const SERVICE_ANALYSIS_PROMPT = `I need you to analyze an AWS Pricing Calculator CSV file for a cloud migration and provide a comprehensive service completeness analysis and gap identification.
+const SERVICE_ANALYSIS_PROMPT = `I need you to analyze an AWS Pricing Calculator CSV file for a cloud migration and provide a comprehensive calculator review and gap identification.
 
 **Context:**
 - This is a cloud migration infrastructure assessment
@@ -333,7 +333,7 @@ function ServiceAnalysis() {
                   <SpaceBetween size="l">
                     <FormField
                       label="AWS Pricing Calculator CSV"
-                      description="Upload your AWS Calculator export file for comprehensive service completeness analysis"
+                      description="Upload your AWS Calculator export file for comprehensive calculator review"
                     >
                       <FileUpload
                         value={calculatorFile}

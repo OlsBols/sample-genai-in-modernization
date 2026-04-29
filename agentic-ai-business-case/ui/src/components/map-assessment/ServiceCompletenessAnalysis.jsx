@@ -25,148 +25,49 @@ import remarkGfm from 'remark-gfm';
 import { getApiUrl } from '../../utils/apiConfig.js';
 import { useMapAssessment } from '../../contexts/MapAssessmentContext.jsx';
 
-const SERVICE_ANALYSIS_PROMPT = `I need you to analyze an AWS Pricing Calculator CSV file for a cloud migration and provide a comprehensive service completeness analysis and gap identification.
+const SERVICE_ANALYSIS_PROMPT = `Analyze this AWS Pricing Calculator CSV for a cloud migration. Identify missing services across 6 categories. Be concise — no repetition between sections.
 
-**Context:**
-- This is a cloud migration infrastructure assessment
-- Customers typically underestimate non-compute infrastructure by 10x
-- We need to identify missing services across 6 critical categories to ensure production-ready, well-architected solutions
+**ANALYSIS RULES**
+- Benchmark: 56% compute, 44% non-compute for production-ready infrastructure
+- If ANY backup service is present (DynamoDB Backup, Aurora Backup, RDS Backup, etc.), do NOT flag backup as missing
+- Only flag services that are genuinely absent — do not flag services that can be inferred from what's present
+- Skip categories where nothing is missing
 
-**Analysis Required:**
+**6 CATEGORIES TO CHECK**
 
-1. **INFRASTRUCTURE VALIDATION**
-- Extract and calculate total infrastructure costs from the CSV
-- Break down costs by service category:
-  * Compute (EC2, Fargate, Lambda, etc.)
-  * Storage (S3, EBS, EFS, FSx, etc.)
-  * Database (RDS, Aurora, DynamoDB, etc.)
-  * Network (ALB, NLB, CloudFront, Route 53, Data Transfer, etc.)
-  * Security (KMS, WAF, GuardDuty, Secrets Manager, etc.)
-  * Monitoring (CloudWatch, CloudTrail, X-Ray, etc.)
-- Calculate compute vs non-compute ratio
-- Compare against production-ready benchmark (56% compute, 44% non-compute)
+1. **Backup & Recovery** (2-3%): AWS Backup, EBS snapshots, S3 Glacier, cross-region replication
+2. **Storage** (25-30%): S3 tiers, EFS, FSx, Storage Gateway, EBS
+3. **DR/HA** (1-2%): Multi-AZ, cross-region replication, Elastic DR, Route 53 health checks
+4. **Network** (10-15%): ALB/NLB, CloudFront, Route 53, Transit GW, Direct Connect, VPN, Data Transfer, NAT GW, Public IPv4
+5. **Observability** (2-4%): CloudWatch, CloudTrail, X-Ray, VPC Flow Logs, Config, Systems Manager
+6. **Security** (2-4%): KMS, WAF, Shield, GuardDuty, Security Hub, Secrets Manager, Network Firewall
 
-2. **GAP ANALYSIS - 6 CRITICAL CATEGORIES**
+**OUTPUT — 4 sections:**
 
-**Category 1: Backup & Recovery**
-- Check for: AWS Backup services (including EFS Backup, VMware Backup, Timestream Backup, Storage Gateway Backup, FSx Backup, S3 Backup, Redshift Backup, RDS Backup, EBS Backup, DynamoDB Backup, Aurora Backup, Neptune Backup, DocumentDB Backup, SAP HANA Backup, Aurora DSQL Backup), EBS snapshots, S3 Glacier, cross-region backup replication
-- IMPORTANT: If ANY of these backup services are present (DynamoDB Backup, Aurora Backup, RDS Backup, etc.), AWS Backup IS included - do NOT flag as missing
-- Common gap: Customers plan database compute but forget backup storage
-- Expected: 2-3% of total infrastructure costs
-- Questions: "What's your backup retention policy? Do you need cross-region backups?"
+**1. COST BREAKDOWN**
+One compact table: Category | Annual Cost | % of Total
+Then one line: Compute/Non-Compute ratio vs 56/44 benchmark. Assessment status (Complete / Incomplete / Needs Review).
 
-**Category 2: Storage Infrastructure**
-- Check for: S3 (all tiers), EFS, FSx (Windows/Lustre/NetApp/OpenZFS), Storage Gateway, EBS volumes
-- Common gap: Customers plan S3 Standard but miss FSx, Storage Gateway, S3 Intelligent-Tiering
-- Expected: 25-30% of total infrastructure costs
-- Questions: "Do you have Windows file shares? Need hybrid storage connectivity?"
+**2. SERVICE GAP ANALYSIS BY CATEGORY**
+For each category where gaps exist (skip categories that are complete):
+- **Status**: Complete / Partial / Missing
+- **Services Found**: list what IS in the calculator
+- **Services Missing**: list what is NOT, with estimated annual cost per missing service
+- **Question to Ask Customer**: one key question
 
-**Category 3: DR/HA Configuration**
-- Check for: Multi-AZ deployments, cross-region replication, Elastic Disaster Recovery, Route 53 health checks
-- Common gap: Customers plan single-region only, no DR orchestration
-- Expected: 1-2% of total infrastructure costs
-- Questions: "What's your RTO/RPO? Need disaster recovery in another region?"
+Keep each category to 4-5 lines max. Do not repeat the same services across categories.
 
-**Category 4: Network Services**
-- Check for: ALB/NLB, CloudFront, Route 53, Transit Gateway, Direct Connect, VPN, Data Transfer, Public IPv4, NAT Gateway, Network Firewall
-- Common gap: Customers plan load balancers but miss CDN, DNS, data transfer costs, IPv4 addressing
-- Expected: 10-15% of total infrastructure costs
-- Questions: "Do you serve content globally? How much outbound traffic? How many public IPs? Even though CCOE/central team is managing networking, the increase in traffic wrt NAT Gateway, Transit Gateway Attachment should be included, isn't it?"
+**3. MISSING SERVICES SUMMARY**
+Single prioritized table — consolidates all gaps from section 2:
+| Priority | Missing Service | Category | Est. Annual Cost | Question to Ask Customer |
 
-**Category 5: Observability & Monitoring**
-- Check for: CloudWatch (metrics, logs, alarms), CloudTrail, X-Ray, VPC Flow Logs, Config, Systems Manager
-- Common gap: Customers assume monitoring is "free" or "included"
-- Expected: 2-4% of total infrastructure costs
-- Questions: "What monitoring tools do you use today? Need audit logging for compliance? Even if 3rd party tools are going to be used, are they not integrated by using cloudwatch & Kinesis which means you need to hold data for short duration in AWS monitoring services?"
+**4. RED FLAGS & ESTIMATED GAP**
+Bullet list of red flags found (e.g., no backup, no CDN, security <1%, compute >80%). Only list flags that actually apply — do not list flags that don't apply.
+Then two lines: Conservative and Realistic additional annual cost estimates.
 
-**Category 6: Security & Compliance**
-- Check for: KMS, WAF, Shield, GuardDuty, Security Hub, Secrets Manager, Certificate Manager, Network Firewall, Macie
-- Common gap: Customers include only KMS, miss application-layer security and credential management
-- Expected: 2-4% of total infrastructure costs
-- Questions: "What compliance frameworks apply? How do you manage secrets/credentials? How about encryption at rest and encryption in transit & certificate management?"
+Do NOT include separate recommendations or next steps sections — the gap analysis and questions already provide actionable guidance.
 
-3. **OUTPUT FORMAT**
-
-Provide the analysis in this structure:
-
-**A. INFRASTRUCTURE COMPLETENESS SUMMARY**
-\`\`\`
-Total Annual Infrastructure Cost: $XXX,XXX
-Breakdown:
-- Compute: $XXX,XXX (XX%)
-- Storage: $XXX,XXX (XX%)
-- Database: $XXX,XXX (XX%)
-- Network: $XXX,XXX (XX%)
-- Security: $XXX,XXX (XX%)
-- Monitoring: $XXX,XXX (XX%)
-
-Compute vs Non-Compute Ratio: XX% / XX%
-Production-Ready Benchmark: 56% / 44%
-Assessment: [Complete / Incomplete / Needs Review]
-\`\`\`
-
-**B. SERVICE GAP ANALYSIS BY CATEGORY**
-
-For each of the 6 categories, provide:
-\`\`\`
-Category: [Name]
-Status: [Complete / Partial / Missing]
-Current Cost: $XXX,XXX (XX% of total)
-Expected Cost: $XXX,XXX (XX% of total)
-Gap: $XXX,XXX
-Services Found: [List]
-Services Missing: [List with estimated cost impact]
-Priority: [High / Medium / Low]
-Questions to Ask Customer: [Specific questions]
-\`\`\`
-
-**C. MISSING SERVICES SUMMARY**
-
-Create a prioritized table:
-| Priority | Service | Category | Estimated Cost | Why It's Missing | Questions to Ask |
-|----------|---------|----------|----------------|------------------|------------------|
-| HIGH     | ...     | ...      | $XX,XXX        | ...              | ...              |
-
-**D. RECOMMENDATIONS**
-
-Provide specific, actionable recommendations:
-1. Immediate Actions (High Priority)
-2. Secondary Review (Medium Priority)
-3. Future Consideration (Low Priority)
-
-**E. ESTIMATED ADDITIONAL INFRASTRUCTURE NEEDED**
-\`\`\`
-Conservative Estimate: $XXX,XXX - $XXX,XXX/year
-Realistic Estimate: $XXX,XXX - $XXX,XXX/year
-\`\`\`
-
-**F. COMPLETENESS RED FLAGS**
-
-List any red flags found:
-- No backup services (check for ANY service ending in "Backup" like DynamoDB Backup, Aurora Backup, RDS Backup, etc.)
-- No CDN for web applications
-- Security services <1% of total costs
-- etc.
-
-**G. NEXT STEPS**
-
-Provide 5-7 specific action items for engaging with the customer.
-
-4. **KEY COMPLETENESS CHECKS**
-
-Flag these red flags:
-- No backup services (check for: AWS Backup, DynamoDB Backup, Aurora Backup, RDS Backup, EBS Backup, or any other *Backup service - if ANY are present, backup IS included)
-- No CDN (CloudFront) for web applications
-- No DNS service (Route 53)
-- No WAF for web applications
-- No Secrets Manager for credential management
-- No CloudTrail for audit logging
-- Data transfer costs seem too low (<5% of total)
-- Security services <1% of total costs
-- No monitoring beyond basic CloudWatch
-- Compute >80% of total (non-compute severely underestimated)
-
-**Please analyze the provided CSV data and provide the complete analysis following this format.**`;
+Analyze the CSV data below.`;
 
 function ServiceCompletenessAnalysis() {
   const {
@@ -379,47 +280,76 @@ function ServiceCompletenessAnalysis() {
   const handleDownloadOptimizationReport = () => {
     if (!calculatorData) return;
     const services = calculatorData.services || [];
-    const optimizableServices = services.filter(s => s.ec2_sp_annual_savings > 0);
-    if (optimizableServices.length === 0) return;
+    
+    // Collect all per-instance optimization details from aggregated services
+    const allDetails = [];
+    services.forEach(s => {
+      // SP/RI optimization details
+      if (s.optimization_details && s.optimization_details.length > 0) {
+        s.optimization_details.forEach(d => allDetails.push(d));
+      } else if (s.ec2_sp_annual_savings > 0) {
+        allDetails.push(s);
+      }
+      // EBS optimization details
+      if (s.ebs_savings > 0) {
+        allDetails.push({
+          service_name: s.service_name + ' (EBS)',
+          description: s.ebs_detail || 'EBS storage optimization',
+          region: s.region || '-',
+          config_summary: '',
+          monthly_cost: s.ebs_savings / 12,
+          ec2_sp_annual_savings: s.ebs_savings,
+          ec2_sp_hourly_rate: 0,
+          ec2_sp_plan_type: s.ebs_plan_type || 'EBS gp2 \u2192 gp3 migration',
+        });
+      }
+    });
+    
+    if (allDetails.length === 0) return;
 
-    const parseConfigSummary = (config, field) => {
+    const parseCS = (config, field) => {
       if (!config) return '-';
-      const match = config.match(new RegExp(`${field}\\s*\\(([^)]+)\\)`));
+      const match = config.match(new RegExp(field + '\\s*\\(([^)]+)\\)'));
       return match ? match[1] : '-';
     };
 
-    const currencySymbol = calculatorData.is_esc ? '€' : '$';
+    const sym = calculatorData.is_esc ? '\u20ac' : '$';
     const headers = [
       'Service Name', 'Description', 'Region',
       'Instance Type', 'Operating System',
-      `Monthly Cost (${currencySymbol})`, `Annual SP Savings (${currencySymbol})`,
-      `SP Hourly Rate (${currencySymbol})`, 'Plan Type'
+      'Monthly Cost (' + sym + ')', 'Annual Savings (' + sym + ')',
+      'Optimized Hourly Rate (' + sym + ')', 'Plan Type'
     ];
 
-    const rows = optimizableServices.map(s => [
-      s.service_name?.trim() || '-',
-      s.description || '-',
-      s.region || '-',
-      parseConfigSummary(s.config_summary, 'Advance EC2 instance'),
-      parseConfigSummary(s.config_summary, 'Operating system'),
-      s.monthly_cost?.toFixed(2) || '0.00',
-      s.ec2_sp_annual_savings?.toFixed(2) || '0.00',
-      s.ec2_sp_hourly_rate?.toFixed(5) || '0.00000',
-      s.ec2_sp_plan_type || '-'
-    ]);
+    const rows = allDetails.map(s => {
+      let instType = parseCS(s.config_summary, 'Advance EC2 instance');
+      if (instType === '-') instType = parseCS(s.config_summary, 'Instance [Tt]ype');
+      if (instType === '-') instType = parseCS(s.config_summary, 'Node [Tt]ype');
+      return [
+        s.service_name || '-',
+        s.description || '-',
+        s.region || '-',
+        instType,
+        parseCS(s.config_summary, 'Operating system'),
+        (s.monthly_cost || 0).toFixed(2),
+        (s.ec2_sp_annual_savings || 0).toFixed(2),
+        (s.ec2_sp_hourly_rate || 0).toFixed(5),
+        s.ec2_sp_plan_type || '-'
+      ];
+    });
 
-    const totalSavings = optimizableServices.reduce((sum, s) => sum + (s.ec2_sp_annual_savings || 0), 0);
+    const totalSavings = allDetails.reduce((sum, s) => sum + (s.ec2_sp_annual_savings || 0), 0);
     rows.push(['TOTAL', '', '', '', '', '', totalSavings.toFixed(2), '', '']);
 
     const csvContent = [headers, ...rows]
-      .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      .map(row => row.map(cell => '"' + String(cell).replace(/"/g, '""') + '"').join(','))
       .join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'ec2_savings_plan_optimization_report.csv';
+    a.download = 'optimization_report.csv';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -465,10 +395,13 @@ function ServiceCompletenessAnalysis() {
 
     // SP savings
     const totalSPSavings = services.reduce((sum, s) => sum + (s.ec2_sp_annual_savings || 0), 0);
-    const totalDeductions = totalExcluded + totalSPSavings;
+    const totalEbsSavings = services.reduce((sum, s) => sum + (s.ebs_savings || 0), 0);
+    const totalOptSavings = totalSPSavings + totalEbsSavings;
+    const totalDeductions = totalExcluded + totalOptSavings;
     const qualifiedARR = annualARRBeforeExclusions - totalDeductions;
-    const nonOptimizedPct = totalARR > 0 ? (totalSPSavings / totalARR) * 100 : 0;
-    const optimizableCount = services.filter(s => s.ec2_sp_annual_savings > 0).length;
+    const nonOptimizedPct = totalARR > 0 ? (totalOptSavings / totalARR) * 100 : 0;
+    const optimizableCount = services.filter(s => s.ec2_sp_annual_savings > 0 || s.ebs_savings > 0).length;
+    const ebsOptCount = services.filter(s => s.ebs_savings > 0).length;
 
     // Group excluded by type
     const excludedByType = {};
@@ -517,10 +450,10 @@ function ServiceCompletenessAnalysis() {
                   <span style={{ fontWeight: 'bold', fontStyle: 'italic', textDecoration: 'underline' }}>Non-Optimized ARR</span>
                 </Box>
                 <Box fontSize="heading-l" fontWeight="bold" color="text-status-error">
-                  ({formatCurrency(totalSPSavings)})
+                  ({formatCurrency(totalOptSavings)})
                 </Box>
                 <Box variant="small" color="text-status-inactive">
-                  EC2 Savings Plans Opportunity
+                  SP/RI + EBS Optimization Opportunity
                 </Box>
               </div>
               <div>
@@ -596,9 +529,26 @@ function ServiceCompletenessAnalysis() {
                   <span style={{ fontWeight: 'bold', fontStyle: 'italic', textDecoration: 'underline' }}>Potential ARR Savings</span>
                 </Box>
                 <Box fontSize="heading-l" fontWeight="bold" color="text-status-error">
-                  {formatCurrency(totalSPSavings)}
+                  {formatCurrency(totalOptSavings)}
                 </Box>
               </div>
+              {totalSPSavings > 0 && (
+              <div>
+                <Box variant="awsui-key-label">
+                  <span style={{ fontWeight: 'bold', fontStyle: 'italic', textDecoration: 'underline' }}>SP/RI Savings</span>
+                </Box>
+                <Box color="text-status-error">{formatCurrency(totalSPSavings)}</Box>
+              </div>
+              )}
+              {totalEbsSavings > 0 && (
+              <div>
+                <Box variant="awsui-key-label">
+                  <span style={{ fontWeight: 'bold', fontStyle: 'italic', textDecoration: 'underline' }}>EBS Storage Optimization</span>
+                </Box>
+                <Box color="text-status-error">{formatCurrency(totalEbsSavings)}</Box>
+                <Box variant="small" color="text-status-inactive">{ebsOptCount} service{ebsOptCount !== 1 ? 's' : ''} with old-gen storage</Box>
+              </div>
+              )}
               <div>
                 <Box variant="awsui-key-label">
                   <span style={{ fontWeight: 'bold', fontStyle: 'italic', textDecoration: 'underline' }}>Non-Optimized %</span>
@@ -610,20 +560,16 @@ function ServiceCompletenessAnalysis() {
               </div>
               <div>
                 <Box variant="awsui-key-label">
-                  <span style={{ fontWeight: 'bold', fontStyle: 'italic', textDecoration: 'underline' }}>EC2 Savings Plans</span>
+                  <span style={{ fontWeight: 'bold', fontStyle: 'italic', textDecoration: 'underline' }}>Services Optimizable</span>
                 </Box>
                 <Box color="text-status-info">
-                  {optimizableCount} service{optimizableCount !== 1 ? 's' : ''} optimizable
+                  {optimizableCount} service{optimizableCount !== 1 ? 's' : ''}
                 </Box>
               </div>
-              {optimizableCount > 0 ? (
+              {optimizableCount > 0 && (
                 <Button iconName="download" variant="normal" onClick={handleDownloadOptimizationReport}>
                   Download Optimization Report
                 </Button>
-              ) : (
-                <Box color="text-status-inactive" fontSize="body-s">
-                  No EC2 Savings Plan opportunities found
-                </Box>
               )}
             </SpaceBetween>
           </Container>
@@ -768,7 +714,7 @@ function ServiceCompletenessAnalysis() {
               </SpaceBetween>
             }
           >
-            Service Completeness Analysis
+            Calculator Review
           </Header>
         }
       >
@@ -964,6 +910,40 @@ function ServiceCompletenessAnalysis() {
                     {renderDashboardGrid()}
                     {renderModernizationIndex()}
                     {renderServicesTable()}
+
+                    {/* Fargate Advisory */}
+                    {(() => {
+                      const fargateServices = (calculatorData?.services || []).filter(s => s.optimization_note);
+                      if (fargateServices.length === 0) return null;
+                      return (
+                        <Alert type="info" header="Fargate Optimization Note">
+                          <Box>
+                            {fargateServices[0].optimization_note.split('\n').map((line, i) => (
+                              <Box key={i} variant={line.startsWith('  ') ? 'code' : 'p'} padding={line.startsWith('  ') ? {left: 's'} : {}}>
+                                {line}
+                              </Box>
+                            ))}
+                          </Box>
+                        </Alert>
+                      );
+                    })()}
+
+                    {/* Graviton Advisory */}
+                    {(() => {
+                      const gravitonServices = (calculatorData?.services || []).filter(s => s.graviton_note);
+                      if (gravitonServices.length === 0) return null;
+                      return (
+                        <Alert type="info" header="Graviton Migration Opportunities">
+                          <SpaceBetween size="xs">
+                            <Box>The following services could benefit from Graviton-based instances for better price-performance:</Box>
+                            {gravitonServices.map((s, i) => (
+                              <Box key={i} variant="small">• {s.service_name}: {s.graviton_note}</Box>
+                            ))}
+                          </SpaceBetween>
+                        </Alert>
+                      );
+                    })()}
+
                   </SpaceBetween>
                 ) : (
                   <Alert type="info">Calculator review data is not available.</Alert>

@@ -688,5 +688,3 @@ If you encounter issues:
 
 - `README.md` - Project overview and quick start
 - `SYSTEM_ARCHITECTURE.md` - Technical architecture and data flow
-- `BEDROCK_GUARDRAILS_GUIDE.md` - Guardrails setup and configuration
-- `EKS_PRICING_DESIGN.md` - EKS pricing design and recommendation logic

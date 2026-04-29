@@ -493,7 +493,7 @@ function App() {
                     { type: 'link', text: 'Learning Pathway', href: '#/learning' },
                     { type: 'link', text: 'Business Case Review', href: '#/review' },
                     { type: 'link', text: 'Architecture Diagram', href: '#/architecture' },
-                    { type: 'link', text: 'Service Completeness Analysis', href: '#/service-analysis' },
+                    { type: 'link', text: 'Calculator Review', href: '#/service-analysis' },
                     { type: 'link', text: 'OLA Analysis', href: '#/ola-analysis' },
                     { type: 'link', text: 'Chat Assistant', href: '#/chat' }
                   ]

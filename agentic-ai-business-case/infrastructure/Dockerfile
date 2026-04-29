@@ -63,9 +63,16 @@ COPY --from=frontend-build /app/ui/build ./ui/dist
 # Create necessary directories
 RUN mkdir -p /tmp/input /tmp/output
 
+# Create non-root user for security
+RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser \
+    && chown -R appuser:appuser /app /tmp/input /tmp/output
+
 # Set environment variables
 ENV FLASK_ENV=production
 ENV PYTHONUNBUFFERED=1
+
+# Switch to non-root user
+USER appuser
 
 # Expose port
 EXPOSE 8080

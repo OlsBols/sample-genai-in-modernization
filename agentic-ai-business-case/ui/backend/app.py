@@ -1045,10 +1045,12 @@ def download_file(file_type):
     try:
         s3_key = None
         
-        # If S3 key is provided directly (for unsaved cases), use it
+        # If S3 key is provided directly (for unsaved cases), validate it
         if s3_key_param:
+            # Validate S3 key: must start with 'case-' prefix and not contain path traversal
+            if not s3_key_param.startswith('case-') or '..' in s3_key_param:
+                return jsonify({'success': False, 'message': 'Invalid S3 key'}), 400
             s3_key = s3_key_param
-            print(f"Using direct S3 key: {s3_key}")
         # Otherwise, look up from DynamoDB (for saved cases)
         elif case_id and is_dynamodb_enabled():
             # Query using UserIdIndex GSI to verify ownership
@@ -1148,7 +1150,7 @@ Instructions:
 Enhanced description:"""
 
                 response = bedrock.invoke_model(
-                    modelId='anthropic.claude-3-haiku-20240307-v1:0',
+                    modelId='us.anthropic.claude-sonnet-4-5-20250929-v1:0',
                     body=json.dumps({
                         "anthropic_version": "bedrock-2023-05-31",
                         "max_tokens": 500,  # Allow longer descriptions

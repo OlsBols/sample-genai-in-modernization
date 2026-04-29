@@ -30,7 +30,7 @@ Download **[cloudformation-launch.yaml](https://github.com/aws-samples/sample-ge
 ✅ **Learning Pathway** - Personalized AWS training and certification roadmaps  
 ✅ **Business Case Review** - Validate and review business case documents  
 ✅ **Architecture Diagram** - Generate AWS architecture diagrams in Draw.io format  
-✅ **Service Analysis** - Identify missing AWS services and revenue opportunities from calculator data  
+✅ **Calculator Review** - Calculator review dashboard with optimization opportunities and missing services identification  
 ✅ **OLA Analysis** - Preliminary licensing optimization assessment with 3-year RI pricing, bin-packing, and Excel export  
 ✅ **Chat Assistant** - Context-aware conversations with access to all generated outputs
 
@@ -120,14 +120,16 @@ Generate AWS architecture diagrams from requirements:
 - **Services**: Includes AWS services, connections, and best practices
 - **Output**: Editable Draw.io diagram file
 
-### 7. Service Analysis
-Identify missing AWS services and additional revenue opportunities from AWS Calculator exports:
-- **Input**: AWS Pricing Calculator CSV export
-- **Analysis**: Examines 6 critical categories (Backup & Recovery, Storage, DR/HA, Network, Observability, Security)
-- **Gap Identification**: Identifies missing services and underutilized capabilities
-- **ARR Estimation**: Provides estimated additional ARR ($100K-$500K+) with SMART recommendations
-- **Custom Prompts**: Customize analysis focus and depth
-- **Output**: Comprehensive gap analysis with actionable recommendations and business justification
+### 7. Calculator Review
+Comprehensive calculator review and infrastructure gap analysis from AWS Pricing Calculator URL:
+- **Input**: AWS Pricing Calculator URL (supports standard AWS and European Sovereign Cloud)
+- **Calculator Review Dashboard**: ARR qualification, excluded services breakdown, optimization opportunities
+- **Optimization**: EC2 Savings Plans, RDS/Redshift/ElastiCache/OpenSearch Reserved Instances (with Graviton+RI combined), Fargate Compute SP, EBS gp2→gp3 and io1→io2 migration savings — all using real-time AWS pricing data
+- **Modernization Index**: Service pathway classification (AI, Cloud Native, Containers, Managed Analytics, Managed Databases, Modern DevOps)
+- **Missing Services Analysis**: AI-powered gap identification across 6 critical categories (Backup & Recovery, Storage, DR/HA, Network, Observability, Security)
+- **ESC Support**: Full European Sovereign Cloud support with EUR pricing
+- **Custom Prompts**: Customize the missing services analysis focus and depth
+- **Output**: Two-tab view with calculator review dashboard and AI-powered gap analysis, downloadable optimization report (CSV)
 
 ### 8. OLA Analysis
 Preliminary licensing optimization assessment for AWS migration:
@@ -220,8 +222,8 @@ The script will:
 **Features**:
 - Cognito authentication (user login with email/password)
 - No local tools or CLI required
-- Self-service user sign-up (or admin-only, configurable in Cognito console)
-- HTTP access via ALB DNS name
+- Admin-only user creation (no self-registration)
+- HTTPS access via ALB with self-signed certificate
 - Suitable for demos, testing, and team use
 
 **To add more users**: Go to AWS Console → Cognito → User Pool → `business-case-users` → Create user

@@ -23,11 +23,11 @@ BEDROCK_CONFIG = {
 }
 
 # Model Configuration
-CLAUDE_3_7_SONNET_MODEL_ID = "us.anthropic.claude-3-7-sonnet-20250219-v1:0"
-CLAUDE_3_5_SONNET_MODEL_ID = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+CLAUDE_3_7_SONNET_MODEL_ID = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+CLAUDE_3_5_SONNET_MODEL_ID = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
 
 # Default Model Parameters
-DEFAULT_MAX_TOKENS = 121072
+DEFAULT_MAX_TOKENS = 8192
 DEFAULT_TEMPERATURE = 0.7
 DEFAULT_REASONING_BUDGET = 2000
 

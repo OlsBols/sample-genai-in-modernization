@@ -53,7 +53,7 @@ BEDROCK_RETRY_CONFIG = Config(
 # max_tokens_default = 8192
 
 # Option 1: Claude 3.5 Sonnet v2 with Cross-Region Inference (8192 max tokens) - RECOMMENDED for guardrails
-model_id_claude3_7="us.anthropic.claude-3-5-sonnet-20241022-v2:0"  # Cross-region inference profile
+model_id_claude3_7="us.anthropic.claude-sonnet-4-5-20250929-v1:0"  # Claude Sonnet 4.5
 max_tokens_default = 8192
 
 # Alternative models:
