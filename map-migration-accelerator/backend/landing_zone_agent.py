@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from utils.config import DEFAULT_MAX_TOKENS, DEFAULT_MODEL_ID
 
-from prompt_library.architecture_diagram.landing_zone_diagram_prompt import (
+from prompt_library.landing_zone.landing_zone_diagram_prompt import (
     get_landing_zone_diagram_prompt,
 )
 from prompt_library.landing_zone.landing_zone_prompt import get_landing_zone_prompt
