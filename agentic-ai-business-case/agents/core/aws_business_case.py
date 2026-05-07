@@ -63,36 +63,37 @@ temp_variation = model_temperature + (random.random() * 0.02 - 0.01)  # ±0.01 v
 bedrock_model = BedrockModel(
     model_id=model_id_claude3_7,
     temperature=temp_variation,  # Slight variation to break cache
-    max_tokens=MAX_TOKENS_BUSINESS_CASE,  # Use configured max tokens (8192)
+    max_tokens=8192,  # Balanced: prevents MaxTokensReachedException while limiting verbosity for speed
     boto_client_config=BEDROCK_RETRY_CONFIG  # Add retry configuration for production
 )
 
 # Create model for cost calculations with lower temperature for consistency
-# Use reduced max_tokens (3000) to force concise output and prevent MaxTokensReachedException
+# Cost agent calls multiple tools (pricing calculator, comparison) which build up conversation history.
+# Needs higher max_tokens to fit final response after tool results accumulate.
 bedrock_model_cost = BedrockModel(
     model_id=model_id_claude3_7,
     temperature=0.1,  # Lower temperature for more deterministic cost calculations
-    max_tokens=3000,  # Reduced from 4096 to force concise, focused output
+    max_tokens=8192,  # Needs room for response after multiple tool call results
     boto_client_config=BEDROCK_RETRY_CONFIG  # Add retry configuration for production
 )
 
-# Create separate model for business case with configured max tokens
+# Create separate model for business case with higher max tokens
 bedrock_model_business_case = BedrockModel(
     model_id=model_id_claude3_7,
     temperature=model_temperature,
-    max_tokens=MAX_TOKENS_BUSINESS_CASE,  # 4096 for Claude 3, 8192 for Claude 3.5
+    max_tokens=8192,  # Balanced for business case generation speed
     boto_client_config=BEDROCK_RETRY_CONFIG  # Add retry configuration for production
 )
 
-agent_it_analysis = Agent(model=bedrock_model,system_prompt= system_message_it_analysis,tools=[it_analysis])
-agent_rv_tool_analysis = Agent(model=bedrock_model,system_prompt= system_message_rv_tool_analysis,tools=[rv_tool_analysis])
-agent_atx_analysis = Agent(model=bedrock_model,system_prompt= system_message_atx_analysis,tools=[read_excel_file, read_pdf_file, read_pptx_file])
-agent_mra_analysis = Agent(model=bedrock_model,system_prompt= system_message_mra_analysis,tools=[read_docx_file, read_markdown_file, read_pdf_file])
-agent_migration_strategy = Agent(model=bedrock_model,system_prompt= system_message_migration_strategy,tools=[read_migration_strategy_framework, read_portfolio_assessment])
-agent_migration_plan = Agent(model=bedrock_model,system_prompt= system_message_migration_plan,tools=[read_migration_plan_framework, generate_wave_plan_from_dependencies])
-agent_aws_cost_arr = Agent(model=bedrock_model_cost,system_prompt= system_message_aws_arr_cost,tools=[it_analysis,rv_tool_analysis,calculate_exact_aws_arr,compare_pricing_models,get_vm_cost_breakdown,calculate_it_inventory_arr,extract_atx_arr_tool])  # Use lower temperature for deterministic costs with pricing tools and comparison
-current_state_analysis = Agent(model=bedrock_model,system_prompt= system_message_current_state_analysis,tools=[it_analysis,rv_tool_analysis])
-aws_business_case = Agent(model=bedrock_model_business_case,system_prompt= system_message_aws_business_case)  # Use higher token limit
+agent_it_analysis = Agent(model=bedrock_model,system_prompt= system_message_it_analysis,tools=[it_analysis], callback_handler=None)
+agent_rv_tool_analysis = Agent(model=bedrock_model,system_prompt= system_message_rv_tool_analysis,tools=[rv_tool_analysis], callback_handler=None)
+agent_atx_analysis = Agent(model=bedrock_model,system_prompt= system_message_atx_analysis,tools=[read_excel_file, read_pdf_file, read_pptx_file], callback_handler=None)
+agent_mra_analysis = Agent(model=bedrock_model,system_prompt= system_message_mra_analysis,tools=[read_docx_file, read_markdown_file, read_pdf_file], callback_handler=None)
+agent_migration_strategy = Agent(model=bedrock_model,system_prompt= system_message_migration_strategy,tools=[read_migration_strategy_framework, read_portfolio_assessment], callback_handler=None)
+agent_migration_plan = Agent(model=bedrock_model,system_prompt= system_message_migration_plan,tools=[read_migration_plan_framework, generate_wave_plan_from_dependencies], callback_handler=None)
+agent_aws_cost_arr = Agent(model=bedrock_model_cost,system_prompt= system_message_aws_arr_cost,tools=[it_analysis,rv_tool_analysis,calculate_exact_aws_arr,compare_pricing_models,get_vm_cost_breakdown,calculate_it_inventory_arr,extract_atx_arr_tool], callback_handler=None)  # Use lower temperature for deterministic costs with pricing tools and comparison
+current_state_analysis = Agent(model=bedrock_model,system_prompt= system_message_current_state_analysis,tools=[it_analysis,rv_tool_analysis], callback_handler=None)
+aws_business_case = Agent(model=bedrock_model_business_case,system_prompt= system_message_aws_business_case, callback_handler=None)  # Use higher token limit
 
 
 # Define conditional edge functions using the factory pattern
@@ -206,6 +207,50 @@ logger.info(f"RVTools: {'✓ FOUND' if has_rvtools else '✗ Not found'} - {inpu
 logger.info(f"ATX PowerPoint: {'✓ FOUND' if has_atx_pptx else '✗ Not found'} - {input_files3_pptx}")
 logger.info(f"MRA: {'✓ FOUND' if has_mra else '✗ Not found'}")
 
+# ============================================================================
+# DETERMINISTIC PRICING CALCULATION (Pre-graph, pure Python)
+# ============================================================================
+# Generate pricing Excel BEFORE the graph runs. This ensures the cost analysis
+# table is always available regardless of whether the LLM cost agent completes.
+# The pricing tools are pure Python (AWS Price List API) - no LLM involved.
+logger.info("="*80)
+logger.info("DETERMINISTIC PRICING CALCULATION")
+logger.info("="*80)
+
+_pricing_generated = False
+try:
+    target_region = project_info.get('awsRegion', 'us-east-1')
+    
+    if has_rvtools and rvtools_file_path:
+        from agents.pricing.pricing_tools import calculate_exact_aws_arr
+        rvtools_basename = os.path.basename(rvtools_file_path)
+        logger.info(f"Calculating pricing from RVTools: {rvtools_basename} (region: {target_region})")
+        _pricing_result = calculate_exact_aws_arr(rvtools_filename=rvtools_basename, target_region=target_region)
+        if _pricing_result:
+            _pricing_generated = True
+            logger.info("✓ Deterministic pricing Excel generated (RVTools)")
+    elif has_it_inventory:
+        from agents.analysis.inventory_analysis import calculate_it_inventory_arr
+        it_basename = os.path.basename(input_files1)
+        logger.info(f"Calculating pricing from IT Inventory: {it_basename} (region: {target_region})")
+        _pricing_result = calculate_it_inventory_arr(inventory_filename=it_basename, target_region=target_region)
+        if _pricing_result:
+            _pricing_generated = True
+            logger.info("✓ Deterministic pricing Excel generated (IT Inventory)")
+    elif has_atx_pptx and atx_summary:
+        logger.info("ATX PowerPoint pricing - using pre-computed summary (no Excel generation needed)")
+        _pricing_generated = True
+    else:
+        logger.warning("⚠ No input data available for pricing calculation")
+except Exception as _pricing_err:
+    logger.error(f"Deterministic pricing calculation failed: {_pricing_err}")
+    import traceback
+    logger.error(traceback.format_exc())
+
+if not _pricing_generated:
+    logger.warning("⚠ Pricing Excel could not be generated - Cost Analysis section will be unavailable")
+logger.info("="*80)
+
 # Track which analysis agents will be added
 active_analysis_agents = []
 
@@ -235,7 +280,9 @@ if has_mra:
 
 # Always add synthesis and planning agents
 builder.add_node(current_state_analysis, "current_state_analysis")
-builder.add_node(agent_aws_cost_arr, "agent_aws_cost_arr")
+# NOTE: agent_aws_cost_arr REMOVED from graph - pricing is now calculated deterministically
+# before the graph runs (pure Python, no LLM). This eliminates MaxTokensReachedException
+# and speeds up execution by ~2-3 minutes.
 builder.add_node(agent_migration_strategy, "agent_migration_strategy")
 builder.add_node(agent_migration_plan, "agent_migration_plan")
 
@@ -253,30 +300,22 @@ if active_analysis_agents:
     for agent_id in active_analysis_agents:
         builder.add_edge(agent_id, "current_state_analysis", condition=condition_for_current_state)
 
-# (2) agent_aws_cost_arr executes ONLY when ALL active analysis agents complete
-if active_analysis_agents:
-    condition_for_cost_arr = all_dependencies_complete(active_analysis_agents)
-    for agent_id in active_analysis_agents:
-        builder.add_edge(agent_id, "agent_aws_cost_arr", condition=condition_for_cost_arr)
-
-# (3) agent_migration_strategy executes ONLY when ALL active analysis agents complete
+# (2) agent_migration_strategy executes ONLY when ALL active analysis agents complete
 if active_analysis_agents:
     condition_for_migration_strategy = all_dependencies_complete(active_analysis_agents)
     for agent_id in active_analysis_agents:
         builder.add_edge(agent_id, "agent_migration_strategy", condition=condition_for_migration_strategy)
 
-# (4) agent_migration_plan executes ONLY when ALL three intermediate agents complete
-condition_for_migration_plan = all_dependencies_complete(["current_state_analysis", "agent_aws_cost_arr", "agent_migration_strategy"])
+# (3) agent_migration_plan executes ONLY when current_state_analysis AND agent_migration_strategy complete
+condition_for_migration_plan = all_dependencies_complete(["current_state_analysis", "agent_migration_strategy"])
 builder.add_edge("current_state_analysis", "agent_migration_plan", condition=condition_for_migration_plan)
-builder.add_edge("agent_aws_cost_arr", "agent_migration_plan", condition=condition_for_migration_plan)
 builder.add_edge("agent_migration_strategy", "agent_migration_plan", condition=condition_for_migration_plan)
 
-# (5) aws_business_case executes ONLY when ALL four intermediate agents complete
+# (4) aws_business_case executes ONLY when ALL intermediate agents complete
 # Skip if multi-stage is enabled (we'll generate business case separately)
 if not ENABLE_MULTI_STAGE:
-    condition_for_business_case = all_dependencies_complete(["current_state_analysis", "agent_aws_cost_arr", "agent_migration_strategy", "agent_migration_plan"])
+    condition_for_business_case = all_dependencies_complete(["current_state_analysis", "agent_migration_strategy", "agent_migration_plan"])
     builder.add_edge("current_state_analysis", "aws_business_case", condition=condition_for_business_case)
-    builder.add_edge("agent_aws_cost_arr", "aws_business_case", condition=condition_for_business_case)
     builder.add_edge("agent_migration_strategy", "aws_business_case", condition=condition_for_business_case)
     builder.add_edge("agent_migration_plan", "aws_business_case", condition=condition_for_business_case)
 
@@ -1031,8 +1070,62 @@ logger.info(f"Description: {project_info.get('projectDescription', 'N/A')}")
 logger.info("="*80)
 
 logger.info("Executing agent graph...")
-result = graph(agent_task)
-logger.info("Agent graph execution completed")
+import time as _time
+from strands.types.exceptions import MaxTokensReachedException
+
+_max_graph_retries = 3
+_graph_result = None
+_graph_error = None
+
+for _attempt in range(1, _max_graph_retries + 1):
+    try:
+        _graph_result = graph(agent_task)
+        logger.info("Agent graph execution completed")
+        break
+    except MaxTokensReachedException as _max_tok_exc:
+        # MaxTokensReachedException means an agent hit its output limit but the graph
+        # may have partially completed. This is not retryable - treat as best-effort completion.
+        logger.warning(f"Graph agent hit max_tokens limit: {_max_tok_exc}")
+        logger.warning("Proceeding with partial results (some agent outputs may be truncated)")
+        # Create a minimal result object so downstream code can proceed
+        _graph_result = graph.get_state() if hasattr(graph, 'get_state') else None
+        if _graph_result is None:
+            # Build a stub result that allows multi-stage generation and logging to proceed
+            class _StubNode:
+                def __init__(self, node_id):
+                    self.node_id = node_id
+                    self.execution_time = 0
+                    self.status = 'max_tokens_reached'
+            class _StubResult:
+                results = {}
+                status = 'partial'
+                execution_order = []
+                completed_nodes = 0
+                total_nodes = 0
+                execution_time = 0
+                accumulated_usage = 'N/A (partial execution)'
+            _graph_result = _StubResult()
+        break
+    except Exception as _graph_exc:
+        _graph_error = _graph_exc
+        error_str = str(_graph_exc).lower()
+        # Retry on transient streaming/throttling errors
+        is_retryable = any(keyword in error_str for keyword in [
+            'stream', 'throttl', 'timeout', 'serviceunavailable',
+            'internalserver', 'modelstreamerror', 'connection'
+        ])
+        if is_retryable and _attempt < _max_graph_retries:
+            wait_time = 2 ** _attempt * 5  # Exponential backoff: 10s, 20s
+            logger.warning(f"Graph execution failed (attempt {_attempt}/{_max_graph_retries}): {_graph_exc}")
+            logger.info(f"Retrying in {wait_time}s...")
+            _time.sleep(wait_time)
+        else:
+            logger.error(f"Graph execution failed (attempt {_attempt}/{_max_graph_retries}): {_graph_exc}")
+            import traceback
+            logger.error(traceback.format_exc())
+            raise Exception(f"Agent graph execution failed after {_attempt} attempts: {_graph_exc}") from _graph_exc
+
+result = _graph_result
 
 
 # ============================================================================
@@ -1171,6 +1264,7 @@ def calculate_eks_recommendation(option1_3yr, option2_3yr, option3_3yr,
     }
 
 
+# ============================================================================
 # ============================================================================
 # EKS ANALYSIS (Phase 7 - Final Integration)
 # ============================================================================

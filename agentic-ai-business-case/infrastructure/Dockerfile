@@ -28,11 +28,11 @@ RUN npm run build
 FROM public.ecr.aws/docker/library/python:3.11-slim-bookworm AS base
 
 # Force fresh package index and upgrade all packages to latest patched versions
-# Addresses openssl CVEs (3.0.18 -> 3.0.19): CVE-2026-31790, CVE-2026-28387,
+# Addresses linux kernel CVEs (6.1.164 -> 6.1.170+): CVE-2026-23428, CVE-2026-23450,
+# CVE-2026-23455, CVE-2026-31402, CVE-2026-31405, CVE-2026-31414, and 150+ others
+# Previously: openssl CVEs (3.0.18 -> 3.0.19): CVE-2026-31790, CVE-2026-28387,
 # CVE-2026-28389, CVE-2026-31789, CVE-2026-28390, CVE-2026-28388
-# Previously: linux kernel CVEs (6.1.162 -> 6.1.164+): CVE-2025-37786, CVE-2025-37822,
-# CVE-2025-38201, CVE-2025-40082, CVE-2025-71089, CVE-2024-26822, and others
-RUN echo "Package cache bust: 2026-04-10" > /dev/null
+RUN echo "Package cache bust: 2026-05-05" > /dev/null
 
 WORKDIR /app
 
@@ -86,7 +86,7 @@ CMD ["gunicorn", \
      "--bind", "0.0.0.0:8080", \
      "--workers", "2", \
      "--threads", "4", \
-     "--timeout", "300", \
+     "--timeout", "900", \
      "--access-logfile", "-", \
      "--error-logfile", "-", \
      "--chdir", "/app/ui/backend", \

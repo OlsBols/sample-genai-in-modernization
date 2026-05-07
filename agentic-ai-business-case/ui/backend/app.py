@@ -556,9 +556,15 @@ def generate_business_case():
             
     except Exception as e:
         logging.error(f"Business case generation failed: {e}")
+        import traceback
+        traceback.print_exc()
+        error_detail = str(e)
+        # Include last 500 chars of error for debugging (truncate sensitive info)
+        if len(error_detail) > 500:
+            error_detail = "..." + error_detail[-500:]
         return jsonify({
             'success': False,
-            'message': 'An internal error occurred during business case generation'
+            'message': f'Business case generation failed: {error_detail}'
         }), 500
 
 def run_business_case_generator(project_info, selected_agents):
@@ -610,7 +616,7 @@ def run_business_case_generator(project_info, selected_agents):
             env=env,
             capture_output=True,
             text=True,
-            timeout=600  # 10 minute timeout
+            timeout=900  # 15 minute timeout (allows for retries on streaming errors)
         )
         
         # Log stdout and stderr

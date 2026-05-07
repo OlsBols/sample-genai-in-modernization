@@ -53,6 +53,11 @@ BEDROCK_RETRY_CONFIG = Config(
 # max_tokens_default = 8192
 
 # Option 1: Claude 3.5 Sonnet v2 with Cross-Region Inference (8192 max tokens) - RECOMMENDED for guardrails
+# NOTE: Claude Sonnet 4.5 may hit TPM quota limits with parallel agents in resource-constrained
+# ECS environments (1 vCPU / 2GB RAM). If you see modelStreamErrorException errors:
+#   1. Increase ECS task CPU/Memory (recommended: 2048 CPU / 4096 Memory)
+#   2. Or request a Bedrock quota increase for Claude Sonnet 4.5
+#   3. Or switch to Claude Sonnet 4.6 which may have higher default quotas
 model_id_claude3_7="us.anthropic.claude-sonnet-4-5-20250929-v1:0"  # Claude Sonnet 4.5
 max_tokens_default = 8192
 
@@ -65,7 +70,7 @@ model_temperature=0.3
 
 # Multi-stage generation settings
 ENABLE_MULTI_STAGE = True  # Generate business case in multiple stages
-MAX_TOKENS_BUSINESS_CASE = max_tokens_default  # Will use 8192 if Claude 3.5
+MAX_TOKENS_BUSINESS_CASE = 8192  # Balanced between preventing MaxTokensReachedException and generation speed
 
 # Data limits to prevent context window overflow and max_tokens errors
 # Reduced significantly to prevent agent output from exceeding token limits

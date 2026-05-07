@@ -28,7 +28,7 @@
   },
   "overrides": {
     "jspdf": "^4.0.0",
-    "dompurify": "^3.2.6",
+    "dompurify": "^3.4.1",
     "picomatch": "^4.0.2"
   }
 }

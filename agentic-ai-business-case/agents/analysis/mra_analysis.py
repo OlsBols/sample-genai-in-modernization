@@ -22,8 +22,20 @@ def read_file_from_input_dir(filename):
 
 def find_mra_file():
     """Find the MRA file in the input directory (supports .md, .docx, .pdf)"""
-    from agents.utils.project_context import get_case_input_directory
+    from agents.utils.project_context import get_case_input_directory, get_project_info_dict
     input_dir = get_case_input_directory()
+    
+    # First check if MRA filename is specified in project_info (from UI upload)
+    project_info = get_project_info_dict()
+    uploaded_files = project_info.get('uploadedFiles', {})
+    if 'mra' in uploaded_files:
+        mra_filename = uploaded_files['mra']
+        if isinstance(mra_filename, list):
+            mra_filename = mra_filename[0] if mra_filename else None
+        if mra_filename:
+            filepath = os.path.join(input_dir, mra_filename)
+            if os.path.exists(filepath):
+                return mra_filename
     
     # Check for MRA file with any supported extension
     mra_patterns = [

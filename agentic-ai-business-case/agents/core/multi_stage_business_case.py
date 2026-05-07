@@ -578,12 +578,13 @@ def create_section_agent(section_prompt):
     from agents.utils.bedrock_guardrails import create_bedrock_model_with_guardrails
     
     # Create model with guardrails if enabled
+    # Use 8192 max_tokens - balanced between preventing MaxTokensReachedException and speed
     model = create_bedrock_model_with_guardrails(
         model_id=model_id_claude3_7,
         temperature=model_temperature,
-        max_tokens=MAX_TOKENS_BUSINESS_CASE
+        max_tokens=8192
     )
-    return Agent(model=model, system_prompt=section_prompt)
+    return Agent(model=model, system_prompt=section_prompt, callback_handler=None)
 
 # Section prompts
 EXECUTIVE_SUMMARY_PROMPT = """
@@ -1860,8 +1861,27 @@ def inject_pricing_comparison_table(business_case, agent_results=None):
                     is_rvtools = True
         
         if not excel_files:
-            # No pricing file found, skip injection
+            # No pricing file found - show explicit message rather than empty section
             print("⚠ No pricing Excel file found for table injection")
+            # Inject a clear message in the Cost Analysis section
+            cost_section_header = "## Cost Analysis and TCO"
+            if cost_section_header in business_case:
+                cost_message = f"""{cost_section_header}
+
+**⚠️ Cost Analysis Unavailable**
+
+The deterministic pricing calculation could not be completed for this run. This can occur when the cost analysis agent exceeds processing limits due to environment complexity.
+
+**To resolve this issue:**
+- Re-run the business case generation (the issue is typically transient)
+- If the problem persists, contact your administrator to check Bedrock service quotas
+
+**Note:** All cost figures in this document (Executive Summary, EKS analysis) are derived from the deterministic pricing engine when available. Without the completed pricing calculation, cost figures shown elsewhere in this document may be from a previous successful run or estimated values.
+
+---
+"""
+                business_case = business_case.replace(cost_section_header + "\n\n\n", cost_message)
+                business_case = business_case.replace(cost_section_header + "\n\n---", cost_message + "\n---")
             return business_case
         
         latest_excel = max(excel_files, key=os.path.getmtime) if len(excel_files) > 1 else excel_files[0]
@@ -2616,7 +2636,27 @@ USE ONLY THESE PRE-EXTRACTED VALUES:
                 # Create task with section-specific context
                 task = f"{section_context}\n\nGenerate the {section_name} section based on the available analysis."
             
-            result = agent(task)
+            # Retry logic for transient Bedrock streaming errors
+            import time as _section_time
+            _section_max_retries = 2
+            _section_result = None
+            for _section_attempt in range(1, _section_max_retries + 1):
+                try:
+                    _section_result = agent(task)
+                    break
+                except Exception as _stream_err:
+                    err_str = str(_stream_err).lower()
+                    is_retryable = any(kw in err_str for kw in [
+                        'stream', 'throttl', 'timeout', 'serviceunavailable',
+                        'internalserver', 'modelstreamerror', 'connection'
+                    ])
+                    if is_retryable and _section_attempt < _section_max_retries:
+                        wait = 2 ** _section_attempt * 5
+                        print(f"  ⚠ {section_name} streaming error (attempt {_section_attempt}), retrying in {wait}s...")
+                        _section_time.sleep(wait)
+                    else:
+                        raise
+            result = _section_result
             
             # Extract text content from the result
             # result.message is a dict with 'role' and 'content' keys

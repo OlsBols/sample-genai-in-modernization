@@ -24,12 +24,12 @@ Parameters:
       Leave as-is for the default repo structure. Set to '.' if project is at repo root.
   ContainerCpu:
     Type: Number
-    Default: 1024
+    Default: 2048
     Description: CPU units for ECS task (1024 = 1 vCPU)
     AllowedValues: [512, 1024, 2048, 4096]
   ContainerMemory:
     Type: Number
-    Default: 2048
+    Default: 4096
     Description: Memory (MB) for ECS task
     AllowedValues: [1024, 2048, 4096, 8192]
   AdminEmail:

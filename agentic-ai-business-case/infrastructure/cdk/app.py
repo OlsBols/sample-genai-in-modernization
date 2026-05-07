@@ -145,8 +145,8 @@ class BusinessCaseGeneratorStack(Stack):
         # ====================================================================
         task_definition = ecs.FargateTaskDefinition(
             self, "TaskDef",
-            memory_limit_mib=2048,
-            cpu=1024,
+            memory_limit_mib=4096,
+            cpu=2048,
         )
         
         # Grant permissions
