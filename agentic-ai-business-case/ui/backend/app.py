@@ -1010,8 +1010,11 @@ def delete_business_case(case_id):
         if is_s3_enabled():
             delete_files_from_s3(case_id)
         
-        # Delete from DynamoDB
-        dynamodb_table.delete_item(Key={'caseId': case_id})
+        # Delete from DynamoDB (table has composite key: caseId + createdAt)
+        dynamodb_table.delete_item(Key={
+            'caseId': case_id,
+            'createdAt': case_data['createdAt']
+        })
         
         return jsonify({
             'success': True,
