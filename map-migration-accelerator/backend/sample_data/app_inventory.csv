@@ -1,0 +1,11 @@
+App_ID,App_Name,App_Type,Tech_Stack,SLA_Tier,Integrated_Apps,Primary_Infra_ID,Description
+APP-001,OrderManager Pro,Legacy,Java 8; Oracle DB 11g; Apache Struts 1.x,Tier-1,"APP-003,APP-005",INFRA-001,Core order management system handling all B2B and B2C transactions. Processes ~50k orders/day.
+APP-002,HR Portal,Home Grown,Python 2.7; Django 1.11; PostgreSQL 9.4,Tier-2,"APP-004,APP-006",INFRA-002,Internal employee self-service portal for leave requests and payroll viewing.
+APP-003,Payment Gateway,Third Party,Java 11; Spring Boot 2.7; MySQL 8.0,Tier-1,"APP-001",INFRA-003,PCI-DSS compliant payment processing service integrated with Stripe and Adyen.
+APP-004,Salesforce CRM,SaaS,Salesforce Platform,Tier-1,"APP-001,APP-002,APP-007",N/A,Cloud-based CRM for sales pipeline management and customer relationship tracking.
+APP-005,Inventory Tracker,Home Grown,.NET Framework 3.5; SQL Server 2008; WCF,Tier-2,"APP-001,APP-008",INFRA-004,Warehouse inventory management system tracking stock levels across 12 distribution centers.
+APP-006,Email Notification Service,Home Grown,Python 3.9; FastAPI; Redis 6.2; RabbitMQ,Tier-3,"APP-002,APP-007",INFRA-005,Centralized email and SMS notification dispatcher for all internal applications.
+APP-007,Customer Analytics Dashboard,Home Grown,Node.js 14; React 16; MongoDB 4.4; Elasticsearch 7.x,Tier-2,"APP-004,APP-001",INFRA-006,Real-time analytics dashboard providing customer behavior insights and sales metrics.
+APP-008,Warehouse Management System,Legacy,COBOL; IBM DB2; CICS,Tier-1,"APP-005",INFRA-007,Mainframe-based warehouse operations system managing picking and shipping workflows.
+APP-009,Slack,SaaS,Slack Platform,Tier-3,"APP-006",N/A,Team communication and collaboration platform used company-wide.
+APP-010,Legacy Reporting Engine,Legacy,Java 6; JBoss 4.x; Oracle DB 10g; Crystal Reports,Tier-2,"APP-001,APP-005,APP-008",INFRA-008,Batch reporting system generating nightly financial and operational reports for executive review.

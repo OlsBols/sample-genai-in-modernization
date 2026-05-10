@@ -69,7 +69,7 @@ All agents use Claude Sonnet 4 via Amazon Bedrock with real-time streaming throu
 
 ### 11. Prompt Library
 
-Per-agent system prompts stored in `map-migration-accelerator/prompt_library/` — review and tailor these templates to your specific migration methodology before use.
+Per-agent system prompts stored in `prompt_library/` — review and tailor these templates to your specific migration methodology before use.
 
 | Domain | Prompt File | Purpose |
 | ------ | ----------- | ------- |
@@ -94,9 +94,9 @@ Per-agent system prompts stored in `map-migration-accelerator/prompt_library/` �
 Upload CSVs → Discovery → Strategy → Cost → Landing Zone → Tasks → Runbook → Chat
 ```
 
-![High-Level Process](map-migration-accelerator/backend/sample_data/high_level_process.png)
+![High-Level Process](backend/sample_data/high_level_process.png)
 
-> 📐 **Architecture Diagram:** A Draw.io version of this process flow is available at [`architecture.drawio`](map-migration-accelerator/backend/sample_data/architecture.drawio) — open in [draw.io](https://app.diagrams.net/) for editing.
+> 📐 **Architecture Diagram:** A Draw.io version of this process flow is available at [`architecture.drawio`](backend/sample_data/architecture.drawio) — open in [draw.io](https://app.diagrams.net/) for editing.
 
 | Stage | Components |
 | ----- | ---------- |
@@ -118,15 +118,14 @@ Upload CSVs → Discovery → Strategy → Cost → Landing Zone → Tasks → R
 ## Folder Structure
 
 ```text
-├── map-migration-accelerator/
-│   ├── backend/
-│   │   ├── app.py                  # FastAPI API endpoints
-│   │   ├── *_agent.py              # One agent file per capability (12 agents)
-│   │   ├── requirements.txt        # Python dependencies
-│   │   ├── sample_data/            # Sample CSV files, high-level process PNG, architecture.drawio
-│   │   └── utils/                  # Config, Taiga credentials, resource profile template
-│   ├── prompt_library/             # Per-agent system prompts (12 domains — see Features §10)
-│   └── frontend/                   # React + Cloudscape UI
+├── backend/
+│   ├── app.py                  # FastAPI API endpoints
+│   ├── *_agent.py              # One agent file per capability (12 agents)
+│   ├── requirements.txt        # Python dependencies
+│   ├── sample_data/            # Sample CSV files, high-level process PNG, architecture.drawio
+│   └── utils/                  # Config, Taiga credentials, resource profile template
+├── prompt_library/             # Per-agent system prompts (12 domains — see Features §11)
+├── frontend/                   # React + Cloudscape UI
 └── documents/
 ```
 
@@ -163,15 +162,15 @@ cd migration-assessment-tool
 ### 2. Install Backend Dependencies
 
 ```bash
-pip install -r map-migration-accelerator/backend/requirements.txt
+pip install -r backend/requirements.txt
 ```
 
 ### 3. Install Frontend Dependencies
 
 ```bash
-cd map-migration-accelerator/frontend
+cd frontend
 npm install
-cd ../..
+cd ..
 ```
 
 ### 4. Configure AWS Credentials
@@ -188,7 +187,7 @@ export AWS_DEFAULT_REGION=us-east-1
 
 ### 5. Review Configuration
 
-Review `map-migration-accelerator/backend/utils/config.py` for model IDs, region, and parameters. Key defaults:
+Review `backend/utils/config.py` for model IDs, region, and parameters. Key defaults:
 
 - **Model:** Claude Sonnet 4 (`us.anthropic.claude-sonnet-4-20250514-v1:0`)
 - **Region:** `us-east-1` (override via `AWS_REGION` environment variable)
@@ -196,7 +195,7 @@ Review `map-migration-accelerator/backend/utils/config.py` for model IDs, region
 
 ### 6. Configure Taiga (Optional)
 
-If you plan to use the "Push to Taiga" feature, update `map-migration-accelerator/backend/utils/taiga_config.json` with your Taiga credentials:
+If you plan to use the "Push to Taiga" feature, update `backend/utils/taiga_config.json` with your Taiga credentials:
 
 ```json
 {
@@ -228,14 +227,14 @@ For more details, refer to the [Taiga API documentation](https://docs.taiga.io/a
 ### 7. Run the Backend
 
 ```bash
-cd map-migration-accelerator/backend
+cd backend
 uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
 ### 8. Run the Frontend
 
 ```bash
-cd map-migration-accelerator/frontend
+cd frontend
 npm run dev
 ```
 
@@ -258,20 +257,20 @@ The application will be available at `http://localhost:3000`.
 ## Important Notes
 
 > 💡 **AI Accuracy Disclaimer:** Whilst GenAI provides valuable insights, it may occasionally produce non-deterministic outcomes due to its probabilistic nature. Always validate AI-generated recommendations before implementation.
-
+>
 > 💡 **Proof of Concept:** This solution is designed for proof-of-concept purposes to explore the art of possibility with Generative AI for MAP assessments. Adhere to your organisation's security and compliance policies.
-
+>
 > ⚠️ **Session Storage:** All data is stored in browser `sessionStorage`. Data is lost when the browser tab is closed. No server-side persistence is implemented.
-
+>
 > ⚠️ **Taiga Credentials:** Taiga API credentials are stored in `backend/utils/taiga_config.json`. For production use, migrate to AWS Secrets Manager or environment variables.
 
 ## Best Practices
 
 - Validate all AI-generated recommendations with domain experts
 - Test with your specific IT inventory data (application catalogues, server lists)
-- Review and customise prompt templates in `map-migration-accelerator/prompt_library/` before use
+- Review and customise prompt templates in `prompt_library/` before use
 - Monitor Amazon Bedrock usage and costs
-- Use sample data in `map-migration-accelerator/backend/sample_data/` to familiarise yourself with expected CSV formats
+- Use sample data in `backend/sample_data/` to familiarise yourself with expected CSV formats
 - Store sensitive credentials (Taiga API credentials, AWS keys) in [AWS Secrets Manager](https://docs.aws.amazon.com/secretsmanager/) or [AWS Systems Manager Parameter Store](https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-parameter-store.html) rather than in configuration files
 - Review Amazon Bedrock IAM policies to ensure `bedrock:InvokeModel` permissions are scoped appropriately for your deployment — refer to the [Amazon Bedrock security documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/security-iam.html)
 - For SSE-based agent streaming, review Application Load Balancer idle timeout settings to accommodate long-running agent graph executions — the FastAPI + EKS + CloudFront architecture supports this pattern well
