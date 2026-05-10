@@ -1,0 +1,11 @@
+AnyCompany is a forward-thinking organisation specialising in revolutionising enterprise data management through intelligent automation and a comprehensive semantic data platform. The company's principal offering empowers organisations to consolidate, analyse, and act upon data from varied sources with remarkable speed and efficiency, thereby removing the constraints inherent in traditional manual data engineering processes. AnyCompany's platform is engineered to support large multinational corporations with intricate data ecosystems whilst also serving non-profit healthcare organisations, delivering bespoke solutions that tackle challenges related to scale, regulatory compliance, and cost optimisation.
+
+Migration to AWS
+- Container Service
+- Hadoop and Spark
+- embulk ETL pipeline and Apache Airflow
+- Database SQL Server, PostgreSQL, Cache, 
+- Storage Accounts
+- Image Repository
+- Object Storage and NFS file system
+- Backup storage
