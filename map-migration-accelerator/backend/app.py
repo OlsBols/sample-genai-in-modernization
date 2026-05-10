@@ -4,6 +4,8 @@ import json
 import os
 from datetime import datetime
 
+import logging
+
 from architecture_agent import stream_diagram
 from aws_cost_agent import stream_aws_cost
 from chat_agent import stream_chat
@@ -21,6 +23,7 @@ from utils.config import CORS_ALLOWED_ORIGINS, SSE_MEDIA_TYPE
 from wave_runbook_agent import stream_wave_runbook
 
 app = FastAPI(title="Agentic App")
+logger = logging.getLogger(__name__)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ALLOWED_ORIGINS,
@@ -90,7 +93,8 @@ async def generate(req: GenerateRequest):
             media_type=SSE_MEDIA_TYPE,
         )
     except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
+        logger.exception("Error in /api/generate")
+        return JSONResponse(status_code=500, content={"error": "Internal server error"})
 
 
 @app.post("/api/migration/upload")
@@ -98,173 +102,209 @@ async def migration_upload(
     app_file: UploadFile = File(...),
     infra_file: UploadFile = File(None),
 ):
-    # Validate that at least the required app_file has content
-    if not app_file or not app_file.filename:
-        return JSONResponse(status_code=400, content={"error": "app_file is required"})
+    try:
+        # Validate that at least the required app_file has content
+        if not app_file or not app_file.filename:
+            return JSONResponse(status_code=400, content={"error": "app_file is required"})
 
-    # Validate CSV extension for app_file
-    if not app_file.filename.lower().endswith(".csv"):
-        return JSONResponse(
-            status_code=400,
-            content={"error": f"app_file must be a CSV file, got: {app_file.filename}"},
-        )
-
-    # Validate CSV extension for infra_file if provided
-    if infra_file and infra_file.filename:
-        if not infra_file.filename.lower().endswith(".csv"):
+        # Validate CSV extension for app_file
+        if not app_file.filename.lower().endswith(".csv"):
             return JSONResponse(
                 status_code=400,
-                content={"error": f"infra_file must be a CSV file, got: {infra_file.filename}"},
+                content={"error": "app_file must be a CSV file"},
             )
 
-    # Create timestamped upload folder (YY-MM-DD-SS)
-    now = datetime.now()
-    folder_name = now.strftime("%y-%m-%d-%S")
-    upload_dir = os.path.join("uploads", folder_name)
-    os.makedirs(upload_dir, exist_ok=True)
+        # Validate CSV extension for infra_file if provided
+        if infra_file and infra_file.filename:
+            if not infra_file.filename.lower().endswith(".csv"):
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "infra_file must be a CSV file"},
+                )
 
-    # Save app_file
-    app_csv_path = os.path.join(upload_dir, app_file.filename)
-    app_content = await app_file.read()
-    with open(app_csv_path, "wb") as f:
-        f.write(app_content)
+        # Create timestamped upload folder (YY-MM-DD-SS)
+        now = datetime.now()
+        folder_name = now.strftime("%y-%m-%d-%S")
+        upload_dir = os.path.join("uploads", folder_name)
+        os.makedirs(upload_dir, exist_ok=True)
 
-    # Save infra_file if provided
-    infra_csv_path = None
-    if infra_file and infra_file.filename:
-        infra_csv_path = os.path.join(upload_dir, infra_file.filename)
-        infra_content = await infra_file.read()
-        with open(infra_csv_path, "wb") as f:
-            f.write(infra_content)
+        # Save app_file
+        app_csv_path = os.path.join(upload_dir, app_file.filename)
+        app_content = await app_file.read()
+        with open(app_csv_path, "wb") as f:
+            f.write(app_content)
 
-    # Stream assessment results via SSE (Discovery → Dependency pipeline)
-    return StreamingResponse(
-        run_assessment(app_csv_path, infra_csv_path),
-        media_type=SSE_MEDIA_TYPE,
-    )
+        # Save infra_file if provided
+        infra_csv_path = None
+        if infra_file and infra_file.filename:
+            infra_csv_path = os.path.join(upload_dir, infra_file.filename)
+            infra_content = await infra_file.read()
+            with open(infra_csv_path, "wb") as f:
+                f.write(infra_content)
+
+        # Stream assessment results via SSE (Discovery → Dependency pipeline)
+        return StreamingResponse(
+            run_assessment(app_csv_path, infra_csv_path),
+            media_type=SSE_MEDIA_TYPE,
+        )
+    except Exception:
+        logger.exception("Error in /api/migration/upload")
+        return JSONResponse(status_code=500, content={"error": "Internal server error"})
 
 
 @app.post("/api/migration/chat")
 async def migration_chat(req: ChatRequest):
-    if not req.assessment:
-        return JSONResponse(status_code=400, content={"error": "Assessment data is required"})
-    if not req.message or not req.message.strip():
-        return JSONResponse(status_code=400, content={"error": "Message is required"})
+    try:
+        if not req.assessment:
+            return JSONResponse(status_code=400, content={"error": "Assessment data is required"})
+        if not req.message or not req.message.strip():
+            return JSONResponse(status_code=400, content={"error": "Message is required"})
 
-    assessment_json = json.dumps(req.assessment)
-    return StreamingResponse(
-        stream_chat(req.message, assessment_json, req.history),
-        media_type=SSE_MEDIA_TYPE,
-    )
+        assessment_json = json.dumps(req.assessment)
+        return StreamingResponse(
+            stream_chat(req.message, assessment_json, req.history),
+            media_type=SSE_MEDIA_TYPE,
+        )
+    except Exception:
+        logger.exception("Error in /api/migration/chat")
+        return JSONResponse(status_code=500, content={"error": "Internal server error"})
 
 
 @app.post("/api/migration/strategy")
 async def migration_strategy(req: StrategyRequest):
-    if not req.assessment:
-        return JSONResponse(status_code=400, content={"error": "Assessment data is required"})
-    if not req.drivers_and_scope or not req.drivers_and_scope.strip():
-        return JSONResponse(
-            status_code=400, content={"error": "Migration drivers/scope is required"}
-        )
-    if not req.timeline or not req.timeline.strip():
-        return JSONResponse(status_code=400, content={"error": "Timeline is required"})
+    try:
+        if not req.assessment:
+            return JSONResponse(status_code=400, content={"error": "Assessment data is required"})
+        if not req.drivers_and_scope or not req.drivers_and_scope.strip():
+            return JSONResponse(
+                status_code=400, content={"error": "Migration drivers/scope is required"}
+            )
+        if not req.timeline or not req.timeline.strip():
+            return JSONResponse(status_code=400, content={"error": "Timeline is required"})
 
-    discovery_json = json.dumps(req.assessment.get("discovery", {}))
-    dependency_json = json.dumps(req.assessment.get("dependency", {}))
-    return StreamingResponse(
-        stream_strategy(req.drivers_and_scope, req.timeline, discovery_json, dependency_json),
-        media_type=SSE_MEDIA_TYPE,
-    )
+        discovery_json = json.dumps(req.assessment.get("discovery", {}))
+        dependency_json = json.dumps(req.assessment.get("dependency", {}))
+        return StreamingResponse(
+            stream_strategy(req.drivers_and_scope, req.timeline, discovery_json, dependency_json),
+            media_type=SSE_MEDIA_TYPE,
+        )
+    except Exception:
+        logger.exception("Error in /api/migration/strategy")
+        return JSONResponse(status_code=500, content={"error": "Internal server error"})
 
 
 @app.post("/api/execution/landing-zone")
 async def execution_landing_zone(req: LandingZoneRequest):
-    if not req.assessment:
-        return JSONResponse(status_code=400, content={"error": "Assessment data is required"})
-    if not req.strategy or not req.strategy.strip():
-        return JSONResponse(status_code=400, content={"error": "Strategy data is required"})
-    if not req.region or not req.region.strip():
-        return JSONResponse(status_code=400, content={"error": "Region is required"})
+    try:
+        if not req.assessment:
+            return JSONResponse(status_code=400, content={"error": "Assessment data is required"})
+        if not req.strategy or not req.strategy.strip():
+            return JSONResponse(status_code=400, content={"error": "Strategy data is required"})
+        if not req.region or not req.region.strip():
+            return JSONResponse(status_code=400, content={"error": "Region is required"})
 
-    discovery_json = json.dumps(req.assessment.get("discovery", {}))
-    dependency_json = json.dumps(req.assessment.get("dependency", {}))
-    return StreamingResponse(
-        stream_landing_zone(
-            req.region,
-            req.account_strategy,
-            req.connectivity,
-            discovery_json,
-            dependency_json,
-            req.strategy,
-        ),
-        media_type=SSE_MEDIA_TYPE,
-    )
+        discovery_json = json.dumps(req.assessment.get("discovery", {}))
+        dependency_json = json.dumps(req.assessment.get("dependency", {}))
+        return StreamingResponse(
+            stream_landing_zone(
+                req.region,
+                req.account_strategy,
+                req.connectivity,
+                discovery_json,
+                dependency_json,
+                req.strategy,
+            ),
+            media_type=SSE_MEDIA_TYPE,
+        )
+    except Exception:
+        logger.exception("Error in /api/execution/landing-zone")
+        return JSONResponse(status_code=500, content={"error": "Internal server error"})
 
 
 @app.post("/api/execution/task-breakdown")
 async def execution_task_breakdown(req: TaskBreakdownRequest):
-    if not req.assessment:
-        return JSONResponse(status_code=400, content={"error": "Assessment data is required"})
-    if not req.strategy or not req.strategy.strip():
-        return JSONResponse(status_code=400, content={"error": "Strategy data is required"})
-    if not req.landing_zone or not req.landing_zone.strip():
-        return JSONResponse(status_code=400, content={"error": "Landing zone data is required"})
+    try:
+        if not req.assessment:
+            return JSONResponse(status_code=400, content={"error": "Assessment data is required"})
+        if not req.strategy or not req.strategy.strip():
+            return JSONResponse(status_code=400, content={"error": "Strategy data is required"})
+        if not req.landing_zone or not req.landing_zone.strip():
+            return JSONResponse(status_code=400, content={"error": "Landing zone data is required"})
 
-    assessment_json = json.dumps(req.assessment)
-    return StreamingResponse(
-        stream_task_breakdown(assessment_json, req.strategy, req.landing_zone),
-        media_type=SSE_MEDIA_TYPE,
-    )
+        assessment_json = json.dumps(req.assessment)
+        return StreamingResponse(
+            stream_task_breakdown(assessment_json, req.strategy, req.landing_zone),
+            media_type=SSE_MEDIA_TYPE,
+        )
+    except Exception:
+        logger.exception("Error in /api/execution/task-breakdown")
+        return JSONResponse(status_code=500, content={"error": "Internal server error"})
 
 
 @app.post("/api/execution/push-to-taiga")
 async def execution_push_to_taiga(req: TaigaPushRequest):
-    if not req.task_breakdown:
-        return JSONResponse(status_code=400, content={"error": "Task breakdown data is required"})
+    try:
+        if not req.task_breakdown:
+            return JSONResponse(status_code=400, content={"error": "Task breakdown data is required"})
 
-    task_breakdown_json = json.dumps(req.task_breakdown)
-    return StreamingResponse(
-        stream_push_to_taiga(task_breakdown_json),
-        media_type=SSE_MEDIA_TYPE,
-    )
+        task_breakdown_json = json.dumps(req.task_breakdown)
+        return StreamingResponse(
+            stream_push_to_taiga(task_breakdown_json),
+            media_type=SSE_MEDIA_TYPE,
+        )
+    except Exception:
+        logger.exception("Error in /api/execution/push-to-taiga")
+        return JSONResponse(status_code=500, content={"error": "Internal server error"})
 
 
 @app.post("/api/execution/wave-runbook")
 async def execution_wave_runbook(req: WaveRunbookRequest):
-    if not req.assessment:
-        return JSONResponse(status_code=400, content={"error": "Assessment data is required"})
-    if not req.strategy or not req.strategy.strip():
-        return JSONResponse(status_code=400, content={"error": "Strategy data is required"})
-    if not req.landing_zone or not req.landing_zone.strip():
-        return JSONResponse(status_code=400, content={"error": "Landing zone data is required"})
+    try:
+        if not req.assessment:
+            return JSONResponse(status_code=400, content={"error": "Assessment data is required"})
+        if not req.strategy or not req.strategy.strip():
+            return JSONResponse(status_code=400, content={"error": "Strategy data is required"})
+        if not req.landing_zone or not req.landing_zone.strip():
+            return JSONResponse(status_code=400, content={"error": "Landing zone data is required"})
 
-    assessment_json = json.dumps(req.assessment)
-    return StreamingResponse(
-        stream_wave_runbook(assessment_json, req.strategy, req.landing_zone),
-        media_type=SSE_MEDIA_TYPE,
-    )
+        assessment_json = json.dumps(req.assessment)
+        return StreamingResponse(
+            stream_wave_runbook(assessment_json, req.strategy, req.landing_zone),
+            media_type=SSE_MEDIA_TYPE,
+        )
+    except Exception:
+        logger.exception("Error in /api/execution/wave-runbook")
+        return JSONResponse(status_code=500, content={"error": "Internal server error"})
 
 
 @app.post("/api/execution/resource-planning")
 async def execution_resource_planning(req: ResourcePlanningRequest):
-    if not req.strategy or not req.strategy.strip():
-        return JSONResponse(status_code=400, content={"error": "Strategy data is required"})
+    try:
+        if not req.strategy or not req.strategy.strip():
+            return JSONResponse(status_code=400, content={"error": "Strategy data is required"})
 
-    return StreamingResponse(
-        stream_resource_planning(req.strategy),
-        media_type=SSE_MEDIA_TYPE,
-    )
+        return StreamingResponse(
+            stream_resource_planning(req.strategy),
+            media_type=SSE_MEDIA_TYPE,
+        )
+    except Exception:
+        logger.exception("Error in /api/execution/resource-planning")
+        return JSONResponse(status_code=500, content={"error": "Internal server error"})
 
 
 @app.post("/api/cost/aws-cost")
 async def cost_aws_cost(req: AwsCostRequest):
-    if not req.assessment:
-        return JSONResponse(status_code=400, content={"error": "Assessment data is required"})
-    if not req.strategy or not req.strategy.strip():
-        return JSONResponse(status_code=400, content={"error": "Strategy data is required"})
+    try:
+        if not req.assessment:
+            return JSONResponse(status_code=400, content={"error": "Assessment data is required"})
+        if not req.strategy or not req.strategy.strip():
+            return JSONResponse(status_code=400, content={"error": "Strategy data is required"})
 
-    assessment_json = json.dumps(req.assessment)
-    return StreamingResponse(
-        stream_aws_cost(assessment_json, req.strategy),
-        media_type=SSE_MEDIA_TYPE,
-    )
+        assessment_json = json.dumps(req.assessment)
+        return StreamingResponse(
+            stream_aws_cost(assessment_json, req.strategy),
+            media_type=SSE_MEDIA_TYPE,
+        )
+    except Exception:
+        logger.exception("Error in /api/cost/aws-cost")
+        return JSONResponse(status_code=500, content={"error": "Internal server error"})

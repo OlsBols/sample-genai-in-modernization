@@ -41,11 +41,16 @@ def _parse_wave_plan(strategy_text: str) -> list[dict]:
     dependency_constraint, risk_tier, prerequisites, notes.
     """
     waves: list[dict] = []
-    match = re.search(r"## Wave Plan\s*\n(.*?)(?=\n## |\Z)", strategy_text, re.DOTALL)
-    if not match:
+    # Use a simple string split approach to avoid polynomial regex on user data
+    marker = "## Wave Plan"
+    start_idx = strategy_text.find(marker)
+    if start_idx == -1:
         return waves
 
-    section = match.group(1)
+    # Find the end of the section (next ## heading or end of string)
+    section_start = start_idx + len(marker)
+    next_heading = strategy_text.find("\n## ", section_start)
+    section = strategy_text[section_start:next_heading] if next_heading != -1 else strategy_text[section_start:]
     table_lines = [
         line.strip()
         for line in section.split("\n")
