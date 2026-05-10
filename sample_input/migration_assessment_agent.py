@@ -17,6 +17,12 @@ from strands.models.bedrock import BedrockModel
 DATA_DIR = Path(__file__).parent / "sample_data"
 APP_CSV = DATA_DIR / "cpg_app.csv"
 
+# Model IDs
+CLAUDE_SONNET_4_MODEL_ID = "us.anthropic.claude-sonnet-4-20250514-v1:0"
+CLAUDE_OPUS_4_MODEL_ID = "us.anthropic.claude-opus-4-20250514-v1:0"
+
+DEFAULT_MODEL_ID = CLAUDE_SONNET_4_MODEL_ID
+
 
 # ---------------------------------------------------------------------------
 # Helper — load CSV
@@ -56,7 +62,7 @@ def main():
             "You are an application inventory analyst for a CPG company. "
             "Answer questions based on the data provided. Cite app names. Be concise."
         ),
-        model=BedrockModel(model_id="us.amazon.nova-pro-v1:0", temperature=0.2, streaming=False),
+        model=BedrockModel(model_id=DEFAULT_MODEL_ID, temperature=0.2, streaming=False),
         tools=[analyse_inventory],
         callback_handler = None
     )
@@ -67,7 +73,7 @@ def main():
             "You are a cloud migration strategist. Use the provided analysis "
             "to recommend a migration strategy with wave groupings. Reference actual app names."
         ),
-        model=BedrockModel(model_id="us.amazon.nova-pro-v1:0", temperature=0.4, streaming=True),
+        model=BedrockModel(model_id=DEFAULT_MODEL_ID, temperature=0.4, streaming=True),
         callback_handler = None
     )
 
