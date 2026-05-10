@@ -10,6 +10,13 @@ from strands_tools import file_read
 DATA_DIR = Path(__file__).parent / "sample_data"
 PDF_PATH = str(DATA_DIR / "sample_business_case.pdf")
 
+# Model IDs
+CLAUDE_SONNET_4_MODEL_ID = "us.anthropic.claude-sonnet-4-20250514-v1:0"
+CLAUDE_OPUS_4_MODEL_ID = "us.anthropic.claude-opus-4-20250514-v1:0"
+
+# Default to Opus 4 for deeper analysis; switch to Sonnet 4 for faster/cheaper runs
+DEFAULT_MODEL_ID = CLAUDE_SONNET_4_MODEL_ID
+
 
 # ---------------------------------------------------------------------------
 # Main
@@ -24,7 +31,7 @@ def main():
             "completeness, cost assumptions, risk coverage, and timeline realism. "
             "Be specific and actionable."
         ),
-        model=BedrockModel(model_id="us.anthropic.claude-sonnet-4-20250514-v1:0", temperature=0.3, streaming=True),
+        model=BedrockModel(model_id=DEFAULT_MODEL_ID, temperature=0.3, streaming=True),
         tools=[file_read],
         callback_handler=None,
     )
