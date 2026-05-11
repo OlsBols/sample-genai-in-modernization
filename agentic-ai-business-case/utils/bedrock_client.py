@@ -11,11 +11,37 @@ from .config import (
 )
 
 # Haiku 4.5 model ID for fast, lightweight analysis tasks
-# Try cross-region first, fall back to direct model ID
-HAIKU_MODEL_IDS = [
-    "us.anthropic.claude-haiku-4-5-20251001-v1:0",
-    "anthropic.claude-haiku-4-5-20251001-v1:0",
-]
+# Cross-region inference prefix is determined by the configured AWS region
+HAIKU_BASE_MODEL_ID = "anthropic.claude-haiku-4-5-20251001-v1:0"
+
+
+def _get_cross_region_prefix() -> str:
+    """
+    Determine the correct cross-region inference prefix based on configured AWS region.
+    - eu-* regions → 'eu.'
+    - us-*, ca-* regions → 'us.'
+    - ap-southeast-2, ap-southeast-4, ap-southeast-6 → 'au.'
+    - All others → 'us.' (default)
+    """
+    region = get_aws_region()
+    if region.startswith("eu-"):
+        return "eu."
+    elif region.startswith("ap-southeast-2") or region.startswith("ap-southeast-4") or region.startswith("ap-southeast-6"):
+        return "au."
+    elif region.startswith("us-") or region.startswith("ca-"):
+        return "us."
+    else:
+        # For other regions (ap-*, me-*, af-*, sa-*, il-*), use global inference
+        return "us."
+
+
+def _get_haiku_model_ids() -> list:
+    """Get ordered list of Haiku model IDs to try, based on configured region."""
+    prefix = _get_cross_region_prefix()
+    return [
+        f"{prefix}{HAIKU_BASE_MODEL_ID}",  # Cross-region inference (geo-matched)
+        HAIKU_BASE_MODEL_ID,                # Direct in-region fallback
+    ]
 
 
 def _create_bedrock_client():
@@ -237,7 +263,8 @@ def invoke_bedrock_haiku(text_content, max_tokens=8192):
     }
 
     last_error = None
-    for model_id in HAIKU_MODEL_IDS:
+    haiku_model_ids = _get_haiku_model_ids()
+    for model_id in haiku_model_ids:
         try:
             response = client.invoke_model(
                 modelId=model_id, body=json.dumps(body)

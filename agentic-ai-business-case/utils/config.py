@@ -22,9 +22,26 @@ BEDROCK_CONFIG = {
     "retries": {"max_attempts": 3},
 }
 
-# Model Configuration
-CLAUDE_3_7_SONNET_MODEL_ID = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
-CLAUDE_3_5_SONNET_MODEL_ID = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+# Model Configuration - Base model IDs (without geo prefix)
+# The geo prefix (us./eu./au.) is applied dynamically based on AWS_REGION
+_CLAUDE_SONNET_BASE_ID = "anthropic.claude-sonnet-4-5-20250929-v1:0"
+
+
+def _get_sonnet_model_id() -> str:
+    """Get the Sonnet model ID with correct cross-region prefix for the configured region."""
+    region = get_aws_region()
+    if region.startswith("eu-"):
+        prefix = "eu."
+    elif region.startswith("ap-southeast-2") or region.startswith("ap-southeast-4") or region.startswith("ap-southeast-6"):
+        prefix = "au."
+    else:
+        prefix = "us."
+    return f"{prefix}{_CLAUDE_SONNET_BASE_ID}"
+
+
+# These are kept for backward compatibility but now resolve dynamically
+CLAUDE_3_7_SONNET_MODEL_ID = None  # Use get_model_config() instead
+CLAUDE_3_5_SONNET_MODEL_ID = None  # Use get_model_config() instead
 
 # Default Model Parameters
 DEFAULT_MAX_TOKENS = 8192
@@ -64,15 +81,16 @@ def get_aws_region() -> str:
 
 def get_model_config(model_type: str = "claude_3_7") -> Dict:
     """Get model configuration based on type"""
+    model_id = _get_sonnet_model_id()
     if model_type == "claude_3_5":
         return {
-            "model_id": CLAUDE_3_5_SONNET_MODEL_ID,
+            "model_id": model_id,
             "max_tokens": DEFAULT_MAX_TOKENS,
             "temperature": DEFAULT_TEMPERATURE,
         }
     else:
         return {
-            "model_id": CLAUDE_3_7_SONNET_MODEL_ID,
+            "model_id": model_id,
             "max_tokens": DEFAULT_MAX_TOKENS,
             "temperature": DEFAULT_TEMPERATURE,
             "reasoning_budget": DEFAULT_REASONING_BUDGET,
@@ -82,7 +100,7 @@ def get_model_config(model_type: str = "claude_3_7") -> Dict:
 def get_chat_model_config() -> Dict:
     """Get model configuration specifically for chat assistant with lower temperature"""
     return {
-        "model_id": CLAUDE_3_7_SONNET_MODEL_ID,
+        "model_id": _get_sonnet_model_id(),
         "max_tokens": DEFAULT_MAX_TOKENS,
         "temperature": CHAT_TEMPERATURE,  
         "reasoning_budget": DEFAULT_REASONING_BUDGET,
@@ -92,7 +110,7 @@ def get_chat_model_config() -> Dict:
 def get_memory_model_config() -> Dict:
     """Get model configuration specifically for Mem0 memory operations with Claude 3.7 Sonnet"""
     return {
-        "model_id": CLAUDE_3_7_SONNET_MODEL_ID,
+        "model_id": _get_sonnet_model_id(),
         "max_tokens": 128000,  
         "temperature": MEMORY_TEMPERATURE,  
     }
