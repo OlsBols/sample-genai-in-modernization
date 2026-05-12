@@ -214,7 +214,7 @@ def handler(event, context):
         
         # Find all CDK-managed ECR repos for this stack
         repos = ecr.describe_repositories()['repositories']
-        cdk_repos = [r for r in repos if 'cdk-' in r['repositoryName'] or 'businesscasegenerator' in r['repositoryName'].lower()]
+        cdk_repos = [r for r in repos if 'cdk-' in r['repositoryName'] or 'businesscasegenerator' in r['repositoryName'].lower() or 'business-case-generator' in r['repositoryName'].lower()]
         
         for repo in cdk_repos:
             repo_name = repo['repositoryName']

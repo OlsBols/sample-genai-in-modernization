@@ -212,9 +212,9 @@ function ServiceCompletenessAnalysis() {
         const currencySymbol = calcData.is_esc ? '€' : '$';
         const currencyCode = calcData.is_esc ? 'EUR' : 'USD';
 
-        // Generate services summary for AI analysis
+        // Generate services summary for AI analysis - include group hierarchy and config for accurate analysis
         const servicesSummary = services.map(s =>
-          `${s.service_name}, ${s.region}, ${s.description}, Monthly: ${currencySymbol}${s.monthly_cost}, Annual: ${currencySymbol}${s.monthly_cost * 12}`
+          `${s.group || 'N/A'}, ${s.service_name}, ${s.region}, ${s.description}, ${s.config_summary || ''}, Monthly: ${currencySymbol}${s.monthly_cost}, Annual: ${currencySymbol}${s.monthly_cost * 12}`
         ).join('\n');
         
         // Add currency context to the prompt
@@ -223,7 +223,7 @@ function ServiceCompletenessAnalysis() {
           : '';
         
         const csvBlob = new Blob(
-          [`Service,Region,Description,Monthly Cost (${currencyCode}),Annual Cost (${currencyCode})\n${servicesSummary}`],
+          [`Group Hierarchy,Service,Region,Description,Configuration Summary,Monthly Cost (${currencyCode}),Annual Cost (${currencyCode})\n${servicesSummary}`],
           { type: 'text/csv' }
         );
         const analysisFormData = new FormData();
