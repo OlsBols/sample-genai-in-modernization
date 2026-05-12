@@ -220,15 +220,25 @@ function ServiceCompletenessAnalysis() {
         const totalAnnual = totalMonthly * 12;
 
         let servicesSummary;
+        
+        // Helper to CSV-quote a field (escape commas and quotes)
+        const csvQuote = (val) => {
+          const str = String(val || '');
+          if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+            return `"${str.replace(/"/g, '""')}"`;
+          }
+          return str;
+        };
+        
         if (rawServices.length > 0) {
           // Best case: use raw non-aggregated services with full group hierarchy
           servicesSummary = rawServices.map(s =>
-            `${s.group || 'N/A'}, ${s.service_name}, ${s.region}, ${s.description}, ${s.config_summary || ''}, Monthly: ${currencySymbol}${s.monthly_cost}, Annual: ${currencySymbol}${(s.monthly_cost * 12).toFixed(2)}`
+            `${csvQuote(s.group || 'N/A')},${csvQuote(s.service_name)},${csvQuote(s.region)},${csvQuote(s.description)},${csvQuote(s.config_summary || '')},${s.monthly_cost},${(s.monthly_cost * 12).toFixed(2)}`
           ).join('\n');
         } else {
           // Fallback: use aggregated services (less detail but correct totals)
           servicesSummary = aggregatedServices.map(s =>
-            `${s.group || 'N/A'}, ${s.service_name}, ${s.region}, ${s.description || ''}, ${s.config_summary || ''}, Monthly: ${currencySymbol}${s.monthly_cost?.toFixed(2)}, Annual: ${currencySymbol}${(s.monthly_cost * 12).toFixed(2)}, Line Items: ${s.line_item_count || 1}`
+            `${csvQuote(s.group || 'N/A')},${csvQuote(s.service_name)},${csvQuote(s.region)},${csvQuote(s.description || '')},${csvQuote(s.config_summary || '')},${s.monthly_cost?.toFixed(2)},${(s.monthly_cost * 12).toFixed(2)},${s.line_item_count || 1}`
           ).join('\n');
         }
 
