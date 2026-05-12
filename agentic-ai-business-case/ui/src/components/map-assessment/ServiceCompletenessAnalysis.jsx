@@ -22,7 +22,7 @@ import {
 } from '@cloudscape-design/components';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { getApiUrl } from '../../utils/apiConfig.js';
+import { getApiUrl, fetchWithAuth } from '../../utils/apiConfig.js';
 import { useMapAssessment } from '../../contexts/MapAssessmentContext.jsx';
 
 const SERVICE_ANALYSIS_PROMPT = `Analyze this AWS Pricing Calculator CSV for a cloud migration. Identify missing services across 6 categories. Be concise — no repetition between sections.
@@ -183,7 +183,7 @@ function ServiceCompletenessAnalysis() {
 
     try {
       // Step 1: Fetch calculator data from URL
-      const calcResponse = await fetch(getApiUrl('/map/service-completeness/analyze-url'), {
+      const calcResponse = await fetchWithAuth(getApiUrl('/map/service-completeness/analyze-url'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ calculator_url: calculatorUrl })
@@ -209,14 +209,31 @@ function ServiceCompletenessAnalysis() {
       try {
         const prompt = useCustomPrompt ? customPrompt : SERVICE_ANALYSIS_PROMPT;
         // Use raw_services (non-aggregated) for AI analysis to preserve group hierarchy (PRO, QA, DR, etc.)
-        const rawServices = calcData.raw_services || calcData.services || [];
+        // Falls back to aggregated services if raw_services not available
+        const rawServices = calcData.raw_services || [];
+        const aggregatedServices = calcData.services || [];
         const currencySymbol = calcData.is_esc ? '€' : '$';
         const currencyCode = calcData.is_esc ? 'EUR' : 'USD';
 
-        // Generate services summary for AI analysis - include group hierarchy and config for accurate analysis
-        const servicesSummary = rawServices.map(s =>
-          `${s.group || 'N/A'}, ${s.service_name}, ${s.region}, ${s.description}, ${s.config_summary || ''}, Monthly: ${currencySymbol}${s.monthly_cost}, Annual: ${currencySymbol}${(s.monthly_cost * 12).toFixed(2)}`
-        ).join('\n');
+        // Calculate totals from aggregated services (always accurate)
+        const totalMonthly = aggregatedServices.reduce((sum, s) => sum + (s.monthly_cost || 0), 0);
+        const totalAnnual = totalMonthly * 12;
+
+        let servicesSummary;
+        if (rawServices.length > 0) {
+          // Best case: use raw non-aggregated services with full group hierarchy
+          servicesSummary = rawServices.map(s =>
+            `${s.group || 'N/A'}, ${s.service_name}, ${s.region}, ${s.description}, ${s.config_summary || ''}, Monthly: ${currencySymbol}${s.monthly_cost}, Annual: ${currencySymbol}${(s.monthly_cost * 12).toFixed(2)}`
+          ).join('\n');
+        } else {
+          // Fallback: use aggregated services (less detail but correct totals)
+          servicesSummary = aggregatedServices.map(s =>
+            `${s.group || 'N/A'}, ${s.service_name}, ${s.region}, ${s.description || ''}, ${s.config_summary || ''}, Monthly: ${currencySymbol}${s.monthly_cost?.toFixed(2)}, Annual: ${currencySymbol}${(s.monthly_cost * 12).toFixed(2)}, Line Items: ${s.line_item_count || 1}`
+          ).join('\n');
+        }
+
+        // Add total cost context so the LLM doesn't miscalculate
+        const totalContext = `\n\n**TOTAL INFRASTRUCTURE COST: ${currencySymbol}${totalMonthly.toFixed(2)}/month = ${currencySymbol}${totalAnnual.toFixed(2)}/year (${aggregatedServices.length} unique services, ${rawServices.length || 'N/A'} individual line items)**\n`;
         
         // Add currency context to the prompt
         const currencyNote = calcData.is_esc 
@@ -224,14 +241,14 @@ function ServiceCompletenessAnalysis() {
           : '';
         
         const csvBlob = new Blob(
-          [`Group Hierarchy,Service,Region,Description,Configuration Summary,Monthly Cost (${currencyCode}),Annual Cost (${currencyCode})\n${servicesSummary}`],
+          [`Group Hierarchy,Service,Region,Description,Configuration Summary,Monthly Cost (${currencyCode}),Annual Cost (${currencyCode})\n${servicesSummary}${totalContext}`],
           { type: 'text/csv' }
         );
         const analysisFormData = new FormData();
         analysisFormData.append('file', csvBlob, 'calculator_services.csv');
         analysisFormData.append('custom_prompt', prompt + currencyNote);
 
-        const analysisResponse = await fetch(getApiUrl('/map/service-analysis/analyze'), {
+        const analysisResponse = await fetchWithAuth(getApiUrl('/map/service-analysis/analyze'), {
           method: 'POST',
           body: analysisFormData
         });

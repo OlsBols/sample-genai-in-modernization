@@ -370,6 +370,7 @@ def handler(event, context):
                 authorization_endpoint=oidc_authorization_endpoint,
                 token_endpoint=oidc_token_endpoint,
                 user_info_endpoint=oidc_user_info_endpoint,
+                session_timeout=Duration.days(7),
                 next=elbv2.ListenerAction.forward([target_group]),
             ),
         )
