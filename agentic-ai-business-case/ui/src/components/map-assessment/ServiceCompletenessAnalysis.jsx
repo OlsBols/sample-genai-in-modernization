@@ -208,13 +208,14 @@ function ServiceCompletenessAnalysis() {
 
       try {
         const prompt = useCustomPrompt ? customPrompt : SERVICE_ANALYSIS_PROMPT;
-        const services = calcData.services || [];
+        // Use raw_services (non-aggregated) for AI analysis to preserve group hierarchy (PRO, QA, DR, etc.)
+        const rawServices = calcData.raw_services || calcData.services || [];
         const currencySymbol = calcData.is_esc ? '€' : '$';
         const currencyCode = calcData.is_esc ? 'EUR' : 'USD';
 
         // Generate services summary for AI analysis - include group hierarchy and config for accurate analysis
-        const servicesSummary = services.map(s =>
-          `${s.group || 'N/A'}, ${s.service_name}, ${s.region}, ${s.description}, ${s.config_summary || ''}, Monthly: ${currencySymbol}${s.monthly_cost}, Annual: ${currencySymbol}${s.monthly_cost * 12}`
+        const servicesSummary = rawServices.map(s =>
+          `${s.group || 'N/A'}, ${s.service_name}, ${s.region}, ${s.description}, ${s.config_summary || ''}, Monthly: ${currencySymbol}${s.monthly_cost}, Annual: ${currencySymbol}${(s.monthly_cost * 12).toFixed(2)}`
         ).join('\n');
         
         // Add currency context to the prompt
