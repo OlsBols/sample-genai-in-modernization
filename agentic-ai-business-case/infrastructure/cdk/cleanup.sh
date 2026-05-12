@@ -101,7 +101,7 @@ echo ""
 echo_info "Step 2: Deleting ECR repository images..."
 
 # Find all ECR repositories created by CDK (both simple and full stack)
-for pattern in "businesscasegeneratorstack" "businesscasegeneratorsimplestack"; do
+for pattern in "businesscasegeneratorstack" "businesscasegeneratorsimplestack" "business-case-generator" "cdk-"; do
     ECR_REPOS=$(aws ecr describe-repositories --region $AWS_REGION --query "repositories[?contains(repositoryName, '$pattern')].repositoryName" --output text 2>/dev/null)
     
     for ECR_REPO in $ECR_REPOS; do

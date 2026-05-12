@@ -11,7 +11,7 @@ Architecture:
 """
 
 from aws_cdk import (
-    App, Stack, Duration, RemovalPolicy,
+    App, Stack, Duration, RemovalPolicy, CustomResource,
     aws_ec2 as ec2,
     aws_ecs as ecs,
     aws_elasticloadbalancingv2 as elbv2,
@@ -20,6 +20,7 @@ from aws_cdk import (
     aws_iam as iam,
     aws_logs as logs,
     aws_ecr_assets as ecr_assets,
+    aws_lambda as _lambda,
 )
 from constructs import Construct
 import os
@@ -153,30 +154,16 @@ class BusinessCaseGeneratorSimpleStack(Stack):
         )
         
         # Build and add container
-        
-        # Create explicit ECR repository with auto-cleanup on stack deletion
-        from aws_cdk import aws_ecr as ecr_repo_module
-        
-        ecr_repository = ecr_repo_module.Repository(
-            self, "AppEcrRepo",
-            repository_name="business-case-generator-simple",
-            removal_policy=RemovalPolicy.DESTROY,
-            empty_on_delete=True,
-        )
-        
-        docker_image_asset = ecr_assets.DockerImageAsset(
-            self, "AppImage",
-            directory=os.path.join(os.path.dirname(__file__), "../.."),
-            file="infrastructure/Dockerfile",
-            platform=ecr_assets.Platform.LINUX_AMD64,
-            build_args={
-                "BUILDKIT_INLINE_CACHE": "1",
-            },
-        )
-        
         container = task_definition.add_container(
             "AppContainer",
-            image=ecs.ContainerImage.from_docker_image_asset(docker_image_asset),
+            image=ecs.ContainerImage.from_asset(
+                directory=os.path.join(os.path.dirname(__file__), "../.."),
+                file="infrastructure/Dockerfile",
+                platform=ecr_assets.Platform.LINUX_AMD64,
+                build_args={
+                    "BUILDKIT_INLINE_CACHE": "1",
+                },
+            ),
             logging=ecs.LogDrivers.aws_logs(
                 stream_prefix="business-case",
                 log_retention=logs.RetentionDays.ONE_WEEK,
@@ -200,6 +187,83 @@ class BusinessCaseGeneratorSimpleStack(Stack):
         
         container.add_port_mappings(
             ecs.PortMapping(container_port=8080, protocol=ecs.Protocol.TCP)
+        )
+        
+        # ====================================================================
+        # ECR Cleanup on Stack Deletion
+        # Lambda-backed custom resource that empties CDK-managed ECR repos
+        # so CloudFormation can delete the stack cleanly from the console
+        # ====================================================================
+        ecr_cleanup_function = _lambda.Function(
+            self, "EcrCleanupFunction",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            handler="index.handler",
+            timeout=Duration.seconds(300),
+            code=_lambda.Code.from_inline("""
+import boto3
+import cfnresponse
+
+def handler(event, context):
+    if event['RequestType'] != 'Delete':
+        cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+        return
+    
+    try:
+        ecr = boto3.client('ecr')
+        account_id = event['ResourceProperties']['AccountId']
+        
+        # Find all CDK-managed ECR repos for this stack
+        repos = ecr.describe_repositories()['repositories']
+        cdk_repos = [r for r in repos if 'cdk-' in r['repositoryName'] or 'businesscasegenerator' in r['repositoryName'].lower()]
+        
+        for repo in cdk_repos:
+            repo_name = repo['repositoryName']
+            try:
+                # List all images
+                images = ecr.list_images(repositoryName=repo_name)['imageIds']
+                if images:
+                    # Delete all images in batches of 100
+                    for i in range(0, len(images), 100):
+                        batch = images[i:i+100]
+                        ecr.batch_delete_image(repositoryName=repo_name, imageIds=batch)
+                    print(f"Deleted {len(images)} images from {repo_name}")
+                
+                # Delete the repository
+                ecr.delete_repository(repositoryName=repo_name, force=True)
+                print(f"Deleted repository {repo_name}")
+            except ecr.exceptions.RepositoryNotFoundException:
+                print(f"Repository {repo_name} already deleted")
+            except Exception as e:
+                print(f"Error cleaning {repo_name}: {e}")
+        
+        cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+    except Exception as e:
+        print(f"Error: {e}")
+        # Don't fail the stack deletion
+        cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+"""),
+        )
+        
+        # Grant ECR permissions to the cleanup function
+        ecr_cleanup_function.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=[
+                    "ecr:DescribeRepositories",
+                    "ecr:ListImages",
+                    "ecr:BatchDeleteImage",
+                    "ecr:DeleteRepository",
+                ],
+                resources=["*"],
+            )
+        )
+        
+        # Create the custom resource (triggers on stack deletion)
+        ecr_cleanup = CustomResource(
+            self, "EcrCleanupResource",
+            service_token=ecr_cleanup_function.function_arn,
+            properties={
+                "AccountId": self.account,
+            },
         )
         
         # ====================================================================
