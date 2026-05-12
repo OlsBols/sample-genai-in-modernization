@@ -33,14 +33,27 @@ const SERVICE_ANALYSIS_PROMPT = `Analyze this AWS Pricing Calculator CSV for a c
 - Only flag services that are genuinely absent — do not flag services that can be inferred from what's present
 - Skip categories where nothing is missing
 
+**CRITICAL — READ THE CSV CAREFULLY BEFORE CONCLUDING:**
+- "Group hierarchy" column shows environment structure (PRO, QA, DEV, DR, Networking, Security). If a DR group exists with its own compute/storage/services, DR IS present.
+- "Description" column describes workload purpose (e.g., "EC2 - TimeScale Hot" = self-managed database). If EC2 instances are running databases, do NOT say "no database" or flag "no multi-AZ RDS" — self-managed DBs on EC2 are a valid choice.
+- "Configuration summary" column contains EBS storage amounts, instance counts, and other config details. EBS is configured WITHIN EC2 in the AWS Calculator — if ANY EC2 row shows "EBS Storage amount (X TB)" or "EBS Storage amount (X GB)", EBS IS included. Sum all EBS across EC2 instances and report the total.
+- "Region" column shows deployment region. Compare regions between PRO and DR groups to determine if DR is multi-region or single-region.
+- "Number of instances: 2+" in Configuration summary for the same workload = multi-AZ deployment. State this as fact, do not ask the customer.
+
 **6 CATEGORIES TO CHECK**
 
 1. **Backup & Recovery** (2-3%): AWS Backup, EBS snapshots, S3 Glacier, cross-region replication
-2. **Storage** (25-30%): S3 tiers, EFS, FSx, Storage Gateway, EBS
-3. **DR/HA** (1-2%): Multi-AZ, cross-region replication, Elastic DR, Route 53 health checks
+2. **Storage** (25-30%): S3 tiers, EFS, FSx, Storage Gateway, EBS (check EC2 Configuration summary for "EBS Storage amount" — if present, EBS IS included)
+3. **DR/HA** (1-2%): Multi-AZ, cross-region replication, Elastic DR, Route 53 health checks, dedicated DR environment groups. If DR group exists in Group hierarchy, state what's in it. If "Number of instances: 2+" on a workload, state it IS multi-AZ. If DR is in a different Region than PRO, state "multi-region DR". If same region, state "single-region DR".
 4. **Network** (10-15%): ALB/NLB, CloudFront, Route 53, Transit GW, Direct Connect, VPN, Data Transfer, NAT GW, Public IPv4
 5. **Observability** (2-4%): CloudWatch, CloudTrail, X-Ray, VPC Flow Logs, Config, Systems Manager
 6. **Security** (2-4%): KMS, WAF, Shield, GuardDuty, Security Hub, Secrets Manager, Network Firewall
+
+**DO NOT flag these as gaps:**
+- "No EBS" when EBS is configured within EC2 instances
+- "No RDS/Aurora" when databases are self-managed on EC2 (check Description for DB names like TimeScale, PostgreSQL, MySQL, MongoDB, Oracle)
+- "No DR" when a DR environment group exists in Group hierarchy
+- "No multi-AZ" when instance count >= 2 for a workload
 
 **OUTPUT — 4 sections:**
 
@@ -51,9 +64,9 @@ Then one line: Compute/Non-Compute ratio vs 56/44 benchmark. Assessment status (
 **2. SERVICE GAP ANALYSIS BY CATEGORY**
 For each category where gaps exist (skip categories that are complete):
 - **Status**: Complete / Partial / Missing
-- **Services Found**: list what IS in the calculator
+- **Services Found**: list what IS in the calculator (include EBS totals from EC2 config, DR environment details, multi-AZ statements)
 - **Services Missing**: list what is NOT, with estimated annual cost per missing service
-- **Question to Ask Customer**: one key question
+- **Question to Ask Customer**: one key question (only ask what CANNOT be determined from the CSV data)
 
 Keep each category to 4-5 lines max. Do not repeat the same services across categories.
 

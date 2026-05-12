@@ -95,33 +95,65 @@ for bucket in "business-case-input-${AWS_ACCOUNT_ID}-${AWS_REGION}" \
 done
 
 # ============================================================================
-# Step 2: Delete CloudFormation Stack (using CloudFormation directly)
+# Step 2: Delete ECR Repository images (required before stack deletion)
 # ============================================================================
 echo ""
-echo_info "Step 2: Deleting CloudFormation stack..."
+echo_info "Step 2: Deleting ECR repository images..."
 
-if aws cloudformation describe-stacks --stack-name BusinessCaseGeneratorStack --region $AWS_REGION &>/dev/null; then
-    echo_info "  Deleting stack BusinessCaseGeneratorStack..."
-    echo_warn "  This may take 5-10 minutes..."
+# Find all ECR repositories created by CDK (both simple and full stack)
+for pattern in "businesscasegeneratorstack" "businesscasegeneratorsimplestack"; do
+    ECR_REPOS=$(aws ecr describe-repositories --region $AWS_REGION --query "repositories[?contains(repositoryName, '$pattern')].repositoryName" --output text 2>/dev/null)
     
-    # Use CloudFormation directly (CDK destroy requires environment variables)
-    if aws cloudformation delete-stack --stack-name BusinessCaseGeneratorStack --region $AWS_REGION; then
-        echo_info "  ✓ Stack deletion initiated"
-        echo_info "  Waiting for stack deletion to complete..."
-        aws cloudformation wait stack-delete-complete --stack-name BusinessCaseGeneratorStack --region $AWS_REGION 2>/dev/null
-        echo_info "  ✓ Stack deleted"
-    else
-        echo_error "  Failed to delete stack"
-    fi
-else
-    echo_warn "  Stack BusinessCaseGeneratorStack not found, skipping"
-fi
+    for ECR_REPO in $ECR_REPOS; do
+        if [ -n "$ECR_REPO" ]; then
+            echo_info "  Found ECR repository: $ECR_REPO"
+            # Delete all images first
+            IMAGE_IDS=$(aws ecr list-images --repository-name "$ECR_REPO" --region $AWS_REGION --query 'imageIds[*]' --output json 2>/dev/null)
+            if [ "$IMAGE_IDS" != "[]" ] && [ -n "$IMAGE_IDS" ]; then
+                echo_info "  Deleting images from $ECR_REPO..."
+                aws ecr batch-delete-image --repository-name "$ECR_REPO" --region $AWS_REGION --image-ids "$IMAGE_IDS" >/dev/null 2>&1
+                echo_info "  ✓ Images deleted from $ECR_REPO"
+            fi
+            # Now delete the repository
+            if aws ecr delete-repository --repository-name "$ECR_REPO" --region $AWS_REGION --force 2>/dev/null; then
+                echo_info "  ✓ ECR repository $ECR_REPO deleted"
+            else
+                echo_error "  Failed to delete ECR repository $ECR_REPO"
+            fi
+        fi
+    done
+done
 
 # ============================================================================
-# Step 3: Delete S3 Buckets (now that they're empty)
+# Step 3: Delete CloudFormation Stack (using CloudFormation directly)
 # ============================================================================
 echo ""
-echo_info "Step 3: Deleting S3 buckets..."
+echo_info "Step 3: Deleting CloudFormation stack..."
+
+# Try both stack names (simple and full)
+for STACK_NAME in "BusinessCaseGeneratorStack" "BusinessCaseGeneratorSimpleStack"; do
+    if aws cloudformation describe-stacks --stack-name $STACK_NAME --region $AWS_REGION &>/dev/null; then
+        echo_info "  Deleting stack $STACK_NAME..."
+        echo_warn "  This may take 5-10 minutes..."
+        
+        if aws cloudformation delete-stack --stack-name $STACK_NAME --region $AWS_REGION; then
+            echo_info "  ✓ Stack deletion initiated"
+            echo_info "  Waiting for stack deletion to complete..."
+            aws cloudformation wait stack-delete-complete --stack-name $STACK_NAME --region $AWS_REGION 2>/dev/null
+            echo_info "  ✓ Stack $STACK_NAME deleted"
+        else
+            echo_error "  Failed to delete stack $STACK_NAME"
+        fi
+    else
+        echo_warn "  Stack $STACK_NAME not found, skipping"
+    fi
+done
+
+# ============================================================================
+# Step 4: Delete S3 Buckets (now that they're empty)
+# ============================================================================
+echo ""
+echo_info "Step 4: Deleting S3 buckets..."
 
 for bucket in "business-case-input-${AWS_ACCOUNT_ID}-${AWS_REGION}" \
               "business-case-output-${AWS_ACCOUNT_ID}-${AWS_REGION}"; do
@@ -136,26 +168,6 @@ for bucket in "business-case-input-${AWS_ACCOUNT_ID}-${AWS_REGION}" \
         echo_warn "  Bucket $bucket not found, skipping"
     fi
 done
-
-# ============================================================================
-# Step 4: Delete ECR Repository
-# ============================================================================
-echo ""
-echo_info "Step 4: Deleting ECR repository..."
-
-# Find ECR repository created by CDK
-ECR_REPO=$(aws ecr describe-repositories --region $AWS_REGION --query "repositories[?contains(repositoryName, 'businesscasegeneratorstack')].repositoryName" --output text 2>/dev/null)
-
-if [ -n "$ECR_REPO" ]; then
-    echo_info "  Found ECR repository: $ECR_REPO"
-    if aws ecr delete-repository --repository-name "$ECR_REPO" --region $AWS_REGION --force 2>/dev/null; then
-        echo_info "  ✓ ECR repository deleted"
-    else
-        echo_error "  Failed to delete ECR repository"
-    fi
-else
-    echo_warn "  ECR repository not found, skipping"
-fi
 
 # ============================================================================
 # Step 5: Delete DynamoDB Table (optional - has RETAIN policy)
@@ -209,9 +221,9 @@ echo_info "✓ Cleanup Complete!"
 echo "=========================================="
 echo ""
 echo_info "Resources deleted:"
+echo_info "  ✓ ECR repository (images deleted first)"
 echo_info "  ✓ CloudFormation stack (VPC, ECS, ALB, etc.)"
 echo_info "  ✓ S3 buckets (emptied and deleted)"
-echo_info "  ✓ ECR repository"
 if [[ $DELETE_TABLE =~ ^[Yy]$ ]]; then
     echo_info "  ✓ DynamoDB table"
 else

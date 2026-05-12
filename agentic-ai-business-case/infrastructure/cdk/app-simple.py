@@ -153,16 +153,30 @@ class BusinessCaseGeneratorSimpleStack(Stack):
         )
         
         # Build and add container
+        
+        # Create explicit ECR repository with auto-cleanup on stack deletion
+        from aws_cdk import aws_ecr as ecr_repo_module
+        
+        ecr_repository = ecr_repo_module.Repository(
+            self, "AppEcrRepo",
+            repository_name="business-case-generator-simple",
+            removal_policy=RemovalPolicy.DESTROY,
+            empty_on_delete=True,
+        )
+        
+        docker_image_asset = ecr_assets.DockerImageAsset(
+            self, "AppImage",
+            directory=os.path.join(os.path.dirname(__file__), "../.."),
+            file="infrastructure/Dockerfile",
+            platform=ecr_assets.Platform.LINUX_AMD64,
+            build_args={
+                "BUILDKIT_INLINE_CACHE": "1",
+            },
+        )
+        
         container = task_definition.add_container(
             "AppContainer",
-            image=ecs.ContainerImage.from_asset(
-                directory=os.path.join(os.path.dirname(__file__), "../.."),
-                file="infrastructure/Dockerfile",
-                platform=ecr_assets.Platform.LINUX_AMD64,
-                build_args={
-                    "BUILDKIT_INLINE_CACHE": "1",
-                },
-            ),
+            image=ecs.ContainerImage.from_docker_image_asset(docker_image_asset),
             logging=ecs.LogDrivers.aws_logs(
                 stream_prefix="business-case",
                 log_retention=logs.RetentionDays.ONE_WEEK,

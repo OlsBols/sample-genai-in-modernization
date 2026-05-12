@@ -28,18 +28,26 @@ const SERVICE_ANALYSIS_PROMPT = `I need you to analyze an AWS Pricing Calculator
 - This is a cloud migration infrastructure assessment
 - Customers typically underestimate non-compute infrastructure by 10x
 - We need to identify missing services across 6 critical categories to ensure production-ready, well-architected solutions
+- CRITICAL: Read the ENTIRE CSV carefully before making conclusions. Pay attention to:
+  * The "Group hierarchy" column — it shows environment structure (PRO, QA, DEV, DR, Networking, Security, etc.)
+  * The "Description" column — it describes what each service is used for (e.g., "EC2 - TimeScale Hot" means a self-managed database)
+  * The "Configuration summary" column — it contains details like EBS storage amounts, instance counts, and other configuration that may indicate services are present even without a dedicated line item
+- Do NOT flag services as missing if they are present but configured within another service (e.g., EBS within EC2, databases self-managed on EC2, DR as a separate environment group)
 
 **Analysis Required:**
 
 1. **INFRASTRUCTURE VALIDATION**
 - Extract and calculate total infrastructure costs from the CSV
 - Break down costs by service category:
-  * Compute (EC2, Fargate, Lambda, etc.)
+  * Compute (EC2, Fargate, Lambda, EKS, etc.)
   * Storage (S3, EBS, EFS, FSx, etc.)
   * Database (RDS, Aurora, DynamoDB, etc.)
   * Network (ALB, NLB, CloudFront, Route 53, Data Transfer, etc.)
   * Security (KMS, WAF, GuardDuty, Secrets Manager, etc.)
   * Monitoring (CloudWatch, CloudTrail, X-Ray, etc.)
+- IMPORTANT: EBS storage costs are embedded within EC2 line items in the AWS Pricing Calculator. When an EC2 instance has large EBS volumes (e.g., 18 TB, 52 TB), a significant portion of that EC2 cost IS storage. Acknowledge this in the storage breakdown.
+- IMPORTANT: Self-managed databases on EC2 (identifiable by descriptions like "TimeScale", "PostgreSQL", "MySQL", "MongoDB", "Oracle", "DB", "Database" in the Description column) should be noted as database infrastructure even though they appear as EC2 services. Do NOT say "no database" if EC2 instances are clearly running database workloads.
+- IMPORTANT: Look at the "Group hierarchy" column to understand environment structure (PRO, QA, DEV, DR, etc.). This provides critical context about the architecture.
 - Calculate compute vs non-compute ratio
 - Compare against production-ready benchmark (56% compute, 44% non-compute)
 
@@ -54,15 +62,22 @@ const SERVICE_ANALYSIS_PROMPT = `I need you to analyze an AWS Pricing Calculator
 
 **Category 2: Storage Infrastructure**
 - Check for: S3 (all tiers), EFS, FSx (Windows/Lustre/NetApp/OpenZFS), Storage Gateway, EBS volumes
+- IMPORTANT: EBS volumes are typically configured WITHIN EC2 instances in the AWS Pricing Calculator, not as a separate service line item. If ANY EC2 instance includes "EBS Storage amount" in its configuration summary, EBS volumes ARE included - do NOT flag EBS as missing. Look at the Configuration summary column of EC2 rows for "EBS Storage amount (X TB)" or "EBS Storage amount (X GB)". Sum up all EBS storage across EC2 instances and report the total.
+- IMPORTANT: When calculating Storage costs, include the EBS portion of EC2 costs. EBS storage embedded in EC2 line items is still storage infrastructure even though it appears under EC2 billing.
 - Common gap: Customers plan S3 Standard but miss FSx, Storage Gateway, S3 Intelligent-Tiering
 - Expected: 25-30% of total infrastructure costs
 - Questions: "Do you have Windows file shares? Need hybrid storage connectivity?"
 
 **Category 3: DR/HA Configuration**
-- Check for: Multi-AZ deployments, cross-region replication, Elastic Disaster Recovery, Route 53 health checks
+- Check for: Multi-AZ deployments, cross-region replication, Elastic Disaster Recovery, Route 53 health checks, dedicated DR environment groups
+- IMPORTANT: Check the "Group hierarchy" column for DR-related groups (e.g., "DR", "Disaster Recovery", "Failover"). If a dedicated DR environment exists with its own compute, storage, and services, DR IS included - do NOT flag as missing. Report what DR infrastructure is present.
+- IMPORTANT: If the customer is running self-managed databases on EC2 (e.g., TimescaleDB, PostgreSQL, MySQL on EC2) instead of RDS/Aurora, do NOT flag "no multi-AZ RDS" as a gap. Instead, ask whether the self-managed database instances are deployed across multiple AZs and whether replication is configured between them.
+- IMPORTANT: Look at the full architecture context. If there are separate PRO/QA/DR environment groups with similar services replicated, acknowledge this as a DR strategy.
+- IMPORTANT (Multi-AZ Detection): Check the "Configuration summary" column for "Number of instances: 2" or more on EC2/RDS entries — multiple instances of the same workload deployed in the same region IS multi-AZ deployment. State this as a fact (e.g., "TimeScale Hot is deployed multi-AZ with 2 instances"). For RDS/Aurora, check for "Multi-AZ" in the configuration summary. For EKS worker nodes with multiple instances, state they are spread across AZs. Do NOT ask the customer — make a definitive statement based on the data.
+- IMPORTANT (Multi-Region Detection): Check the "Region" column across all rows. If the DR group is deployed in a DIFFERENT region than the primary (PRO) environment, state definitively: "DR is multi-region (PRO in [region A], DR in [region B])". If all environments (PRO, QA, DR) are in the SAME region, state: "DR is single-region — all environments are in [region]. Cross-region failover is not configured." Make statements, not questions.
 - Common gap: Customers plan single-region only, no DR orchestration
 - Expected: 1-2% of total infrastructure costs
-- Questions: "What's your RTO/RPO? Need disaster recovery in another region?"
+- Questions: "Is single-region DR sufficient, or do you need cross-region failover for regional disaster scenarios?"
 
 **Category 4: Network Services**
 - Check for: ALB/NLB, CloudFront, Route 53, Transit Gateway, Direct Connect, VPN, Data Transfer, Public IPv4, NAT Gateway, Network Firewall
@@ -151,7 +166,7 @@ Provide 5-7 specific action items for engaging with the customer.
 
 4. **KEY COMPLETENESS CHECKS**
 
-Flag these red flags:
+Flag these red flags (but ONLY if genuinely missing after careful analysis):
 - ❌ No backup services (check for: AWS Backup, DynamoDB Backup, Aurora Backup, RDS Backup, EBS Backup, or any other *Backup service - if ANY are present, backup IS included)
 - ❌ No CDN (CloudFront) for web applications
 - ❌ No DNS service (Route 53)
@@ -162,6 +177,12 @@ Flag these red flags:
 - ❌ Security services <1% of total costs
 - ❌ No monitoring beyond basic CloudWatch
 - ❌ Compute >80% of total (non-compute severely underestimated)
+
+DO NOT flag these as red flags:
+- ✅ "No RDS/Aurora" when databases are self-managed on EC2 (e.g., TimescaleDB, PostgreSQL on EC2) — this is a valid architectural choice
+- ✅ "No EBS" when EBS is configured within EC2 instances (check Configuration summary column)
+- ✅ "No DR" when a dedicated DR environment group exists in the Group hierarchy
+- ✅ "No database" when EC2 instances are clearly running database workloads (check Description column for DB-related names)
 
 **Please analyze the provided CSV data and provide the complete analysis following this format.**`;
 
