@@ -7,56 +7,60 @@ This document explains how the Calculator Review Agent works end-to-end, coverin
 ## System Overview
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                         AWS Transform (ATX) Platform                             │
-│                                                                                 │
-│  ┌──────────────┐    ┌──────────────────┐    ┌──────────────────────────────┐   │
-│  │  Transform   │    │  ATX Agent       │    │  ATX Agentic API             │   │
-│  │  Web Console │───▶│  Registry        │───▶│  (Job Orchestration)         │   │
-│  │  (User Chat) │    │  (Discovery)     │    │  elasticgumbyagenticservice   │   │
-│  └──────────────┘    └──────────────────┘    └──────────────┬───────────────┘   │
-│                                                              │                   │
-└──────────────────────────────────────────────────────────────┼───────────────────┘
-                                                               │
++---------------------------------------------------------------------------------+
+|                         AWS Transform (ATX) Platform                            |
+|                                                                                 |
+|  +--------------+    +------------------+    +------------------------------+   |
+|  |  Transform   |    |  ATX Agent       |    |  ATX Agentic API             |   |
+|  |  Web Console |--->|  Registry        |--->|  (Job Orchestration)         |   |
+|  |  (User Chat) |    |  (Discovery)     |    |  elasticgumbyagenticservice  |   |
+|  +--------------+    +------------------+    +---------------+--------------+   |
+|                                                              |                  |
++--------------------------------------------------------------+------------------+
+                                                               |
                                               Assumes AWSTransformAgentInvokeRole
-                                                               │
-                                                               ▼
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                         Amazon Bedrock AgentCore                                 │
-│                                                                                 │
-│  ┌─────────────────────────────────────────────────────────────────────────┐    │
-│  │  Agent Runtime: calculator_review_agent_v3-DjaEF7Cpdc                   │    │
-│  │  Status: READY | Network: PUBLIC | Role: AgentCoreExecutionRole         │    │
-│  │                                                                         │    │
-│  │  ┌───────────────────────────────────────────────────────────────────┐  │    │
-│  │  │  Container (ARM64, Python 3.11)                                   │  │    │
-│  │  │                                                                   │  │    │
-│  │  │  ┌─────────────────┐   ┌──────────────────┐   ┌──────────────┐  │  │    │
-│  │  │  │ AgentRuntime    │   │ AsyncBase         │   │ Agentic MCP  │  │  │    │
-│  │  │  │ Server          │──▶│ Orchestrator      │──▶│ Server       │  │  │    │
-│  │  │  │ (Flask :8080)   │   │ (Strands Agent)   │   │ (Tool Use)   │  │  │    │
-│  │  │  └─────────────────┘   └────────┬─────────┘   └──────────────┘  │  │    │
-│  │  │                                  │                                │  │    │
-│  │  │                    ┌─────────────┼─────────────┐                  │  │    │
-│  │  │                    ▼             ▼             ▼                  │  │    │
-│  │  │           ┌──────────────┐ ┌──────────┐ ┌──────────────────┐     │  │    │
-│  │  │           │ Custom Tools │ │ Bedrock  │ │ Agentic API      │     │  │    │
-│  │  │           │ (review_     │ │ Models   │ │ (invoke other    │     │  │    │
-│  │  │           │  tools.py)   │ │ (Claude) │ │  subagents)      │     │  │    │
-│  │  │           └──────────────┘ └──────────┘ └──────────────────┘     │  │    │
-│  │  │                                                                   │  │    │
-│  │  └───────────────────────────────────────────────────────────────────┘  │    │
-│  └─────────────────────────────────────────────────────────────────────────┘    │
-│                                                                                 │
-└─────────────────────────────────────────────────────────────────────────────────┘
-                                       │
-                                       │ Pulls image from
-                                       ▼
-                              ┌──────────────────┐
-                              │  Amazon ECR      │
-                              │  calculator-     │
-                              │  review-agent    │
-                              └──────────────────┘
+                                                               |
+                                                               v
++---------------------------------------------------------------------------------+
+|                         Amazon Bedrock AgentCore                                |
+|                                                                                 |
+|  +-------------------------------------------------------------------------+    |
+|  |  Agent Runtime: calculator_review_agent_<timestamp>                     |    |
+|  |  Status: READY | Network: PUBLIC | Role: AgentCoreExecutionRole         |    |
+|  |                                                                         |    |
+|  |  +-------------------------------------------------------------------+  |    |
+|  |  |  Container (ARM64, Python 3.11)                                   |  |    |
+|  |  |                                                                   |  |    |
+|  |  |  +-----------------+   +------------------+   +--------------+    |  |    |
+|  |  |  | AgentRuntime    |   | AsyncBase        |   | Agentic MCP  |    |  |    |
+|  |  |  | Server          |-->| Orchestrator     |-->| Server       |    |  |    |
+|  |  |  | (Flask :8080)   |   | (Strands Agent)  |   | (Tool Use)   |    |  |    |
+|  |  |  +-----------------+   +--------+---------+   +--------------+    |  |    |
+|  |  |                                 |                                 |  |    |
+|  |  |                    +------------+------------+                    |  |    |
+|  |  |                    v            v            v                    |  |    |
+|  |  |           +--------------+ +----------+ +------------------+      |  |    |
+|  |  |           | Custom Tools | | Bedrock  | | Agentic API      |      |  |    |
+|  |  |           | (review_     | | Models   | | (invoke other    |      |  |    |
+|  |  |           |  tools.py)   | | (Claude  | |  subagents)      |      |  |    |
+|  |  |           |              | |  4.5     | |                  |      |  |    |
+|  |  |           |              | | Sonnet)  | |                  |      |  |    |
+|  |  |           +--------------+ +----------+ +------------------+      |  |    |
+|  |  |                                                                   |  |    |
+|  |  +-------------------------------------------------------------------+  |    |
+|  +-------------------------------------------------------------------------+    |
+|                                                                                 |
++---------------------------------------------------------------------------------+
+                                       |
+                                       | Pulls image from
+                                       v
+                              +------------------+
+                              |  Amazon ECR      |
+                              |  aws-transform-  |
+                              |  agents/         |
+                              |  calculator-     |
+                              |  review-agent    |
+                              +------------------+
 ```
 
 ---
@@ -89,8 +93,8 @@ Service Name:      atxagentregistryexternal
 
 | Field | Purpose |
 |-------|---------|
-| `name` | Unique identifier (e.g., `calculator-review`) |
-| `version` | Semantic version (e.g., `1.0.1`) |
+| `name` | Unique identifier (e.g., `calculator-review-agent`) |
+| `version` | Semantic version (e.g., `1.0.0`) |
 | `metadata.type` | `ORCHESTRATOR_AGENT` or `SUBAGENT` |
 | `agentCard` | A2A-style card describing capabilities |
 | `computeConfiguration.runtimeArn` | Points to the Bedrock AgentCore runtime |
@@ -127,9 +131,12 @@ Service: bedrock-agentcore-control (management)
 **Runtime lifecycle:**
 
 ```
-create-agent-runtime → CREATING → READY → (invocable)
-                                        → FAILED (if health check fails)
+create-agent-runtime --> CREATING --> READY --> (invocable)
+                                           --> FAILED (if health check fails)
 ```
+
+**Runtime naming convention:**
+The deploy scripts generate runtime names using the pattern `calculator_review_agent_<timestamp>` (e.g., `calculator_review_agent_1716048000`). The CloudFormation deployment uses `calculator_review_agent_<unix_epoch>`.
 
 **What AgentCore provides to your container:**
 - Network connectivity (PUBLIC mode = outbound internet)
@@ -164,6 +171,11 @@ Requires: Python >=3.11, <3.14
 6. Provides the Agentic MCP server for tool use (invoke subagents, manage jobs)
 7. Handles workload identity and auth token refresh
 
+**Server configuration:**
+- `host`: `0.0.0.0` (all interfaces)
+- `port`: `8080`
+- `delayed_timeout`: `3600` (1 hour max invocation time)
+
 ### 5. The Agentic MCP Server
 
 The MCP (Model Context Protocol) server runs as a sidecar process inside the container. It exposes platform operations as tools that the LLM can call.
@@ -190,22 +202,29 @@ The container is the **deployment artifact**. It packages everything needed to r
 FROM python:3.11-slim (ARM64)
 
 Contents:
-├── ATX SDK wheels (real implementation)
-├── Botocore service models (Registry + Agentic API)
-├── MCP server wrapper script
-├── Your agent source code
-├── requirements.txt dependencies
-└── ENTRYPOINT: python -m calculator_review_agent.calculator_review_cli
++-- ATX SDK wheels (from PyPI: agent-builder-sdk-aws-transform)
++-- ATX MCP package (from PyPI: agent-builder-agentic-mcp-aws-transform)
++-- ATX types package (from PyPI: agent-builder-types-aws-transform)
++-- ATX MCP client (from PyPI: agent-builder-mcp-client-aws-transform)
++-- Botocore service models (bundled in SDK, registered at build time)
++-- MCP server wrapper script (/home/amazon/AgentBuilderAgenticMCP/bin/)
++-- Your agent source code (calculator_review_agent/)
++-- requirements.txt dependencies (requests, strands-agents)
++-- ENTRYPOINT: python -m calculator_review_agent.calculator_review_cli
 ```
 
 **Container startup sequence:**
 1. `calculator_review_cli.py` runs
-2. Creates `AgentRuntimeServer` with your `agent_factory`
+2. Creates `AgentRuntimeServer` with your `agent_factory` and `delayed_timeout=3600`
 3. Server starts Flask on `0.0.0.0:8080`
 4. AgentCore sends `/ping` — container responds 200 → runtime becomes READY
 5. When a job arrives, server calls `agent_factory(mcp_client)`
-6. Factory creates your `CalculatorReviewOrchestrator` instance
-7. Orchestrator processes the message using Strands + Claude + your tools
+6. Factory creates `CalculatorReviewOrchestrator` instance with:
+   - System prompt loaded from `prompts/system_prompt.md`
+   - Model: `us.anthropic.claude-sonnet-4-5-20250929-v1:0`
+   - Custom tools: `[analyze_calculator_url]`
+   - MCP clients: `[mcp_client]` (for Agentic API tools)
+7. Orchestrator processes the message using Strands + Claude Sonnet 4.5 + your tools
 
 ---
 
@@ -213,49 +232,82 @@ Contents:
 
 ```
 User types in Transform Console
-        │
-        ▼
-┌─────────────────────────────────────────────────────────────┐
-│ 1. Transform Platform                                        │
-│    - Identifies agent from registry (calculator-review)      │
-│    - Creates job via Agentic API                             │
-│    - Assumes AWSTransformAgentInvokeRole                     │
-└─────────────────────────────────┬───────────────────────────┘
-                                  │
-                                  ▼
-┌─────────────────────────────────────────────────────────────┐
-│ 2. Bedrock AgentCore                                         │
-│    - Receives InvokeAgentRuntime call                         │
-│    - Routes to container at :8080/invoke                      │
-│    - Passes message payload + context                         │
-└─────────────────────────────────┬───────────────────────────┘
-                                  │
-                                  ▼
-┌─────────────────────────────────────────────────────────────┐
-│ 3. AgentRuntimeServer (inside container)                     │
-│    - Deserializes request into ProcessMessageRequest          │
-│    - Calls agent_factory() to get orchestrator instance       │
-│    - Passes message to AsyncBaseOrchestrator                  │
-└─────────────────────────────────┬───────────────────────────┘
-                                  │
-                                  ▼
-┌─────────────────────────────────────────────────────────────┐
-│ 4. AsyncBaseOrchestrator                                     │
-│    - Manages conversation history (multi-source)             │
-│    - Sends system_prompt + message to Strands Agent          │
-│    - Strands Agent calls Claude (via Bedrock)                │
-│    - Claude decides to use tools (analyze_calculator_url)    │
-│    - Tool executes, result returned to Claude                │
-│    - Claude generates final response                         │
-└─────────────────────────────────┬───────────────────────────┘
-                                  │
-                                  ▼
-┌─────────────────────────────────────────────────────────────┐
-│ 5. Response flows back                                       │
-│    Container → AgentCore → Agentic API → Transform UI        │
-│    User sees the analysis in the chat window                 │
-└─────────────────────────────────────────────────────────────┘
+        |
+        v
++-------------------------------------------------------------+
+| 1. Transform Platform                                        |
+|    - Identifies agent from registry (calculator-review-agent)|
+|    - Creates job via Agentic API                             |
+|    - Assumes AWSTransformAgentInvokeRole                     |
++---------------------------------+---------------------------+
+                                  |
+                                  v
++-------------------------------------------------------------+
+| 2. Bedrock AgentCore                                         |
+|    - Receives InvokeAgentRuntime call                        |
+|    - Routes to container at :8080/invoke                     |
+|    - Passes message payload + context                        |
++---------------------------------+---------------------------+
+                                  |
+                                  v
++-------------------------------------------------------------+
+| 3. AgentRuntimeServer (inside container)                     |
+|    - Deserializes request into ProcessMessageRequest         |
+|    - Calls agent_factory() to get orchestrator instance      |
+|    - Passes message to AsyncBaseOrchestrator                 |
++---------------------------------+---------------------------+
+                                  |
+                                  v
++-------------------------------------------------------------+
+| 4. AsyncBaseOrchestrator (CalculatorReviewOrchestrator)      |
+|    - Manages conversation history (multi-source)             |
+|    - Sends system_prompt + message to Strands Agent          |
+|    - Strands Agent calls Claude Sonnet 4.5 (via Bedrock)     |
+|    - Claude decides to use tools (analyze_calculator_url)    |
+|    - Tool executes, result returned to Claude                |
+|    - Claude generates final response (3 tabs)                |
++---------------------------------+---------------------------+
+                                  |
+                                  v
++-------------------------------------------------------------+
+| 5. Response flows back                                       |
+|    Container --> AgentCore --> Agentic API --> Transform UI  |
+|    User sees the analysis in the chat window                 |
++-------------------------------------------------------------+
 ```
+
+---
+
+## Tool: `analyze_calculator_url`
+
+The single custom tool exposed to the LLM. Implemented in `tools/review_tools.py`, backed by `core/analyzer.py`.
+
+**Input:** AWS Pricing Calculator URL (ESC or non-ESC)
+
+**Output:** Structured analysis covering three tabs:
+
+| Tab | Content |
+|-----|---------|
+| **Tab 1: Service Breakdown** | Per-service costs, MAP-qualified MRR, data transfer exclusions, EC2 Savings Plans, RDS/Redshift/ElastiCache/OpenSearch RI, EBS gp2→gp3 and io1→io2, Fargate Compute SP, Graviton migration |
+| **Tab 2: Modernization Pathways** | 6 pathway classifications (Move to AI, Cloud Native, Containers, Managed Analytics, Managed Databases, Modern DevOps), Modernization Index, per-pathway ARR |
+| **Tab 3: Service Completeness** | AI-powered gap analysis across 6 categories (Backup, Storage, DR/HA, Network, Observability, Security), compute/non-compute ratio vs 56/44 benchmark, missing services with estimated costs |
+
+**Core analysis engine** (`core/analyzer.py` — `CalcReviewAnalyzer`):
+
+| Method | Purpose |
+|--------|---------|
+| `analyze_url()` | Main entry point — fetches estimate, runs all analysis |
+| `_process_node()` | Recursively walks estimate tree |
+| `_extract_service_entry()` | Extracts cost data per service |
+| `_run_ec2_sp_optimization()` | EC2 Savings Plans pricing lookups |
+| `_run_ri_optimization()` | Reserved Instance optimization (RDS, Redshift, ElastiCache, OpenSearch) |
+| `_run_ebs_optimization()` | EBS volume migration (gp2→gp3, io1→io2) |
+| `_add_advisory_notes()` | Fargate Compute SP and Graviton recommendations |
+| `_calculate_outbound_dt_cost()` | Data transfer exclusion calculations |
+| `_aggregate_services()` | Combines line items into service-level view |
+| `_calculate_pathways()` | Modernization pathway classification |
+| `_fetch_pricing_json()` | Fetches real-time AWS pricing data |
+| `_load_service_manifest()` | Loads calculator service manifest |
 
 ---
 
@@ -264,40 +316,48 @@ User types in Transform Console
 Understanding who assumes what role and why:
 
 ```
-┌──────────────────┐         ┌─────────────────────────────┐
-│ User (Identity   │         │ AWSTransformAgentInvokeRole  │
-│ Center / Console)│────────▶│                              │
-│                  │ assumes  │ Trusted by: ATX platform     │
-└──────────────────┘         │ Permissions:                 │
-                             │  - bedrock-agentcore:        │
-                             │    InvokeAgentRuntime        │
-                             │  - bedrock-agentcore:        │
-                             │    GetAgentRuntime           │
-                             └──────────────┬──────────────┘
-                                            │ calls
-                                            ▼
-                             ┌─────────────────────────────┐
-                             │ Bedrock AgentCore            │
-                             │ (runs your container with    │
-                             │  AgentCoreExecutionRole)     │
-                             └──────────────┬──────────────┘
-                                            │ container uses
-                                            ▼
-                             ┌─────────────────────────────┐
-                             │ AgentCoreExecutionRole       │
-                             │                              │
-                             │ Trusted by:                  │
-                             │  bedrock-agentcore.amazonaws │
-                             │                              │
-                             │ Permissions:                 │
-                             │  - bedrock:InvokeModel       │
-                             │  - transform-agents:*        │
-                             │  - ecr:GetDownloadUrl...     │
-                             │  - logs:PutLogEvents         │
-                             │  - xray:PutTraceSegments     │
-                             │  - bedrock-agentcore:        │
-                             │    GetWorkloadAccessToken    │
-                             └─────────────────────────────┘
++------------------+         +-----------------------------+
+| User (Identity   |         | AWSTransformAgentInvokeRole |
+| Center / Console)|-------->|                             |
+|                  | assumes |  Trusted by:                |
++------------------+         |   prod.us-east-1.compute.   |
+                             |   elastic-gumby.aws.internal|
+                             |                             |
+                             | Permissions:                |
+                             |  - bedrock-agentcore:       |
+                             |    InvokeAgentRuntime       |
+                             |  - bedrock-agentcore:       |
+                             |    GetAgentRuntime          |
+                             |  - bedrock-agentcore:       |
+                             |    GetAgentRuntimeEndpoint  |
+                             +---------------+-------------+
+                                             | calls
+                                             v
+                             +-----------------------------+
+                             | Bedrock AgentCore           |
+                             | (runs your container with   |
+                             |  AgentCoreExecutionRole)    |
+                             +---------------+-------------+
+                                             | container uses
+                                             v
+                             +-----------------------------+
+                             | AgentCoreExecutionRole      |
+                             |                             |
+                             | Trusted by:                 |
+                             |  bedrock-agentcore.         |
+                             |  amazonaws.com              |
+                             |                             |
+                             | Permissions:                |
+                             |  - bedrock:InvokeModel      |
+                             |  - bedrock:Converse         |
+                             |  - transform-agents:*       |
+                             |  - eg-agenticapi:*          |
+                             |  - ecr:GetDownloadUrl...    |
+                             |  - logs:PutLogEvents        |
+                             |  - xray:PutTraceSegments    |
+                             |  - bedrock-agentcore:       |
+                             |    GetWorkloadAccessToken   |
+                             +-----------------------------+
 ```
 
 **Key insight:** The container itself doesn't have AWS credentials baked in. AgentCore injects credentials via the execution role, similar to how ECS task roles work.
@@ -309,27 +369,27 @@ Understanding who assumes what role and why:
 The real power of ATX is composability — agents invoking other agents:
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    ATX Workspace                                  │
-│                                                                  │
-│  User: "Review this calculator and create a migration plan"      │
-│                                                                  │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │  Workspace Orchestrator (ATX built-in)                    │   │
-│  │  Decides which agents to invoke based on capabilities     │   │
-│  └────────────┬─────────────────────────────┬───────────────┘   │
-│               │                             │                    │
-│               ▼                             ▼                    │
-│  ┌────────────────────────┐   ┌────────────────────────────┐   │
-│  │  Calculator Review     │   │  Migration Planning        │   │
-│  │  Agent (yours)         │   │  Agent (another team's)    │   │
-│  │                        │   │                            │   │
-│  │  Analyzes pricing URL  │   │  Creates wave plan from    │   │
-│  │  Returns: cost data,   │   │  inventory + cost data     │   │
-│  │  MAP MRR, optimization │   │                            │   │
-│  └────────────────────────┘   └────────────────────────────┘   │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
++-----------------------------------------------------------------+
+|                    ATX Workspace                                 |
+|                                                                  |
+|  User: "Review this calculator and create a migration plan"      |
+|                                                                  |
+|  +----------------------------------------------------------+    |
+|  |  Workspace Orchestrator (ATX built-in)                    |   |
+|  |  Decides which agents to invoke based on capabilities     |   |
+|  +----------------+-------------------------+---------------+    |
+|                   |                         |                    |
+|                   v                         v                    |
+|  +------------------------+   +----------------------------+     |
+|  |  Calculator Review     |   |  Migration Planning        |     |
+|  |  Agent (yours)         |   |  Agent (another team's)    |     |
+|  |                        |   |                            |     |
+|  |  Analyzes pricing URL  |   |  Creates wave plan from    |     |
+|  |  Returns: cost data,   |   |  inventory + cost data     |     |
+|  |  MAP MRR, optimization |   |                            |     |
+|  +------------------------+   +----------------------------+     |
+|                                                                  |
++-----------------------------------------------------------------+
 ```
 
 **How discovery works:**
@@ -353,31 +413,67 @@ The real power of ATX is composability — agents invoking other agents:
 
 ---
 
-## Deployment Pipeline Diagram
+## Project Structure
 
 ```
-┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐
-│  Source  │    │  Build   │    │   ECR    │    │ AgentCore│    │ Registry │
-│  Code    │───▶│  Image   │───▶│  Push    │───▶│  Deploy  │───▶│ Publish  │
-│          │    │ (ARM64)  │    │          │    │          │    │          │
-└──────────┘    └──────────┘    └──────────┘    └──────────┘    └──────────┘
-                     │
-                     │ pip install from PyPI
-                     ▼
-            ┌──────────────────┐
-            │ PyPI Packages    │
-            │ agent-builder-   │
-            │ sdk-aws-transform│
-            │ (v1.0.1+)       │
-            └──────────────────┘
+calculator-review-agent/
++-- src/
+|   +-- calculator_review_agent/
+|       +-- __init__.py
+|       +-- calculator_review_cli.py        # Entry point (AgentRuntimeServer)
+|       +-- core/
+|       |   +-- __init__.py
+|       |   +-- analyzer.py                 # CalcReviewAnalyzer (analysis engine)
+|       |   +-- constants.py                # Pricing URLs, region maps, pathway mappings
+|       +-- prompts/
+|       |   +-- system_prompt.md            # LLM system prompt (3-tab output format)
+|       +-- tools/
+|           +-- __init__.py
+|           +-- review_tools.py             # @tool analyze_calculator_url
++-- infrastructure/
+|   +-- cloudformation-deploy.yaml          # One-click deployment (ECR + CodeBuild + AgentCore + Registry)
+|   +-- iam-roles.yaml                      # Standalone IAM role definitions
++-- Dockerfile                              # ARM64 container build
++-- build.sh                                # Local container build script
++-- deploy.sh                               # Full deploy pipeline (build + ECR + AgentCore)
++-- requirements.txt                        # Python deps (requests, strands-agents)
++-- README.md                               # Setup and usage guide
++-- ARCHITECTURE.md                         # This file
++-- LICENSE
+```
+
+---
+
+## Deployment Pipeline
+
+```
++----------+    +----------+    +----------+    +----------+    +----------+
+|  Source  |    |  Build   |    |   ECR    |    | AgentCore|    | Registry |
+|  Code    |--->|  Image   |--->|  Push    |--->|  Deploy  |--->| Publish  |
+|          |    | (ARM64)  |    |          |    |          |    |          |
++----------+    +----------+    +----------+    +----------+    +----------+
+                     |
+                     | pip install from PyPI
+                     v
+            +------------------+
+            | PyPI Packages    |
+            | agent-builder-   |
+            | sdk-aws-transform|
+            | (v1.0.1+)        |
+            +------------------+
 ```
 
 | Stage | Tool | What Happens |
 |-------|------|--------------|
-| Build | `finch build` or CodeBuild | Installs SDK from PyPI, creates MCP wrapper |
-| Push | `finch push` | Pushes ARM64 image to ECR in your account |
-| Deploy | `aws bedrock-agentcore-control create-agent-runtime` | Creates runtime, AgentCore pulls image, starts container, polls health |
-| Register | `boto3 atxagentregistryexternal.publish_agent_version` | Publishes version with runtime ARN, makes agent discoverable |
+| Build | `finch build` or CodeBuild | Installs SDK from PyPI, creates MCP wrapper, copies agent source |
+| Push | `finch push` or CodeBuild | Pushes ARM64 image to ECR (`aws-transform-agents/calculator-review-agent`) |
+| Deploy | `aws bedrock-agentcore-control create-agent-runtime` | Creates runtime, AgentCore pulls image, starts container, polls `/ping` |
+| Register | CloudFormation custom resource or manual | Publishes version with runtime ARN to ATX Agent Registry |
+
+**Two deployment paths:**
+
+1. **Manual** (`deploy.sh`): Build locally with finch/docker, push to ECR, create AgentCore runtime
+2. **CloudFormation** (`infrastructure/cloudformation-deploy.yaml`): One-click deployment — creates ECR repo, triggers CodeBuild (ARM64), deploys AgentCore runtime, registers with ATX Agent Registry, sets up Cognito auth
 
 ---
 
@@ -386,7 +482,7 @@ The real power of ATX is composability — agents invoking other agents:
 | Service | Endpoint | CLI Service Name |
 |---------|----------|-----------------|
 | ATX Agent Registry | `https://iad.prod.agent-registry-external.elastic-gumby.ai.aws.dev` | `atxagentregistryexternal` |
-| ATX Agentic API | (internal, via MCP server) | `elasticgumbyagenticservice` |
+| ATX Agentic API | (internal, via MCP server) | `elasticgumbyagenticservice` / `transformagenticservice` |
 | Bedrock AgentCore Control | `https://bedrock-agentcore-control.us-east-1.amazonaws.com` | `bedrock-agentcore-control` |
 | Bedrock AgentCore Data | `https://bedrock-agentcore.us-east-1.amazonaws.com` | `bedrock-agentcore` |
 | ECR | `https://<account>.dkr.ecr.us-east-1.amazonaws.com` | `ecr` |
@@ -410,40 +506,40 @@ aws configure add-model --service-name transformagenticservice \
   --service-model "file://${SDK_MODELS}/transformagenticservice/2018-05-10/service-2.json"
 ```
 
-These get installed to `~/.aws/models/` and enable `aws atxagentregistryexternal ...` and `aws transformagenticservice ...` CLI commands.
+These get installed to `~/.aws/models/` and enable `aws atxagentregistryexternal ...` and `aws transformagenticservice ...` CLI commands. The Dockerfile registers these models at build time.
 
 ---
 
 ## Security Model
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Trust Boundaries                           │
-│                                                              │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │ ATX Platform (trusted)                                  │ │
-│  │  - Authenticates users via Identity Center              │ │
-│  │  - Assumes AWSTransformAgentInvokeRole to call agents   │ │
-│  └────────────────────────────────────────────────────────┘ │
-│                          │                                   │
-│                          ▼                                   │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │ Bedrock AgentCore (trusted)                             │ │
-│  │  - Validates IAM caller has InvokeAgentRuntime          │ │
-│  │  - Injects execution role credentials into container    │ │
-│  │  - Provides workload identity tokens for A2A auth       │ │
-│  └────────────────────────────────────────────────────────┘ │
-│                          │                                   │
-│                          ▼                                   │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │ Your Container (your code)                              │ │
-│  │  - Runs with AgentCoreExecutionRole permissions         │ │
-│  │  - Can call Bedrock models, write logs                  │ │
-│  │  - Can invoke other agents via Agentic API              │ │
-│  │  - Cannot access resources outside its role policy      │ │
-│  └────────────────────────────────────────────────────────┘ │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
++-------------------------------------------------------------+
+|                    Trust Boundaries                          |
+|                                                              |
+|  +--------------------------------------------------------+  |
+|  | ATX Platform (trusted)                                  | |
+|  |  - Authenticates users via Identity Center              | |
+|  |  - Assumes AWSTransformAgentInvokeRole to call agents   | |
+|  +--------------------------------------------------------+  |
+|                          |                                   |
+|                          v                                   |
+|  +--------------------------------------------------------+  |
+|  | Bedrock AgentCore (trusted)                             | |
+|  |  - Validates IAM caller has InvokeAgentRuntime          | |
+|  |  - Injects execution role credentials into container    | |
+|  |  - Provides workload identity tokens for A2A auth       | |
+|  +--------------------------------------------------------+  |
+|                          |                                   |
+|                          v                                   |
+|  +--------------------------------------------------------+  |
+|  | Your Container (your code)                              | |
+|  |  - Runs with AgentCoreExecutionRole permissions         | |
+|  |  - Can call Bedrock models, write logs                  | |
+|  |  - Can invoke other agents via Agentic API              | |
+|  |  - Cannot access resources outside its role policy      | |
+|  +--------------------------------------------------------+  |
+|                                                              |
++-------------------------------------------------------------+
 ```
 
 **Agent-to-Agent authentication:**
@@ -466,4 +562,5 @@ When your orchestrator invokes a subagent, the Agentic MCP server uses workload 
 | **Workload Identity** | Token-based auth for agent-to-agent communication |
 | **ATX** | AWS Transform — the platform for modernization and migration |
 | **MAP** | Migration Acceleration Program — AWS incentive program |
-| **ESC** | Estimate Share Code — shareable calculator URL format |
+| **ESC** | European Sovereign Cloud — separate AWS partition with EUR pricing |
+| **MRR** | Monthly Recurring Revenue — MAP-qualified spend metric |
