@@ -6,6 +6,7 @@ from flask_cors import CORS
 import os
 import sys
 import json
+import hashlib
 import logging
 import re
 from werkzeug.utils import secure_filename
@@ -49,7 +50,19 @@ else:
 # Cognito authentication (only when COGNITO_USER_POOL_ID is set)
 from cognito_auth import is_cognito_enabled, register_auth_routes, get_user_from_session
 if is_cognito_enabled():
-    app.secret_key = os.environ.get('FLASK_SECRET_KEY', os.urandom(32).hex())
+    # Use a stable secret key so sessions survive container restarts
+    # Falls back to a deterministic key derived from Cognito config if not explicitly set
+    default_secret = hashlib.sha256(
+        f"{os.environ.get('COGNITO_USER_POOL_ID', '')}-{os.environ.get('COGNITO_CLIENT_ID', '')}".encode()
+    ).hexdigest()
+    app.secret_key = os.environ.get('FLASK_SECRET_KEY', default_secret)
+    
+    # Cookie settings for self-signed cert compatibility
+    app.config['SESSION_COOKIE_SECURE'] = False  # Allow cookies over untrusted HTTPS
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    app.config['PERMANENT_SESSION_LIFETIME'] = 86400 * 7  # 7 days
+    
     register_auth_routes(app)
     print("✓ Cognito authentication enabled")
 

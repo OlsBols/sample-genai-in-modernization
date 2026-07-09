@@ -136,6 +136,7 @@ def register_auth_routes(app):
             return jsonify({'error': 'Invalid token'}), 500
         
         # Store user in session
+        session.permanent = True  # Use PERMANENT_SESSION_LIFETIME (7 days)
         given_name = (user_info.get('given_name') or
                       user_info.get('name', '').split()[0] if user_info.get('name') else
                       user_info.get('email', 'User').split('@')[0])

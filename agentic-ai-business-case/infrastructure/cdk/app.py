@@ -13,7 +13,7 @@ Build timestamp: 2026-03-05 12:00 - 3yr RI pricing + removed ARR Calculator
 """
 
 from aws_cdk import (
-    App, Stack, Duration, RemovalPolicy, SecretValue,
+    App, Stack, Duration, RemovalPolicy, SecretValue, CustomResource,
     aws_ec2 as ec2,
     aws_ecs as ecs,
     aws_ecs_patterns as ecs_patterns,
@@ -26,6 +26,8 @@ from aws_cdk import (
     aws_iam as iam,
     aws_logs as logs,
     aws_ecr_assets as ecr_assets,
+    aws_lambda as _lambda,
+    custom_resources as cr,
 )
 from constructs import Construct
 import os
@@ -198,8 +200,7 @@ class BusinessCaseGeneratorStack(Stack):
             image=ecs.ContainerImage.from_asset(
                 directory=os.path.join(os.path.dirname(__file__), "../.."),  # Project root
                 file="infrastructure/Dockerfile",
-                platform=ecr_assets.Platform.LINUX_AMD64,  # Specify platform
-                # Use bundling to build in cloud if local Docker not available
+                platform=ecr_assets.Platform.LINUX_AMD64,
                 build_args={
                     "BUILDKIT_INLINE_CACHE": "1",
                 },
@@ -227,6 +228,83 @@ class BusinessCaseGeneratorStack(Stack):
         
         container.add_port_mappings(
             ecs.PortMapping(container_port=8080, protocol=ecs.Protocol.TCP)
+        )
+        
+        # ====================================================================
+        # ECR Cleanup on Stack Deletion
+        # Lambda-backed custom resource that empties CDK-managed ECR repos
+        # so CloudFormation can delete the stack cleanly from the console
+        # ====================================================================
+        ecr_cleanup_function = _lambda.Function(
+            self, "EcrCleanupFunction",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            handler="index.handler",
+            timeout=Duration.seconds(300),
+            code=_lambda.Code.from_inline("""
+import boto3
+import cfnresponse
+
+def handler(event, context):
+    if event['RequestType'] != 'Delete':
+        cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+        return
+    
+    try:
+        ecr = boto3.client('ecr')
+        account_id = event['ResourceProperties']['AccountId']
+        
+        # Find all CDK-managed ECR repos for this stack
+        repos = ecr.describe_repositories()['repositories']
+        cdk_repos = [r for r in repos if 'cdk-' in r['repositoryName'] or 'businesscasegenerator' in r['repositoryName'].lower() or 'business-case-generator' in r['repositoryName'].lower()]
+        
+        for repo in cdk_repos:
+            repo_name = repo['repositoryName']
+            try:
+                # List all images
+                images = ecr.list_images(repositoryName=repo_name)['imageIds']
+                if images:
+                    # Delete all images in batches of 100
+                    for i in range(0, len(images), 100):
+                        batch = images[i:i+100]
+                        ecr.batch_delete_image(repositoryName=repo_name, imageIds=batch)
+                    print(f"Deleted {len(images)} images from {repo_name}")
+                
+                # Delete the repository
+                ecr.delete_repository(repositoryName=repo_name, force=True)
+                print(f"Deleted repository {repo_name}")
+            except ecr.exceptions.RepositoryNotFoundException:
+                print(f"Repository {repo_name} already deleted")
+            except Exception as e:
+                print(f"Error cleaning {repo_name}: {e}")
+        
+        cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+    except Exception as e:
+        print(f"Error: {e}")
+        # Don't fail the stack deletion
+        cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+"""),
+        )
+        
+        # Grant ECR permissions to the cleanup function
+        ecr_cleanup_function.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=[
+                    "ecr:DescribeRepositories",
+                    "ecr:ListImages",
+                    "ecr:BatchDeleteImage",
+                    "ecr:DeleteRepository",
+                ],
+                resources=["*"],
+            )
+        )
+        
+        # Create the custom resource (triggers on stack deletion)
+        ecr_cleanup = CustomResource(
+            self, "EcrCleanupResource",
+            service_token=ecr_cleanup_function.function_arn,
+            properties={
+                "AccountId": self.account,
+            },
         )
         
         # ====================================================================
@@ -292,6 +370,7 @@ class BusinessCaseGeneratorStack(Stack):
                 authorization_endpoint=oidc_authorization_endpoint,
                 token_endpoint=oidc_token_endpoint,
                 user_info_endpoint=oidc_user_info_endpoint,
+                session_timeout=Duration.days(7),
                 next=elbv2.ListenerAction.forward([target_group]),
             ),
         )

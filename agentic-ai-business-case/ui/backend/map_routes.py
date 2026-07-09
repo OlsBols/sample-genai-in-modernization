@@ -2766,6 +2766,14 @@ def analyze_calculator_url():
         result = {
             'success': True,
             'services': services,
+            'raw_services': [{
+                'group': s.get('group', ''),
+                'service_name': s.get('service_name', ''),
+                'region': s.get('region', ''),
+                'description': s.get('description', ''),
+                'config_summary': s.get('config_summary', ''),
+                'monthly_cost': s.get('monthly_cost', 0),
+            } for s in raw_services],
             'serviceCount': len(services),
             'calculatorUrl': calculator_url,
             'calculatorId': calculator_id,

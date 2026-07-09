@@ -58,14 +58,28 @@ BEDROCK_RETRY_CONFIG = Config(
 #   1. Increase ECS task CPU/Memory (recommended: 2048 CPU / 4096 Memory)
 #   2. Or request a Bedrock quota increase for Claude Sonnet 4.5
 #   3. Or switch to Claude Sonnet 4.6 which may have higher default quotas
-model_id_claude3_7="us.anthropic.claude-sonnet-4-5-20250929-v1:0"  # Claude Sonnet 4.5
+
+# Base model ID (geo prefix applied dynamically based on AWS_REGION)
+_SONNET_BASE_MODEL_ID = "anthropic.claude-sonnet-4-5-20250929-v1:0"
+
+def _get_region_prefix():
+    """Get the correct cross-region inference prefix based on AWS_REGION."""
+    region = os.environ.get('AWS_REGION', 'us-east-1')
+    if region.startswith("eu-"):
+        return "eu."
+    elif region.startswith("ap-southeast-2") or region.startswith("ap-southeast-4") or region.startswith("ap-southeast-6"):
+        return "au."
+    else:
+        return "us."
+
+model_id_claude3_7 = f"{_get_region_prefix()}{_SONNET_BASE_MODEL_ID}"  # Claude Sonnet 4.5 (region-aware)
 max_tokens_default = 8192
 
 # Alternative models:
 # model_id_claude3_7="anthropic.claude-3-sonnet-20240229-v1:0"  # Claude 3 (4096 tokens)
 # model_id_claude3_7="anthropic.claude-3-haiku-20240307-v1:0"  # Faster, cheaper (4096 tokens)
 
-model_id_nova_ite="us.amazon.nova-lite-v1:0"
+model_id_nova_ite=f"{_get_region_prefix()}amazon.nova-lite-v1:0"
 model_temperature=0.3
 
 # Multi-stage generation settings

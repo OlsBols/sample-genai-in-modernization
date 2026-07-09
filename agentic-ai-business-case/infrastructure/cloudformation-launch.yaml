@@ -276,6 +276,7 @@ Resources:
   # ==========================================================================
   ECRRepository:
     Type: AWS::ECR::Repository
+    DeletionPolicy: Delete
     Properties:
       RepositoryName: business-case-generator
       ImageScanningConfiguration:
@@ -296,6 +297,105 @@ Resources:
               }
             ]
           }
+
+  # ==========================================================================
+  # ECR Cleanup - Empties ECR repo on stack deletion so CloudFormation can delete it
+  # ==========================================================================
+  ECRCleanupRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ECRCleanupPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecr:DescribeRepositories
+                  - ecr:ListImages
+                  - ecr:BatchDeleteImage
+                  - ecr:DeleteRepository
+                Resource: !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/business-case-generator
+
+  ECRCleanupLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-ecr-cleanup
+      Runtime: python3.12
+      Handler: index.handler
+      Timeout: 300
+      MemorySize: 128
+      Role: !GetAtt ECRCleanupRole.Arn
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import urllib.request
+
+          def handler(event, context):
+              response_data = {}
+              physical_id = 'ECRCleanup'
+              try:
+                  if event.get('RequestType') != 'Delete':
+                      send_response(event, context, 'SUCCESS', response_data, physical_id)
+                      return
+
+                  repo_name = event['ResourceProperties']['RepositoryName']
+                  ecr = boto3.client('ecr')
+
+                  try:
+                      # List all images in the repository
+                      images = ecr.list_images(repositoryName=repo_name)['imageIds']
+                      if images:
+                          # Delete in batches of 100
+                          for i in range(0, len(images), 100):
+                              batch = images[i:i+100]
+                              ecr.batch_delete_image(repositoryName=repo_name, imageIds=batch)
+                          print(f"Deleted {len(images)} images from {repo_name}")
+                      else:
+                          print(f"No images in {repo_name}")
+                  except ecr.exceptions.RepositoryNotFoundException:
+                      print(f"Repository {repo_name} not found - already deleted")
+                  except Exception as e:
+                      print(f"Error cleaning ECR: {e}")
+
+                  send_response(event, context, 'SUCCESS', response_data, physical_id)
+              except Exception as e:
+                  print(f"Error: {e}")
+                  # Don't fail stack deletion
+                  send_response(event, context, 'SUCCESS', response_data, physical_id)
+
+          def send_response(event, context, status, data, physical_id, reason=''):
+              body = json.dumps({
+                  'Status': status,
+                  'Reason': reason or f"See CloudWatch: {context.log_stream_name}",
+                  'PhysicalResourceId': physical_id,
+                  'StackId': event['StackId'],
+                  'RequestId': event['RequestId'],
+                  'LogicalResourceId': event['LogicalResourceId'],
+                  'Data': data
+              })
+              req = urllib.request.Request(
+                  event['ResponseURL'], data=body.encode('utf-8'),
+                  headers={'Content-Type': 'application/json'}, method='PUT'
+              )
+              urllib.request.urlopen(req)
+
+  ECRCleanup:
+    Type: Custom::ECRCleanup
+    DependsOn: ECRRepository
+    Properties:
+      ServiceToken: !GetAtt ECRCleanupLambda.Arn
+      RepositoryName: business-case-generator
 
   # ==========================================================================
   # Cognito User Pool
